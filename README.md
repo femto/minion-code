@@ -17,8 +17,6 @@
 git clone <repository-url>
 cd minion-code
 
-# 安装依赖（如果需要）
-pip install -r requirements.txt  # 如果有的话
 ```
 
 ## 快速开始
