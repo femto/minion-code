@@ -6,7 +6,7 @@
 
 import glob
 from pathlib import Path
-from .base_tool import BaseTool
+from minion.tools import BaseTool
 
 
 class GlobTool(BaseTool):

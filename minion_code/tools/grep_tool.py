@@ -7,7 +7,7 @@
 import re
 from pathlib import Path
 from typing import List, Optional
-from .base_tool import BaseTool
+from minion.tools import BaseTool
 
 
 class GrepTool(BaseTool):

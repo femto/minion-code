@@ -1,6 +1,12 @@
 """Basic tests for the minion-code package."""
 
+import sys
+import os
 import pytest
+
+# 添加 minion 框架路径
+sys.path.insert(0, "/Users/femtozheng/python-project/minion1")
+
 from minion_code import __init__
 
 

@@ -7,7 +7,7 @@ Bash命令执行工具
 import os
 import subprocess
 from typing import Optional
-from .base_tool import BaseTool
+from minion.tools import BaseTool
 
 
 class BashTool(BaseTool):

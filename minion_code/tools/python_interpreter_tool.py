@@ -7,7 +7,7 @@ Python代码执行工具
 import io
 import sys
 from contextlib import redirect_stdout, redirect_stderr
-from .base_tool import BaseTool
+from minion.tools import BaseTool
 
 
 class PythonInterpreterTool(BaseTool):

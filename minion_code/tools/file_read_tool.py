@@ -6,7 +6,7 @@
 
 from pathlib import Path
 from typing import Optional
-from .base_tool import BaseTool
+from minion.tools import BaseTool
 
 
 class FileReadTool(BaseTool):

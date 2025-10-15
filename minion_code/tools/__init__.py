@@ -5,8 +5,8 @@ Minion Code Tools Package
 A collection of development tools for code analysis and manipulation.
 """
 
-# Import base classes from local implementation
-from .base_tool import BaseTool, tool, ToolCollection
+# Import base classes from minion framework
+from minion.tools import BaseTool, tool, ToolCollection
 
 # Import individual tools
 from .file_read_tool import FileReadTool
