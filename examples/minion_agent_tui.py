@@ -53,8 +53,19 @@ logger = logging.getLogger(__name__)
 
 
 # Using only minion_code tools - no additional raw functions needed
-
-
+WORKDIR = Path.cwd()
+SYSTEM_PROMPT=(
+    f"You are a coding agent operating INSIDE the user's repository at {WORKDIR}.\n"
+    "Follow this loop strictly: plan briefly → use TOOLS to act directly on files/shell → report concise results.\n"
+    "Rules:\n"
+    "- Prefer taking actions with tools (read/write/edit/bash) over long prose.\n"
+    "- Keep outputs terse. Use bullet lists / checklists when summarizing.\n"
+    "- Never invent file paths. Ask via reads or list directories first if unsure.\n"
+    "- For edits, apply the smallest change that satisfies the request.\n"
+    "- For bash, avoid destructive or privileged commands; stay inside the workspace.\n"
+    "- Use the Todo tool to maintain multi-step plans when needed.\n"
+    "- After finishing, summarize what changed and how to run or test."
+)
 class MinionCodeAgentTUI:
     """Interactive TUI using Minion CodeAgent with minion_code tools."""
 
@@ -95,6 +106,7 @@ class MinionCodeAgentTUI:
             self.agent = await CodeAgent.create(
                 name="Minion Code Assistant",
                 llm="gpt-4o-mini",  # Using mini for faster responses
+                system_prompt = SYSTEM_PROMPT,
                 tools=all_tools,
             )
 
