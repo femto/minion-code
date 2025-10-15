@@ -34,7 +34,7 @@ async def test_agent_integration():
 
         # Create agent
         agent = await CodeAgent.create(
-            llm="gpt-4o-mini", tools=tools, name="Test Agent"
+            name="Test Agent", llm="gpt-4o-mini", tools=tools
         )
 
         print(f"✅ Agent created with {len(agent.tools)} tools")

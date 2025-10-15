@@ -93,22 +93,9 @@ class MinionCodeAgentTUI:
 
             # Create agent with all tools
             self.agent = await CodeAgent.create(
+                name="Minion Code Assistant",
                 llm="gpt-4o-mini",  # Using mini for faster responses
                 tools=all_tools,
-                name="Minion Code Assistant",
-                system_prompt="""You are a helpful coding assistant with access to various tools for file operations, 
-                system commands, web searches, and code execution. You can help with:
-                
-                - File operations (read, write, search)
-                - Directory operations (list, glob patterns)
-                - Code execution (Python, bash commands)
-                - Web searches and Wikipedia lookups
-                - Mathematical calculations
-                - System information
-                
-                Always use the appropriate tools to help users accomplish their tasks efficiently.
-                When using tools, explain what you're doing and why.
-                """,
             )
 
             print(f"✅ Agent setup complete! Final tool count: {len(self.agent.tools)}")

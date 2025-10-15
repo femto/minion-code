@@ -242,12 +242,7 @@ Just type your message and the AI agent will respond using available tools.
 
             # Create agent
             self.agent = await CodeAgent.create(
-                llm="gpt-4o-mini",
-                tools=all_tools,
-                name="Minion Code Assistant",
-                system_prompt="""You are a helpful coding assistant with access to various tools.
-                Help users with file operations, system commands, web searches, and code execution.
-                Always explain what you're doing and use appropriate tools efficiently.""",
+                name="Minion Code Assistant", llm="gpt-4o-mini", tools=all_tools
             )
 
             self.agent_ready = True
