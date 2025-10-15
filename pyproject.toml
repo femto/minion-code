@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minion-code"
+version = "0.1.0"
+description = "A Python project depending on minion"
+authors = [{name = "User", email = "user@example.com"}]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "minionx @ file:///Users/femtozheng/python-project/minion1"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "flake8",
+    "mypy"
+]
+
+[project.scripts]
+mc = "examples.textual_demo:run"
+mcode = "examples.textual_demo:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
