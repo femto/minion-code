@@ -15,6 +15,7 @@ class BashTool(BaseTool):
 
     name = "bash"
     description = "执行bash命令"
+    readonly = False  # 执行命令可能会修改系统状态
     inputs = {
         "command": {"type": "string", "description": "要执行的bash命令"},
         "timeout": {

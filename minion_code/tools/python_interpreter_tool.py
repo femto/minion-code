@@ -15,6 +15,7 @@ class PythonInterpreterTool(BaseTool):
 
     name = "python_interpreter"
     description = "执行Python代码"
+    readonly = False  # 执行代码可能会修改系统状态
     inputs = {"code": {"type": "string", "description": "要执行的Python代码"}}
     output_type = "string"
 

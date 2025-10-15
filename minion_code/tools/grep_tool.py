@@ -15,6 +15,7 @@ class GrepTool(BaseTool):
 
     name = "grep"
     description = "在文件中搜索文本模式"
+    readonly = True  # 只读工具，不会修改系统状态
     inputs = {
         "pattern": {"type": "string", "description": "要搜索的正则表达式模式"},
         "path": {"type": "string", "description": "搜索路径（文件或目录）"},

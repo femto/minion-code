@@ -13,6 +13,7 @@ class LsTool(BaseTool):
 
     name = "ls"
     description = "列出目录内容"
+    readonly = True  # 只读工具，不会修改系统状态
     inputs = {
         "path": {"type": "string", "description": "要列出的目录路径", "nullable": True},
         "recursive": {

@@ -14,6 +14,7 @@ class GlobTool(BaseTool):
 
     name = "glob"
     description = "使用glob模式匹配文件"
+    readonly = True  # 只读工具，不会修改系统状态
     inputs = {
         "pattern": {"type": "string", "description": "glob模式"},
         "path": {"type": "string", "description": "搜索路径", "nullable": True},

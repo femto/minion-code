@@ -13,6 +13,7 @@ class FileWriteTool(BaseTool):
 
     name = "file_write"
     description = "写入内容到文件"
+    readonly = False  # 写入工具，会修改系统状态
     inputs = {
         "file_path": {"type": "string", "description": "要写入的文件路径"},
         "content": {"type": "string", "description": "要写入的内容"},

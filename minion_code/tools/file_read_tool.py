@@ -14,6 +14,7 @@ class FileReadTool(BaseTool):
 
     name = "file_read"
     description = "读取文件内容，支持文本文件和图片文件"
+    readonly = True  # 只读工具，不会修改系统状态
     inputs = {
         "file_path": {"type": "string", "description": "要读取的文件路径"},
         "offset": {
