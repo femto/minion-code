@@ -20,10 +20,19 @@ dev = [
     "flake8",
     "mypy"
 ]
+tui = [
+    "textual>=0.40.0",
+    "rich>=13.0.0"
+]
+agent = [
+    "openai>=1.0.0"
+]
 
 [project.scripts]
 mc = "examples.textual_demo:run"
 mcode = "examples.textual_demo:run"
+minion-agent = "examples.minion_agent_tui:run"
+minion-tui = "examples.advanced_textual_tui:run"
 
 [tool.setuptools.packages.find]
 where = ["."]
