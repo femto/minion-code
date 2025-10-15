@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Python代码执行工具
+Python code execution tool
 """
 
 import io
@@ -11,12 +11,12 @@ from minion.tools import BaseTool
 
 
 class PythonInterpreterTool(BaseTool):
-    """Python代码执行工具"""
+    """Python code execution tool"""
 
     name = "python_interpreter"
-    description = "执行Python代码"
-    readonly = False  # 执行代码可能会修改系统状态
-    inputs = {"code": {"type": "string", "description": "要执行的Python代码"}}
+    description = "Execute Python code"
+    readonly = False  # Code execution may modify system state
+    inputs = {"code": {"type": "string", "description": "Python code to execute"}}
     output_type = "string"
 
     def __init__(self, authorized_imports=None):
@@ -42,8 +42,8 @@ class PythonInterpreterTool(BaseTool):
             )
 
     def forward(self, code: str) -> str:
-        """执行Python代码"""
-        # 创建受限的全局环境
+        """Execute Python code"""
+        # Create restricted global environment
         restricted_globals = {
             "__builtins__": {
                 "print": print,
@@ -68,18 +68,18 @@ class PythonInterpreterTool(BaseTool):
                 "reversed": reversed,
                 "any": any,
                 "all": all,
-                "__import__": __import__,  # 添加 __import__ 函数
+                "__import__": __import__,  # Add __import__ function
             }
         }
 
-        # 添加授权的导入
+        # Add authorized imports
         for module_name in self.authorized_imports:
             try:
                 restricted_globals[module_name] = __import__(module_name)
             except ImportError:
                 pass
 
-        # 捕获输出
+        # Capture output
         stdout_capture = io.StringIO()
         stderr_capture = io.StringIO()
 
@@ -92,14 +92,14 @@ class PythonInterpreterTool(BaseTool):
 
             output_parts = []
             if stdout_content:
-                output_parts.append(f"标准输出：\n{stdout_content}")
+                output_parts.append(f"Standard output:\n{stdout_content}")
             if stderr_content:
-                output_parts.append(f"标准错误：\n{stderr_content}")
+                output_parts.append(f"Standard error:\n{stderr_content}")
 
             if not output_parts:
-                output_parts.append("代码执行成功，无输出。")
+                output_parts.append("Code executed successfully, no output.")
 
             return "\n".join(output_parts)
 
         except Exception as e:
-            return f"执行代码时出错：{str(e)}"
+            return f"Error executing code: {str(e)}"

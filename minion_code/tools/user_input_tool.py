@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-用户输入工具
+User input tool
 """
 
 from typing import Optional
@@ -9,45 +9,45 @@ from minion.tools import BaseTool
 
 
 class UserInputTool(BaseTool):
-    """用户输入工具"""
+    """User input tool"""
 
     name = "user_input"
-    description = "向用户询问特定问题并获取输入"
-    readonly = True  # 只读工具，不会修改系统状态
+    description = "Ask user a specific question and get input"
+    readonly = True  # Read-only tool, does not modify system state
     inputs = {
-        "question": {"type": "string", "description": "要询问用户的问题"},
+        "question": {"type": "string", "description": "Question to ask the user"},
         "default_value": {
             "type": "string",
-            "description": "默认值（可选）",
+            "description": "Default value (optional)",
             "nullable": True,
         },
     }
     output_type = "string"
 
     def forward(self, question: str, default_value: Optional[str] = None) -> str:
-        """向用户询问问题"""
+        """Ask user a question"""
         try:
-            # 构建提示信息
-            prompt = f"问题: {question}"
+            # Build prompt message
+            prompt = f"Question: {question}"
             if default_value:
-                prompt += f" (默认: {default_value})"
-            prompt += "\n请输入您的回答: "
+                prompt += f" (default: {default_value})"
+            prompt += "\nPlease enter your answer: "
 
-            # 获取用户输入
+            # Get user input
             user_response = input(prompt).strip()
 
-            # 如果用户没有输入且有默认值，使用默认值
+            # Use default value if user didn't input anything and default exists
             if not user_response and default_value:
                 user_response = default_value
 
-            result = f"用户问题: {question}\n"
+            result = f"User question: {question}\n"
             if default_value:
-                result += f"默认值: {default_value}\n"
-            result += f"用户回答: {user_response}"
+                result += f"Default value: {default_value}\n"
+            result += f"User answer: {user_response}"
 
             return result
 
         except KeyboardInterrupt:
-            return "用户取消了输入"
+            return "User cancelled input"
         except Exception as e:
-            return f"获取用户输入时出错：{str(e)}"
+            return f"Error getting user input: {str(e)}"

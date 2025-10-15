@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-文本搜索工具
+Text search tool
 """
 
 import re
@@ -11,17 +11,17 @@ from minion.tools import BaseTool
 
 
 class GrepTool(BaseTool):
-    """文本搜索工具"""
+    """Text search tool"""
 
     name = "grep"
-    description = "在文件中搜索文本模式"
-    readonly = True  # 只读工具，不会修改系统状态
+    description = "Search for text patterns in files"
+    readonly = True  # Read-only tool, does not modify system state
     inputs = {
-        "pattern": {"type": "string", "description": "要搜索的正则表达式模式"},
-        "path": {"type": "string", "description": "搜索路径（文件或目录）"},
+        "pattern": {"type": "string", "description": "Regular expression pattern to search for"},
+        "path": {"type": "string", "description": "Search path (file or directory)"},
         "include": {
             "type": "string",
-            "description": "包含的文件模式（可选）",
+            "description": "File pattern to include (optional)",
             "nullable": True,
         },
     }
@@ -30,50 +30,50 @@ class GrepTool(BaseTool):
     def forward(
         self, pattern: str, path: str = ".", include: Optional[str] = None
     ) -> str:
-        """搜索文本模式"""
+        """Search for text pattern"""
         try:
             search_path = Path(path)
             if not search_path.exists():
-                return f"错误：路径不存在 - {path}"
+                return f"Error: Path does not exist - {path}"
 
             matches = []
 
             if search_path.is_file():
-                # 搜索单个文件
+                # Search single file
                 matches.extend(self._search_file(search_path, pattern))
             else:
-                # 搜索目录
+                # Search directory
                 if include:
-                    # 使用文件模式过滤
+                    # Filter using file pattern
                     for file_path in search_path.rglob(include):
                         if file_path.is_file():
                             matches.extend(self._search_file(file_path, pattern))
                 else:
-                    # 搜索所有文本文件
+                    # Search all text files
                     for file_path in search_path.rglob("*"):
                         if file_path.is_file() and self._is_text_file(file_path):
                             matches.extend(self._search_file(file_path, pattern))
 
             if not matches:
-                return f"未找到匹配模式 '{pattern}' 的内容"
+                return f"No content found matching pattern '{pattern}'"
 
-            # 按文件分组显示结果
-            result = f"搜索模式 '{pattern}' 的结果：\n\n"
+            # Group results by file
+            result = f"Search results for pattern '{pattern}':\n\n"
             current_file = None
             for file_path, line_num, line_content in matches:
                 if file_path != current_file:
-                    result += f"文件：{file_path}\n"
+                    result += f"File: {file_path}\n"
                     current_file = file_path
-                result += f"  行 {line_num}: {line_content.strip()}\n"
+                result += f"  Line {line_num}: {line_content.strip()}\n"
 
-            result += f"\n总共找到 {len(matches)} 个匹配项"
+            result += f"\nTotal {len(matches)} matches found"
             return result
 
         except Exception as e:
-            return f"搜索时出错：{str(e)}"
+            return f"Error during search: {str(e)}"
 
     def _search_file(self, file_path: Path, pattern: str) -> List[tuple]:
-        """在单个文件中搜索模式"""
+        """Search pattern in a single file"""
         matches = []
         try:
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -81,12 +81,12 @@ class GrepTool(BaseTool):
                     if re.search(pattern, line, re.IGNORECASE):
                         matches.append((str(file_path), line_num, line))
         except Exception:
-            # 忽略无法读取的文件
+            # Ignore files that cannot be read
             pass
         return matches
 
     def _is_text_file(self, file_path: Path) -> bool:
-        """检查是否为文本文件"""
+        """Check if file is a text file"""
         text_extensions = {
             ".txt",
             ".py",

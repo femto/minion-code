@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Wikipedia 搜索工具
+Wikipedia search tool
 """
 
 from typing import Optional
@@ -9,40 +9,40 @@ from minion.tools import BaseTool
 
 
 class WikipediaSearchTool(BaseTool):
-    """Wikipedia 搜索工具"""
+    """Wikipedia search tool"""
 
     name = "wikipedia_search"
-    description = "搜索 Wikipedia 并返回主题摘要"
-    readonly = True  # 只读工具，不会修改系统状态
+    description = "Search Wikipedia and return topic summary"
+    readonly = True  # Read-only tool, does not modify system state
     inputs = {
-        "topic": {"type": "string", "description": "要搜索的主题"},
+        "topic": {"type": "string", "description": "Topic to search for"},
         "language": {
             "type": "string",
-            "description": "语言代码（如 'zh', 'en'）",
+            "description": "Language code (e.g., 'zh', 'en')",
             "nullable": True,
         },
     }
     output_type = "string"
 
     def forward(self, topic: str, language: Optional[str] = "zh") -> str:
-        """搜索 Wikipedia"""
+        """Search Wikipedia"""
         try:
-            # 这里是一个模拟实现，实际应该调用 Wikipedia API
+            # This is a mock implementation, should call Wikipedia API in practice
             result = f"""
-Wikipedia 搜索结果
+Wikipedia Search Result
 
-主题: {topic}
-语言: {language}
+Topic: {topic}
+Language: {language}
 
-摘要:
-这是关于 '{topic}' 的 Wikipedia 摘要。实际实现中，这里会包含从 Wikipedia API 获取的真实内容。
+Summary:
+This is the Wikipedia summary for '{topic}'. In actual implementation, this would contain real content retrieved from the Wikipedia API.
 
-相关链接:
+Related links:
 - https://{language}.wikipedia.org/wiki/{topic.replace(' ', '_')}
 
-注意: 这是一个模拟实现，实际使用时需要安装 wikipedia-api 包并实现真实的搜索功能。
+Note: This is a mock implementation. For actual use, you need to install the wikipedia-api package and implement real search functionality.
 """
             return result.strip()
 
         except Exception as e:
-            return f"Wikipedia 搜索时出错：{str(e)}"
+            return f"Error during Wikipedia search: {str(e)}"

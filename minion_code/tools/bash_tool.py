@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Bash命令执行工具
+Bash command execution tool
 """
 
 import os
@@ -11,28 +11,28 @@ from minion.tools import BaseTool
 
 
 class BashTool(BaseTool):
-    """Bash命令执行工具"""
+    """Bash command execution tool"""
 
     name = "bash"
-    description = "执行bash命令"
-    readonly = False  # 执行命令可能会修改系统状态
+    description = "Execute bash commands"
+    readonly = False  # Command execution may modify system state
     inputs = {
-        "command": {"type": "string", "description": "要执行的bash命令"},
+        "command": {"type": "string", "description": "Bash command to execute"},
         "timeout": {
             "type": "integer",
-            "description": "超时时间（秒）",
+            "description": "Timeout in seconds",
             "nullable": True,
         },
     }
     output_type = "string"
 
     def forward(self, command: str, timeout: Optional[int] = 30) -> str:
-        """执行bash命令"""
+        """Execute bash command"""
         try:
-            # 安全检查：禁止危险命令
+            # Security check: prohibit dangerous commands
             dangerous_commands = ["rm -rf", "sudo", "su", "chmod 777", "mkfs", "dd if="]
             if any(dangerous in command.lower() for dangerous in dangerous_commands):
-                return f"错误：禁止执行危险命令 - {command}"
+                return f"Error: Dangerous command prohibited - {command}"
 
             result = subprocess.run(
                 command,
@@ -45,14 +45,14 @@ class BashTool(BaseTool):
 
             output = ""
             if result.stdout:
-                output += f"标准输出：\n{result.stdout}\n"
+                output += f"Standard output:\n{result.stdout}\n"
             if result.stderr:
-                output += f"标准错误：\n{result.stderr}\n"
-            output += f"退出码：{result.returncode}"
+                output += f"Standard error:\n{result.stderr}\n"
+            output += f"Exit code: {result.returncode}"
 
             return output
 
         except subprocess.TimeoutExpired:
-            return f"命令执行超时（{timeout}秒）"
+            return f"Command execution timeout ({timeout} seconds)"
         except Exception as e:
-            return f"执行命令时出错：{str(e)}"
+            return f"Error executing command: {str(e)}"

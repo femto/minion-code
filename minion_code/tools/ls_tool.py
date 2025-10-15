@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-目录列表工具
+Directory listing tool
 """
 
 from pathlib import Path
@@ -9,57 +9,57 @@ from minion.tools import BaseTool
 
 
 class LsTool(BaseTool):
-    """目录列表工具"""
+    """Directory listing tool"""
 
     name = "ls"
-    description = "列出目录内容"
-    readonly = True  # 只读工具，不会修改系统状态
+    description = "List directory contents"
+    readonly = True  # Read-only tool, does not modify system state
     inputs = {
-        "path": {"type": "string", "description": "要列出的目录路径", "nullable": True},
+        "path": {"type": "string", "description": "Directory path to list", "nullable": True},
         "recursive": {
             "type": "boolean",
-            "description": "是否递归列出",
+            "description": "Whether to list recursively",
             "nullable": True,
         },
     }
     output_type = "string"
 
     def forward(self, path: str = ".", recursive: bool = False) -> str:
-        """列出目录内容"""
+        """List directory contents"""
         try:
             dir_path = Path(path)
             if not dir_path.exists():
-                return f"错误：路径不存在 - {path}"
+                return f"Error: Path does not exist - {path}"
 
             if not dir_path.is_dir():
-                return f"错误：路径不是目录 - {path}"
+                return f"Error: Path is not a directory - {path}"
 
-            result = f"目录内容：{path}\n\n"
+            result = f"Directory contents: {path}\n\n"
 
             if recursive:
-                # 递归列出
+                # List recursively
                 for item in sorted(dir_path.rglob("*")):
                     relative_path = item.relative_to(dir_path)
                     if item.is_file():
                         size = item.stat().st_size
-                        result += f"  文件：{relative_path} ({size} 字节)\n"
+                        result += f"  File: {relative_path} ({size} bytes)\n"
                     elif item.is_dir():
-                        result += f"  目录：{relative_path}/\n"
+                        result += f"  Directory: {relative_path}/\n"
             else:
-                # 只列出当前目录
+                # List current directory only
                 items = list(dir_path.iterdir())
                 items.sort(key=lambda x: (x.is_file(), x.name.lower()))
 
                 for item in items:
                     if item.is_file():
                         size = item.stat().st_size
-                        result += f"  文件：{item.name} ({size} 字节)\n"
+                        result += f"  File: {item.name} ({size} bytes)\n"
                     elif item.is_dir():
-                        result += f"  目录：{item.name}/\n"
+                        result += f"  Directory: {item.name}/\n"
                     else:
-                        result += f"  其他：{item.name}\n"
+                        result += f"  Other: {item.name}\n"
 
             return result
 
         except Exception as e:
-            return f"列出目录时出错：{str(e)}"
+            return f"Error listing directory: {str(e)}"

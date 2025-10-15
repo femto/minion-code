@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-网络搜索工具
+Web search tool
 """
 
 from typing import Optional
@@ -9,36 +9,36 @@ from minion.tools import BaseTool
 
 
 class WebSearchTool(BaseTool):
-    """网络搜索工具"""
+    """Web search tool"""
 
     name = "web_search"
-    description = "执行网络搜索并返回搜索结果"
-    readonly = True  # 只读工具，不会修改系统状态
+    description = "Perform web search and return search results"
+    readonly = True  # Read-only tool, does not modify system state
     inputs = {
-        "query": {"type": "string", "description": "搜索查询"},
+        "query": {"type": "string", "description": "Search query"},
         "max_results": {
             "type": "integer",
-            "description": "最大结果数量",
+            "description": "Maximum number of results",
             "nullable": True,
         },
     }
     output_type = "string"
 
     def forward(self, query: str, max_results: Optional[int] = 5) -> str:
-        """执行网络搜索"""
+        """Perform web search"""
         try:
-            # 这里是一个模拟实现，实际应该调用搜索 API
+            # This is a mock implementation, should call search API in practice
             results = [
-                f"搜索结果 {i+1}: 关于 '{query}' 的信息..."
+                f"Search result {i+1}: Information about '{query}'..."
                 for i in range(min(max_results, 3))
             ]
 
-            result_text = f"搜索查询: {query}\n\n"
+            result_text = f"Search query: {query}\n\n"
             for i, result in enumerate(results, 1):
                 result_text += f"{i}. {result}\n"
 
-            result_text += f"\n找到 {len(results)} 个结果"
+            result_text += f"\nFound {len(results)} results"
             return result_text
 
         except Exception as e:
-            return f"搜索时出错：{str(e)}"
+            return f"Error during search: {str(e)}"

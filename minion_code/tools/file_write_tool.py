@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-文件写入工具
+File writing tool
 """
 
 from pathlib import Path
@@ -9,28 +9,28 @@ from minion.tools import BaseTool
 
 
 class FileWriteTool(BaseTool):
-    """文件写入工具"""
+    """File writing tool"""
 
     name = "file_write"
-    description = "写入内容到文件"
-    readonly = False  # 写入工具，会修改系统状态
+    description = "Write content to file"
+    readonly = False  # Writing tool, modifies system state
     inputs = {
-        "file_path": {"type": "string", "description": "要写入的文件路径"},
-        "content": {"type": "string", "description": "要写入的内容"},
+        "file_path": {"type": "string", "description": "File path to write to"},
+        "content": {"type": "string", "description": "Content to write"},
     }
     output_type = "string"
 
     def forward(self, file_path: str, content: str) -> str:
-        """写入文件内容"""
+        """Write file content"""
         try:
             path = Path(file_path)
-            # 创建目录（如果不存在）
+            # Create directory if it doesn't exist
             path.parent.mkdir(parents=True, exist_ok=True)
 
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
-            return f"成功写入文件：{file_path}（{len(content)} 字符）"
+            return f"Successfully wrote to file: {file_path} ({len(content)} characters)"
 
         except Exception as e:
-            return f"写入文件时出错：{str(e)}"
+            return f"Error writing file: {str(e)}"

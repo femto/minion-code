@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-文件模式匹配工具
+File pattern matching tool
 """
 
 import glob
@@ -10,25 +10,25 @@ from minion.tools import BaseTool
 
 
 class GlobTool(BaseTool):
-    """文件模式匹配工具"""
+    """File pattern matching tool"""
 
     name = "glob"
-    description = "使用glob模式匹配文件"
-    readonly = True  # 只读工具，不会修改系统状态
+    description = "Match files using glob patterns"
+    readonly = True  # Read-only tool, does not modify system state
     inputs = {
-        "pattern": {"type": "string", "description": "glob模式"},
-        "path": {"type": "string", "description": "搜索路径", "nullable": True},
+        "pattern": {"type": "string", "description": "Glob pattern"},
+        "path": {"type": "string", "description": "Search path", "nullable": True},
     }
     output_type = "string"
 
     def forward(self, pattern: str, path: str = ".") -> str:
-        """使用glob模式匹配文件"""
+        """Match files using glob pattern"""
         try:
             search_path = Path(path)
             if not search_path.exists():
-                return f"错误：路径不存在 - {path}"
+                return f"Error: Path does not exist - {path}"
 
-            # 构建完整的搜索模式
+            # Build complete search pattern
             if search_path.is_dir():
                 full_pattern = str(search_path / pattern)
             else:
@@ -38,21 +38,21 @@ class GlobTool(BaseTool):
             matches.sort()
 
             if not matches:
-                return f"未找到匹配模式 '{pattern}' 的文件"
+                return f"No files found matching pattern '{pattern}'"
 
-            result = f"匹配模式 '{pattern}' 的文件：\n"
+            result = f"Files matching pattern '{pattern}':\n"
             for match in matches:
                 path_obj = Path(match)
                 if path_obj.is_file():
                     size = path_obj.stat().st_size
-                    result += f"  文件：{match} ({size} 字节)\n"
+                    result += f"  File: {match} ({size} bytes)\n"
                 elif path_obj.is_dir():
-                    result += f"  目录：{match}/\n"
+                    result += f"  Directory: {match}/\n"
                 else:
-                    result += f"  其他：{match}\n"
+                    result += f"  Other: {match}\n"
 
-            result += f"\n总共找到 {len(matches)} 个匹配项"
+            result += f"\nTotal {len(matches)} matches found"
             return result
 
         except Exception as e:
-            return f"glob匹配时出错：{str(e)}"
+            return f"Error during glob matching: {str(e)}"
