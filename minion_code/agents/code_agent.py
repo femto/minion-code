@@ -40,7 +40,7 @@ from ..tools import (
 
 logger = logging.getLogger(__name__)
 
-#@dataclass
+@dataclass
 class MinionCodeAgent(CodeAgent):
     """
     Enhanced CodeAgent with pre-configured minion_code tools.
