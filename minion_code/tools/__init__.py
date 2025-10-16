@@ -16,9 +16,6 @@ from .grep_tool import GrepTool
 from .glob_tool import GlobTool
 from .ls_tool import LsTool
 from .python_interpreter_tool import PythonInterpreterTool
-from .web_search_tool import WebSearchTool
-from .wikipedia_search_tool import WikipediaSearchTool
-from .visit_webpage_tool import VisitWebpageTool
 from .user_input_tool import UserInputTool
 from .final_answer_tool import FinalAnswerTool
 
@@ -33,9 +30,6 @@ TOOL_MAPPING = {
         GlobTool,
         LsTool,
         PythonInterpreterTool,
-        WebSearchTool,
-        WikipediaSearchTool,
-        VisitWebpageTool,
         UserInputTool,
         FinalAnswerTool,
     ]
@@ -43,9 +37,6 @@ TOOL_MAPPING = {
 
 __all__ = [
     # Base classes
-    "BaseTool",
-    "tool",
-    "ToolCollection",
     # File system tools
     "FileReadTool",
     "FileWriteTool",
@@ -56,9 +47,6 @@ __all__ = [
     # Execution tools
     "PythonInterpreterTool",
     # Web tools
-    "WebSearchTool",
-    "WikipediaSearchTool",
-    "VisitWebpageTool",
     # Interactive tools
     "UserInputTool",
     "FinalAnswerTool",

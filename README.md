@@ -1,14 +1,15 @@
-# Minion Code Tools
+# MinionCodeAgent
 
-一个强大的Python开发工具集合，提供文件操作、代码执行、文本搜索等功能。
+一个增强的AI代码助手，基于Minion框架构建，预配置了丰富的开发工具，专为代码开发任务优化。
 
 ## 特性
 
-- 🔧 **丰富的工具集**：文件读写、Bash执行、文本搜索、Python解释器等
-- ⚡ **异步支持**：支持同步和异步两种执行模式
+- 🤖 **智能代码助手**：预配置的AI agent，专为编程任务设计
+- 🔧 **丰富的工具集**：自动包含文件操作、命令执行、网络搜索等12+个工具
+- ⚡ **即开即用**：一行代码创建，无需复杂配置
+- 📝 **对话历史**：内置对话历史跟踪和管理
+- 🎯 **优化提示**：专为代码开发任务优化的系统提示
 - 🛡️ **安全设计**：内置安全检查，防止危险操作
-- 🎯 **易于扩展**：基于装饰器和类的灵活工具创建方式
-- 📝 **完整文档**：详细的使用示例和API文档
 
 ## 安装
 
@@ -21,211 +22,169 @@ cd minion-code
 
 ## 快速开始
 
-### 基础工具使用
-
-```python
-from minion_code.tools import FileReadTool, FileWriteTool, BashTool
-
-# 文件操作
-write_tool = FileWriteTool()
-write_tool("test.txt", "Hello, World!")
-
-read_tool = FileReadTool()
-content = read_tool("test.txt")
-print(content)
-
-# 执行命令
-bash_tool = BashTool()
-result = bash_tool("ls -la")
-print(result)
-```
-
-### 异步工具使用
+### 基本使用
 
 ```python
 import asyncio
-from minion_code.tools import AsyncBaseTool, async_tool
+from minion_code import MinionCodeAgent
 
-# 使用装饰器创建异步工具
-@async_tool
-async def my_async_tool(data: str) -> str:
-    """自定义异步工具"""
-    await asyncio.sleep(1)  # 模拟异步操作
-    return f"处理结果：{data}"
-
-# 使用异步工具
 async def main():
-    tool = my_async_tool
-    result = await tool("测试数据")
-    print(result)
+    # 创建AI代码助手，自动配置所有工具
+    agent = await MinionCodeAgent.create(
+        name="My Code Assistant",
+        llm="gpt-4o-mini"
+    )
+    
+    # 与AI助手对话
+    response = await agent.run_async("List files in current directory")
+    print(response.answer)
+    
+    response = await agent.run_async("Read the README.md file")
+    print(response.answer)
 
 asyncio.run(main())
 ```
 
-## 可用工具
+### 自定义配置
 
-### 文件操作工具
+```python
+# 自定义系统提示和工作目录
+agent = await MinionCodeAgent.create(
+    name="Python Expert",
+    llm="gpt-4o-mini",
+    system_prompt="You are a specialized Python developer assistant.",
+    workdir="/path/to/project",
+    additional_tools=[MyCustomTool()]
+)
+```
 
-- **FileReadTool**: 读取文件内容，支持文本和图片文件
-- **FileWriteTool**: 写入内容到文件
+### 查看可用工具
+
+```python
+# 打印工具摘要
+agent.print_tools_summary()
+
+# 获取工具信息
+tools_info = agent.get_tools_info()
+for tool in tools_info:
+    print(f"{tool['name']}: {tool['description']}")
+```
+
+## 内置工具
+
+MinionCodeAgent自动包含以下工具类别：
+
+### 📁 文件和目录工具
+- **FileReadTool**: 读取文件内容
+- **FileWriteTool**: 写入文件
+- **GrepTool**: 在文件中搜索文本
+- **GlobTool**: 文件模式匹配
 - **LsTool**: 列出目录内容
-- **GlobTool**: 使用glob模式匹配文件
 
-### 搜索工具
+### 💻 系统和执行工具
+- **BashTool**: 执行shell命令
+- **PythonInterpreterTool**: 执行Python代码
 
-- **GrepTool**: 在文件中搜索文本模式（支持正则表达式）
+### 🌐 网络和搜索工具
+- **WebSearchTool**: 网络搜索
+- **WikipediaSearchTool**: Wikipedia搜索
+- **VisitWebpageTool**: 访问网页
 
-### 执行工具
+### 🔧 其他工具
+- **UserInputTool**: 用户输入
+- **FinalAnswerTool**: 最终答案
 
-- **BashTool**: 执行bash命令（带安全检查）
-- **PythonInterpreterTool**: 执行Python代码（受限环境）
-
-## 工具详细说明
-
-### FileReadTool
-
-读取文件内容，支持偏移和限制参数。
-
-```python
-read_tool = FileReadTool()
-
-# 读取整个文件
-content = read_tool("file.txt")
-
-# 从第10行开始读取20行
-content = read_tool("file.txt", offset=10, limit=20)
-```
-
-### GrepTool
-
-在文件中搜索文本模式。
+## 对话历史管理
 
 ```python
-grep_tool = GrepTool()
+# 获取对话历史
+history = agent.get_conversation_history()
+for entry in history:
+    print(f"User: {entry['user_message']}")
+    print(f"Agent: {entry['agent_response']}")
 
-# 在当前目录的Python文件中搜索"import"
-result = grep_tool("import", ".", "*.py")
+# 清除历史
+agent.clear_conversation_history()
 ```
 
-### BashTool
+## 与原始实现的对比
 
-安全执行bash命令。
+### 之前 (复杂的手动配置)
+```python
+# 需要手动导入和配置所有工具
+from minion_code.tools import (
+    FileReadTool, FileWriteTool, BashTool, 
+    GrepTool, GlobTool, LsTool, 
+    PythonInterpreterTool, WebSearchTool,
+    # ... 更多工具
+)
+
+# 手动创建工具实例
+custom_tools = [
+    FileReadTool(),
+    FileWriteTool(),
+    BashTool(),
+    # ... 更多工具配置
+]
+
+# 手动设置系统提示
+SYSTEM_PROMPT = "You are a coding agent..."
+
+# 创建agent (约50行代码)
+agent = await CodeAgent.create(
+    name="Minion Code Assistant",
+    llm="gpt-4o-mini",
+    system_prompt=SYSTEM_PROMPT,
+    tools=custom_tools,
+)
+```
+
+### 现在 (使用MinionCodeAgent)
+```python
+# 一行代码完成所有设置
+agent = await MinionCodeAgent.create(
+    name="Minion Code Assistant",
+    llm="gpt-4o-mini"
+)
+```
+
+## API参考
+
+### MinionCodeAgent.create()
 
 ```python
-bash_tool = BashTool()
-
-# 执行命令
-result = bash_tool("echo 'Hello World'")
-
-# 带超时的命令执行
-result = bash_tool("sleep 5", timeout=10)
+async def create(
+    name: str = "Minion Code Assistant",
+    llm: str = "gpt-4o-mini", 
+    system_prompt: Optional[str] = None,
+    workdir: Optional[Union[str, Path]] = None,
+    additional_tools: Optional[List[Any]] = None,
+    **kwargs
+) -> MinionCodeAgent
 ```
 
-### PythonInterpreterTool
+**参数:**
+- `name`: Agent名称
+- `llm`: 使用的LLM模型
+- `system_prompt`: 自定义系统提示（可选）
+- `workdir`: 工作目录（可选，默认当前目录）
+- `additional_tools`: 额外工具列表（可选）
+- `**kwargs`: 传递给CodeAgent.create()的其他参数
 
-在受限环境中执行Python代码。
+### 实例方法
 
-```python
-python_tool = PythonInterpreterTool()
+- `run_async(message: str)`: 异步运行agent
+- `run(message: str)`: 同步运行agent  
+- `get_conversation_history()`: 获取对话历史
+- `clear_conversation_history()`: 清除对话历史
+- `get_tools_info()`: 获取工具信息
+- `print_tools_summary()`: 打印工具摘要
 
-code = """
-import math
-print(f"圆周率：{math.pi}")
-"""
+### 属性
 
-result = python_tool(code)
-```
-
-## 创建自定义工具
-
-### 使用装饰器
-
-```python
-from minion_code.tools import tool
-
-@tool
-def my_custom_tool(input_text: str, multiplier: int = 2) -> str:
-    """
-    自定义工具示例
-    
-    Args:
-        input_text: 输入文本
-        multiplier: 重复次数
-        
-    Returns:
-        处理后的文本
-    """
-    return input_text * multiplier
-
-# 使用工具
-custom_tool = my_custom_tool
-result = custom_tool("Hello ", 3)  # "Hello Hello Hello "
-```
-
-### 使用类继承
-
-```python
-from minion_code.tools import BaseTool
-
-class MyTool(BaseTool):
-    name = "my_tool"
-    description = "我的自定义工具"
-    inputs = {
-        "data": {"type": "string", "description": "输入数据"}
-    }
-    output_type = "string"
-    
-    def forward(self, data: str) -> str:
-        return f"处理结果：{data.upper()}"
-
-# 使用工具
-my_tool = MyTool()
-result = my_tool("hello world")
-```
-
-## 异步工具
-
-### 创建异步工具
-
-```python
-from minion_code.tools import AsyncBaseTool, async_tool
-import asyncio
-
-# 使用装饰器
-@async_tool
-async def async_process(data: str) -> str:
-    """异步处理工具"""
-    await asyncio.sleep(1)
-    return f"异步处理：{data}"
-
-# 使用类继承
-class MyAsyncTool(AsyncBaseTool):
-    name = "my_async_tool"
-    description = "异步工具示例"
-    inputs = {"data": {"type": "string", "description": "输入数据"}}
-    output_type = "string"
-    
-    async def forward(self, data: str) -> str:
-        await asyncio.sleep(0.5)
-        return f"异步结果：{data}"
-```
-
-### 同步工具转异步
-
-```python
-from minion_code.tools import SyncToAsyncToolAdapter, FileReadTool
-
-# 将同步工具转换为异步工具
-sync_tool = FileReadTool()
-async_tool = SyncToAsyncToolAdapter(sync_tool)
-
-# 异步使用
-async def main():
-    result = await async_tool("file.txt")
-    print(result)
-
-asyncio.run(main())
-```
+- `agent`: 访问底层CodeAgent实例
+- `tools`: 获取可用工具列表
+- `name`: 获取agent名称
 
 ## 安全特性
 
@@ -237,14 +196,22 @@ asyncio.run(main())
 
 查看 `examples/` 目录中的完整示例：
 
-- `tool_usage_example.py`: 基础工具使用示例
-- `async_tool_example.py`: 异步工具使用示例
+- `simple_code_agent.py`: 基本MinionCodeAgent使用示例
+- `simple_tui.py`: 简化的TUI实现
+- `advanced_textual_tui.py`: 高级TUI界面（使用Textual库）
+- `minion_agent_tui.py`: 原始复杂实现（对比参考）
 
 运行示例：
 
 ```bash
-python examples/tool_usage_example.py
-python examples/async_tool_example.py
+# 基本使用示例
+python examples/simple_code_agent.py
+
+# 简单TUI
+python examples/simple_tui.py
+
+# 高级TUI (需要安装 textual: pip install textual rich)
+python examples/advanced_textual_tui.py
 ```
 
 ## 贡献
