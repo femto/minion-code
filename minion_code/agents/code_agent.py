@@ -35,6 +35,8 @@ from ..tools import (
     PythonInterpreterTool,
     UserInputTool,
     FinalAnswerTool,
+    TodoWriteTool,
+    TodoReadTool,
     TOOL_MAPPING,
 )
 
@@ -111,6 +113,8 @@ class MinionCodeAgent(CodeAgent):
             PythonInterpreterTool(),
             UserInputTool(),
             FinalAnswerTool(),
+            TodoWriteTool(),
+            TodoReadTool(),
         ]
         
         # Add any additional tools

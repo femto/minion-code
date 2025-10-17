@@ -200,3 +200,5 @@ ehthumbs_vista.db
 logs/
 uploads/
 *.log
+.minion_todos
+.minion_workspace

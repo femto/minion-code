@@ -18,6 +18,8 @@ from .ls_tool import LsTool
 from .python_interpreter_tool import PythonInterpreterTool
 from .user_input_tool import UserInputTool
 from .final_answer_tool import FinalAnswerTool
+from .todo_write_tool import TodoWriteTool
+from .todo_read_tool import TodoReadTool
 
 # Tool mapping
 TOOL_MAPPING = {
@@ -32,6 +34,8 @@ TOOL_MAPPING = {
         PythonInterpreterTool,
         UserInputTool,
         FinalAnswerTool,
+        TodoWriteTool,
+        TodoReadTool,
     ]
 }
 
@@ -50,6 +54,9 @@ __all__ = [
     # Interactive tools
     "UserInputTool",
     "FinalAnswerTool",
+    # Todo tools
+    "TodoWriteTool",
+    "TodoReadTool",
     # Utilities
     "TOOL_MAPPING",
 ]
