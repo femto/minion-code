@@ -102,7 +102,7 @@ class MinionCodeAgent(CodeAgent):
         # Add nag reminder if more than 10 iterations without todo usage
         if self.state.metadata["iteration_without_todos"] > 10:
             self.state.history.append({
-                'role': 'system',
+                'role': 'user',
                 'content': NAG_REMINDER
             })
             # Reset counter to avoid spamming reminders
@@ -183,7 +183,7 @@ class MinionCodeAgent(CodeAgent):
         
         # Add initial todo reminder to history
         agent.state.history.append({
-            'role': 'system',
+            'role': 'user',
             'content': INITIAL_REMINDER
         })
         

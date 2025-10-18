@@ -29,10 +29,8 @@ agent = [
 ]
 
 [project.scripts]
-mc = "examples.textual_demo:run"
-mcode = "examples.textual_demo:run"
-minion-agent = "examples.minion_agent_tui:run"
-minion-tui = "examples.advanced_textual_tui:run"
+mc = "examples.simple_tui:run"
+mcode = "examples.simple_tui:run"
 
 [tool.setuptools.packages.find]
 where = ["."]
