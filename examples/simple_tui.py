@@ -47,7 +47,7 @@ class SimpleTUI:
             # Much simpler setup - no manual tool configuration needed
             self.agent = await MinionCodeAgent.create(
                 name="Simple Code Assistant",
-                llm="gpt-4o",
+                llm="gpt-4.1",
             )
             
             progress.update(task, completed=True)
