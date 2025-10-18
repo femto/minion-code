@@ -47,7 +47,7 @@ class SimpleTUI:
             # Much simpler setup - no manual tool configuration needed
             self.agent = await MinionCodeAgent.create(
                 name="Simple Code Assistant",
-                llm="gpt-4o-mini"
+                llm="gpt-4o",
             )
             
             progress.update(task, completed=True)
@@ -81,24 +81,6 @@ class SimpleTUI:
         # Check if it's a command (starts with /)
         if user_input.startswith('/'):
             await self.process_command(user_input)
-            return
-        
-        # Handle legacy commands for backward compatibility
-        command = user_input.lower()
-        if command in ["quit", "exit"]:
-            await self.process_command("/quit")
-            return
-        elif command == "help":
-            await self.process_command("/help")
-            return
-        elif command == "tools":
-            await self.process_command("/tools")
-            return
-        elif command == "history":
-            await self.process_command("/history")
-            return
-        elif command == "clear":
-            await self.process_command("/clear")
             return
         
         # Process with agent

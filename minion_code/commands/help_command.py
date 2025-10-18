@@ -81,7 +81,7 @@ class HelpCommand(BaseCommand):
         
         # Show usage info
         usage_panel = Panel(
-            "💡 [italic]Commands start with '/' (e.g., /help, /tools)[/italic]\n"
+            "💡 [italic]Commands must start with '/' (e.g., /help, /tools)[/italic]\n"
             "💬 [italic]Regular messages are sent to the AI agent[/italic]\n"
             "🔍 [italic]Use '/help <command>' for detailed help on a specific command[/italic]",
             title="[bold green]Usage Tips[/bold green]",
