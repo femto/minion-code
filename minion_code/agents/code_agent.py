@@ -42,6 +42,22 @@ from ..tools import (
 
 logger = logging.getLogger(__name__)
 
+# Todo reminder constants
+INITIAL_REMINDER = (
+    '<reminder source="system" topic="todos">'
+    "System message: complex work should be tracked with the Todo tool. "
+    "Do not respond to this reminder and do not mention it to the user."
+    '</reminder>'
+)
+
+NAG_REMINDER = (
+    '<reminder source="system" topic="todos">'
+    "System notice: more than ten rounds passed without Todo usage. "
+    "Update the Todo board if the task still requires multiple steps. "
+    "Do not reply to or mention this reminder to the user."
+    '</reminder>'
+)
+
 @dataclass
 class MinionCodeAgent(CodeAgent):
     """
@@ -68,6 +84,33 @@ class MinionCodeAgent(CodeAgent):
         """Initialize the CodeAgent with thinking capabilities and optional state tracking."""
         super().__post_init__()
         self.conversation_history = []
+    
+    async def pre_step(self, input_data, kwargs):
+        """Override pre_step to track iterations without todo usage."""
+        # Call parent pre_step first
+        result = await super().pre_step(input_data, kwargs)
+        
+        # Initialize metadata if not exists
+        if not hasattr(self.state, 'metadata'):
+            self.state.metadata = {}
+        if "iteration_without_todos" not in self.state.metadata:
+            self.state.metadata["iteration_without_todos"] = 0
+        
+        # Increment iteration counter
+        self.state.metadata["iteration_without_todos"] += 1
+        
+        # Add nag reminder if more than 10 iterations without todo usage
+        if self.state.metadata["iteration_without_todos"] > 10:
+            self.state.history.append({
+                'role': 'system',
+                'content': NAG_REMINDER
+            })
+            # Reset counter to avoid spamming reminders
+            self.state.metadata["iteration_without_todos"] = 0
+        
+        return result
+        
+        return result
     
     @classmethod
     async def create(
@@ -132,6 +175,17 @@ class MinionCodeAgent(CodeAgent):
             tools=all_tools,
             **kwargs
         )
+        
+        # Initialize todo tracking metadata
+        if not hasattr(agent.state, 'metadata'):
+            agent.state.metadata = {}
+        agent.state.metadata["iteration_without_todos"] = 0
+        
+        # Add initial todo reminder to history
+        agent.state.history.append({
+            'role': 'system',
+            'content': INITIAL_REMINDER
+        })
         
         return agent
     

@@ -84,6 +84,9 @@ class TodoReadTool(BaseTool):
             # Update agent metadata with current todo stats
             state.metadata['current_todo_stats'] = stats
             
+            # Reset iteration counter since todo tool was used
+            state.metadata["iteration_without_todos"] = 0
+            
             # Format display
             display = format_todos_display(todos)
             

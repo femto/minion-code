@@ -218,6 +218,9 @@ class TodoWriteTool(BaseTool):
                 'completed': len([t for t in todo_items if t.status == TodoStatus.COMPLETED])
             })
             
+            # Reset iteration counter since todo tool was used
+            state.metadata["iteration_without_todos"] = 0
+            
             # Generate summary
             summary = generate_todo_summary(todo_items)
             
