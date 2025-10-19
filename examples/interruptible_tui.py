@@ -49,7 +49,7 @@ class InterruptibleTUI:
             
             self.agent = await MinionCodeAgent.create(
                 name="Interruptible Code Assistant",
-                llm="gpt-4.1",
+                llm="claude",
             )
             
             progress.update(task, completed=True)

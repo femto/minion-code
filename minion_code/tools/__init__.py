@@ -11,6 +11,7 @@ from minion.tools import BaseTool, tool, ToolCollection
 # Import individual tools
 from .file_read_tool import FileReadTool
 from .file_write_tool import FileWriteTool
+from .file_edit_tool import FileEditTool
 from .bash_tool import BashTool
 from .grep_tool import GrepTool
 from .glob_tool import GlobTool
@@ -27,6 +28,7 @@ TOOL_MAPPING = {
     for tool_class in [
         FileReadTool,
         FileWriteTool,
+        FileEditTool,
         BashTool,
         GrepTool,
         GlobTool,
@@ -44,6 +46,7 @@ __all__ = [
     # File system tools
     "FileReadTool",
     "FileWriteTool",
+    "FileEditTool",
     "BashTool",
     "GrepTool",
     "GlobTool",
