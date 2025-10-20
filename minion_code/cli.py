@@ -58,7 +58,7 @@ class InterruptibleCLI:
             
             self.agent = await MinionCodeAgent.create(
                 name="CLI Code Assistant",
-                llm="sonnet",
+                llm="gpt-4.1",
             )
             
             progress.update(task, completed=True)

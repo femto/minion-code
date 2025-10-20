@@ -7,7 +7,7 @@ Final answer tool
 from typing import Optional
 from minion.tools import BaseTool
 
-
+#don't use this,otherwise remove confidence,reasoning
 class FinalAnswerTool(BaseTool):
     """Final answer tool"""
 

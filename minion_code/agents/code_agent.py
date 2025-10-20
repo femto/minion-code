@@ -156,7 +156,6 @@ class MinionCodeAgent(CodeAgent):
             LsTool(),
             PythonInterpreterTool(),
             UserInputTool(),
-            FinalAnswerTool(),
             TodoWriteTool(),
             TodoReadTool(),
         ]
