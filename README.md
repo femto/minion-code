@@ -92,7 +92,7 @@ MinionCodeAgent自动包含以下工具类别：
 
 ### 🔧 其他工具
 - **UserInputTool**: 用户输入
-- **FinalAnswerTool**: 最终答案
+
 
 ## 对话历史管理
 

@@ -18,7 +18,7 @@ from minion_code.tools import (
     WikipediaSearchTool,
     VisitWebpageTool,
     UserInputTool,
-    FinalAnswerTool,
+
 )
 
 
@@ -33,7 +33,6 @@ def test_readonly_tools():
         WikipediaSearchTool(),
         VisitWebpageTool(),
         UserInputTool(),
-        FinalAnswerTool(),
     ]
 
     for tool in readonly_tools:
@@ -76,15 +75,6 @@ def test_visit_webpage_tool():
     assert "https://www.example.com" in result
 
 
-def test_final_answer_tool():
-    """测试最终答案工具"""
-    tool = FinalAnswerTool()
-    result = tool.forward("这是答案", confidence=0.95, reasoning="基于分析得出")
-    assert "最终答案" in result
-    assert "这是答案" in result
-    assert "95.00%" in result
-    assert "基于分析得出" in result
-
 
 def test_tool_inheritance():
     """测试所有工具都正确继承了 BaseTool"""
@@ -102,7 +92,6 @@ def test_tool_inheritance():
         WikipediaSearchTool(),
         VisitWebpageTool(),
         UserInputTool(),
-        FinalAnswerTool(),
     ]
 
     for tool in tools:

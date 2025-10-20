@@ -18,7 +18,7 @@ from .glob_tool import GlobTool
 from .ls_tool import LsTool
 from .python_interpreter_tool import PythonInterpreterTool
 from .user_input_tool import UserInputTool
-from .final_answer_tool import FinalAnswerTool
+
 from .todo_write_tool import TodoWriteTool
 from .todo_read_tool import TodoReadTool
 
@@ -35,7 +35,7 @@ TOOL_MAPPING = {
         LsTool,
         PythonInterpreterTool,
         UserInputTool,
-        FinalAnswerTool,
+
         TodoWriteTool,
         TodoReadTool,
     ]
@@ -56,7 +56,7 @@ __all__ = [
     # Web tools
     # Interactive tools
     "UserInputTool",
-    "FinalAnswerTool",
+
     # Todo tools
     "TodoWriteTool",
     "TodoReadTool",
