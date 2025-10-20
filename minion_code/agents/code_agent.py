@@ -37,7 +37,7 @@ from ..tools import (
     FinalAnswerTool,
     TodoWriteTool,
     TodoReadTool,
-    TOOL_MAPPING,
+    TOOL_MAPPING, FileEditTool,
 )
 
 logger = logging.getLogger(__name__)
@@ -149,6 +149,7 @@ class MinionCodeAgent(CodeAgent):
         minion_tools = [
             FileReadTool(),
             FileWriteTool(),
+            FileEditTool(),
             BashTool(),
             GrepTool(),
             GlobTool(),
