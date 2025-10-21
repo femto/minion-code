@@ -16,7 +16,7 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
 try:
-    from minion.mcp import MCPToolset, StdioServerParameters
+    from minion.tools.mcp.mcp_toolset import MCPToolset, StdioServerParameters
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
