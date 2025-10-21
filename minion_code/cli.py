@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from minion_code import MinionCodeAgent
 from minion_code.commands import command_registry
+from minion_code.utils.mcp_loader import MCPToolsLoader
 
 app = typer.Typer(
     name="minion-code",
@@ -38,11 +39,14 @@ app = typer.Typer(
 class InterruptibleCLI:
     """CLI with task interruption support using standard input."""
     
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, mcp_config: Optional[Path] = None):
         self.agent = None
         self.running = True
         self.console = Console()
         self.verbose = verbose
+        self.mcp_config = mcp_config
+        self.mcp_tools = []
+        self.mcp_loader = None
         self.current_task = None
         self.task_cancelled = False
         self.interrupt_requested = False
@@ -54,18 +58,57 @@ class InterruptibleCLI:
             TextColumn("[progress.description]{task.description}"),
             console=self.console,
         ) as progress:
-            task = progress.add_task("🔧 Setting up MinionCodeAgent...", total=None)
+            # Load MCP tools if config provided
+            mcp_task = None
+            if self.mcp_config:
+                mcp_task = progress.add_task("🔌 Loading MCP tools...", total=None)
+                try:
+                    self.mcp_loader = MCPToolsLoader(self.mcp_config)
+                    self.mcp_loader.load_config()
+                    self.mcp_tools = await self.mcp_loader.load_all_tools()
+                    
+                    if self.mcp_tools:
+                        self.console.print(f"✅ Loaded {len(self.mcp_tools)} MCP tools")
+                    else:
+                        server_info = self.mcp_loader.get_server_info()
+                        if server_info:
+                            self.console.print(f"📋 Found {len(server_info)} MCP server(s) configured")
+                            for name, info in server_info.items():
+                                status = "disabled" if info['disabled'] else "enabled"
+                                self.console.print(f"  - {name}: {info['command']} ({status})")
+                        else:
+                            self.console.print("⚠️  No MCP servers found in config")
+                    
+                    progress.update(mcp_task, completed=True)
+                except Exception as e:
+                    self.console.print(f"❌ Failed to load MCP tools: {e}")
+                    if self.verbose:
+                        import traceback
+                        self.console.print(f"[dim]{traceback.format_exc()}[/dim]")
+            
+            agent_task = progress.add_task("🔧 Setting up MinionCodeAgent...", total=None)
             
             self.agent = await MinionCodeAgent.create(
                 name="CLI Code Assistant",
-                llm="sonnet",
+                llm="gpt-4o-mini",  # 使用更稳定的模型配置
+                additional_tools=self.mcp_tools if self.mcp_tools else None
             )
             
-            progress.update(task, completed=True)
+            progress.update(agent_task, completed=True)
+        
+        # Show setup summary
+        total_tools = len(self.agent.tools)
+        mcp_count = len(self.mcp_tools)
+        builtin_count = total_tools - mcp_count
+        
+        summary_text = f"✅ Agent ready with [bold green]{total_tools}[/bold green] tools!"
+        if mcp_count > 0:
+            summary_text += f"\n🔌 MCP tools: [bold cyan]{mcp_count}[/bold cyan]"
+            summary_text += f"\n🛠️  Built-in tools: [bold blue]{builtin_count}[/bold blue]"
+        summary_text += f"\n⚠️  [bold yellow]Press Ctrl+C during processing to interrupt tasks[/bold yellow]"
         
         success_panel = Panel(
-            f"✅ Agent ready with [bold green]{len(self.agent.tools)}[/bold green] tools!\n"
-            f"⚠️  [bold yellow]Press Ctrl+C during processing to interrupt tasks[/bold yellow]",
+            summary_text,
             title="[bold green]Setup Complete[/bold green]",
             border_style="green"
         )
@@ -131,6 +174,15 @@ class InterruptibleCLI:
         if self.current_task and not self.current_task.done():
             self.interrupt_requested = True
             self.console.print("\n⚠️  [bold yellow]Task interruption requested...[/bold yellow]")
+    
+    async def cleanup(self):
+        """Clean up resources."""
+        if self.mcp_loader:
+            try:
+                await self.mcp_loader.close()
+            except Exception as e:
+                if self.verbose:
+                    self.console.print(f"[dim]Error during MCP cleanup: {e}[/dim]")
     
     async def process_input(self, user_input: str):
         """Process user input."""
@@ -260,20 +312,36 @@ class InterruptibleCLI:
         tools_table = Table(title="🛠️ Available Tools", show_header=True, header_style="bold magenta")
         tools_table.add_column("Tool Name", style="cyan", no_wrap=True)
         tools_table.add_column("Description", style="white")
-        tools_table.add_column("Type", style="yellow")
+        tools_table.add_column("Source", style="yellow")
+        tools_table.add_column("Type", style="green")
+        
+        # Separate MCP tools from built-in tools
+        mcp_tool_names = {tool.name for tool in self.mcp_tools} if self.mcp_tools else set()
         
         for tool in self.agent.tools:
             tool_type = "Read-only" if getattr(tool, 'readonly', False) else "Read-write"
+            source = "MCP" if tool.name in mcp_tool_names else "Built-in"
+            
             tools_table.add_row(
                 tool.name,
                 tool.description[:60] + "..." if len(tool.description) > 60 else tool.description,
+                source,
                 tool_type
             )
         
         self.console.print(tools_table)
         
-        if self.verbose:
-            self.console.print(f"[dim]Total tools: {len(self.agent.tools)}[/dim]")
+        # Show summary
+        total_tools = len(self.agent.tools)
+        mcp_count = len(self.mcp_tools) if self.mcp_tools else 0
+        builtin_count = total_tools - mcp_count
+        
+        summary_text = f"[dim]Total: {total_tools} tools"
+        if mcp_count > 0:
+            summary_text += f" (Built-in: {builtin_count}, MCP: {mcp_count})"
+        summary_text += "[/dim]"
+        
+        self.console.print(summary_text)
     
     def show_history(self):
         """Show conversation history in a beautiful format."""
@@ -356,6 +424,9 @@ class InterruptibleCLI:
                     )
                     self.console.print(goodbye_panel)
                     break
+        
+        # Cleanup resources
+        await self.cleanup()
 
 
 @app.command()
@@ -371,12 +442,18 @@ def main(
         "--verbose",
         "-v",
         help="🔍 Enable verbose output with additional debugging information"
+    ),
+    config: Optional[str] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="🔌 Path to MCP configuration file (JSON format)"
     )
 ):
     """
     🤖 Start the MinionCodeAgent CLI interface
     
-    An AI-powered code assistant with task interruption support.
+    An AI-powered code assistant with task interruption support and MCP tools integration.
     """
     console = Console()
     
@@ -398,8 +475,22 @@ def main(
             console.print(f"❌ [bold red]Failed to change directory: {e}[/bold red]")
             raise typer.Exit(1)
     
+    # Validate MCP config if provided
+    mcp_config_path = None
+    if config:
+        mcp_config_path = Path(config).resolve()
+        if not mcp_config_path.exists():
+            console.print(f"❌ [bold red]MCP config file does not exist: {config}[/bold red]")
+            raise typer.Exit(1)
+        if not mcp_config_path.is_file():
+            console.print(f"❌ [bold red]MCP config path is not a file: {config}[/bold red]")
+            raise typer.Exit(1)
+        
+        if verbose:
+            console.print(f"🔌 [bold green]Using MCP config: {mcp_config_path}[/bold green]")
+    
     # Create and run CLI
-    cli = InterruptibleCLI(verbose=verbose)
+    cli = InterruptibleCLI(verbose=verbose, mcp_config=mcp_config_path)
     
     try:
         asyncio.run(cli.run())

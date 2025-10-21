@@ -25,6 +25,8 @@ class QuitCommand(BaseCommand):
         )
         self.console.print(goodbye_panel)
         
-        # Set a flag that the TUI can check
+        # Set a flag that the TUI can check and cleanup resources
         if hasattr(self, '_tui_instance'):
             self._tui_instance.running = False
+            # Cleanup MCP resources
+            await self._tui_instance.cleanup()

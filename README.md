@@ -22,7 +22,26 @@ cd minion-code
 
 ## 快速开始
 
-### 基本使用
+### CLI使用
+
+```bash
+# 基本使用
+minion-code
+
+# 指定工作目录
+minion-code --dir /path/to/project
+
+# 启用详细输出
+minion-code --verbose
+
+# 使用MCP配置文件加载额外工具
+minion-code --config mcp.json
+
+# 组合使用
+minion-code --dir /path/to/project --config mcp.json --verbose
+```
+
+### 编程接口
 
 ```python
 import asyncio
@@ -32,7 +51,7 @@ async def main():
     # 创建AI代码助手，自动配置所有工具
     agent = await MinionCodeAgent.create(
         name="My Code Assistant",
-        llm="gpt-4o-mini"
+        llm="gpt-4.1"
     )
     
     # 与AI助手对话
@@ -51,7 +70,7 @@ asyncio.run(main())
 # 自定义系统提示和工作目录
 agent = await MinionCodeAgent.create(
     name="Python Expert",
-    llm="gpt-4o-mini",
+    llm="gpt-4.1",
     system_prompt="You are a specialized Python developer assistant.",
     workdir="/path/to/project",
     additional_tools=[MyCustomTool()]
@@ -92,7 +111,80 @@ MinionCodeAgent自动包含以下工具类别：
 
 ### 🔧 其他工具
 - **UserInputTool**: 用户输入
+- **TodoWriteTool**: 任务管理写入
+- **TodoReadTool**: 任务管理读取
 
+## MCP工具集成
+
+MinionCodeAgent支持通过MCP (Model Context Protocol) 配置文件加载额外的工具。
+
+### MCP配置文件格式
+
+创建一个JSON配置文件（如`mcp.json`）：
+
+```json
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "filesystem": {
+      "command": "uvx",
+      "args": ["mcp-server-filesystem", "/tmp"],
+      "disabled": true,
+      "autoApprove": ["read_file", "list_directory"]
+    },
+    "git": {
+      "command": "uvx", 
+      "args": ["mcp-server-git"],
+      "disabled": false,
+      "autoApprove": ["git_status", "git_log"]
+    }
+  }
+}
+```
+
+### 配置选项说明
+
+- `command`: 启动MCP服务器的命令
+- `args`: 命令参数列表
+- `env`: 环境变量（可选）
+- `disabled`: 是否禁用此服务器（默认false）
+- `autoApprove`: 自动批准的工具名称列表（可选）
+
+### 使用MCP配置
+
+```bash
+# 使用MCP配置文件
+minion-code --config examples/mcp_config.json
+
+# 查看加载的工具（包括MCP工具）
+# 在CLI中输入: tools
+```
+
+### 编程接口中使用MCP工具
+
+```python
+from minion_code.utils.mcp_loader import load_mcp_tools
+from pathlib import Path
+
+async def main():
+    # 加载MCP工具
+    mcp_tools = await load_mcp_tools(Path("mcp.json"))
+    
+    # 创建包含MCP工具的agent
+    agent = await MinionCodeAgent.create(
+        name="Enhanced Assistant",
+        llm="gpt-4o-mini",
+        additional_tools=mcp_tools
+    )
+```
 
 ## 对话历史管理
 
@@ -200,6 +292,9 @@ async def create(
 - `simple_tui.py`: 简化的TUI实现
 - `advanced_textual_tui.py`: 高级TUI界面（使用Textual库）
 - `minion_agent_tui.py`: 原始复杂实现（对比参考）
+- `mcp_config.json`: MCP配置文件示例
+- `test_mcp_config.py`: MCP配置加载测试
+- `demo_mcp_cli.py`: MCP CLI功能演示
 
 运行示例：
 
@@ -212,7 +307,17 @@ python examples/simple_tui.py
 
 # 高级TUI (需要安装 textual: pip install textual rich)
 python examples/advanced_textual_tui.py
+
+# 测试MCP配置加载
+python examples/test_mcp_config.py
+
+# MCP CLI功能演示
+python examples/demo_mcp_cli.py
 ```
+
+## 文档
+
+- [MCP工具集成指南](docs/MCP_GUIDE.md) - 详细的MCP配置和使用指南
 
 ## 贡献
 
