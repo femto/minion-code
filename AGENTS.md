@@ -47,7 +47,8 @@ Within `.minion_workspace`, use descriptive filenames that include:
 - Appropriate file extensions
 
 Examples:
-- `todos_agent_123.json` - Todo data for specific agent
+- `todos_agent123.json` - Todo data for specific agent
+- `todos_default.json` - Default agent todo storage
 - `memory_default.json` - Default memory storage
 - `logs_session_456.txt` - Session logs
 
