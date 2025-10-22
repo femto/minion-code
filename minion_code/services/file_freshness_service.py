@@ -9,6 +9,7 @@ import logging
 import threading
 
 from .event_system import EventDispatcher, EventContext, emit_event, add_event_listener
+from ..utils.todo_file_utils import get_todo_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -445,10 +446,9 @@ class FileFreshnessService:
     def start_watching_todo_file(self, agent_id: str, file_path: Optional[str] = None) -> None:
         """Start watching todo file for an agent."""
         try:
-            # Use provided file_path or generate default path
+            # Use provided file_path or generate default path using todo_file_utils
             if file_path is None:
-                # For now, use a simple default path - this should be replaced with actual agent file path logic
-                file_path = f"todos/{agent_id}.json"
+                file_path = get_todo_file_path(agent_id)
             
             # Don't watch if already watching
             if agent_id in self.state.watched_todo_files:
