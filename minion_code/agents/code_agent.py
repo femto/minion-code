@@ -28,6 +28,9 @@ from minion.agents import CodeAgent
 from ..tools import (
     FileReadTool,
     FileWriteTool,
+    FileEditTool,
+    FileEditToolNew,
+    MultiEditTool,
     BashTool,
     GrepTool,
     GlobTool,
@@ -37,7 +40,7 @@ from ..tools import (
 
     TodoWriteTool,
     TodoReadTool,
-    TOOL_MAPPING, FileEditTool,
+    TOOL_MAPPING,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,7 +77,8 @@ class MinionCodeAgent(CodeAgent):
         "- Prefer taking actions with tools (read/write/edit/bash) over long prose.\n"
         "- Keep outputs terse. Use bullet lists / checklists when summarizing.\n"
         "- Never invent file paths. Ask via reads or list directories first if unsure.\n"
-        "- For edits, apply the smallest change that satisfies the request.\n"
+        "- For edits, choose the right tool: string_edit for single string replacements, multi_edit for multiple changes to same file, file_edit for advanced operations.\n"
+        "- Always read files before editing to establish freshness tracking.\n"
         "- For bash, avoid destructive or privileged commands; stay inside the workspace.\n"
         "- Use the Todo tool to maintain multi-step plans when needed.\n"
         "- After finishing, summarize what changed and how to run or test."
@@ -149,7 +153,9 @@ class MinionCodeAgent(CodeAgent):
         minion_tools = [
             FileReadTool(),
             FileWriteTool(),
-            FileEditTool(),
+            #FileEditTool(),
+            FileEditToolNew(),
+            MultiEditTool(),
             BashTool(),
             GrepTool(),
             GlobTool(),
