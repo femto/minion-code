@@ -90,7 +90,7 @@ class InterruptibleCLI:
             
             self.agent = await MinionCodeAgent.create(
                 name="CLI Code Assistant",
-                llm="gpt-4o-mini",  # 使用更稳定的模型配置
+                llm="sonnet",  # 使用更稳定的模型配置
                 additional_tools=self.mcp_tools if self.mcp_tools else None
             )
             

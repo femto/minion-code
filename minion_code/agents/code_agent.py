@@ -116,7 +116,7 @@ class MinionCodeAgent(CodeAgent):
     async def create(
         cls,
         name: str = "Minion Code Assistant",
-        llm: str = "gpt-4o-mini",
+        llm: str = "sonnet",
         system_prompt: Optional[str] = None,
         workdir: Optional[Union[str, Path]] = None,
         additional_tools: Optional[List[Any]] = None,
