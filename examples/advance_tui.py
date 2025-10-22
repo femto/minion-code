@@ -250,13 +250,13 @@ class MinionCodeTUI(App):
         
         yield Footer()
     
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         """Initialize the application."""
         self.title = "🤖 MinionCodeAgent TUI"
         self.sub_title = "AI-powered code assistant"
         
         # Start agent setup
-        asyncio.create_task(self.setup_agent())
+        await self.setup_agent()
         
         # Focus on input
         self.query_one("#user-input").focus()
@@ -315,24 +315,24 @@ class MinionCodeTUI(App):
         """Add a message to the chat log."""
         chat_log = self.query_one("#chat-log", Log)
         
+        # Format messages with simple text prefixes since Log only supports plain text
         if msg_type == "error":
-            chat_log.write(Text(message, style="bold red"))
+            chat_log.write(f"❌ {message}")
         elif msg_type == "success":
-            chat_log.write(Text(message, style="bold green"))
+            chat_log.write(f"✅ {message}")
         elif msg_type == "warning":
-            chat_log.write(Text(message, style="bold yellow"))
+            chat_log.write(f"⚠️ {message}")
         elif msg_type == "user":
-            chat_log.write(Text(f"👤 You: {message}", style="bold cyan"))
+            chat_log.write(f"� You: {message}")
         elif msg_type == "agent":
             # Handle markdown in agent responses
             if "```" in message:
-                chat_log.write(Text(f"🤖 Agent:", style="bold green"))
-                # For now, just display as text - could enhance with proper markdown rendering
-                chat_log.write(Text(message, style="green"))
+                chat_log.write("🤖 Agent:")
+                chat_log.write(message)
             else:
-                chat_log.write(Text(f"🤖 Agent: {message}", style="bold green"))
+                chat_log.write(f"🤖 Agent: {message}")
         else:
-            chat_log.write(Text(message))
+            chat_log.write(message)
     
     async def process_user_input(self, message: str) -> None:
         """Process user input with the agent."""
@@ -426,14 +426,14 @@ Ctrl+Q - Quit application"""
         else:
             self.log_message(f"❌ Unknown command: /{command}. Use /help for available commands.", "error")
     
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle input submission."""
         if event.input.id == "user-input":
             message = event.value
             event.input.clear()
             asyncio.create_task(self.process_user_input(message))
     
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
         if event.button.id == "send-button":
             user_input = self.query_one("#user-input", Input)
