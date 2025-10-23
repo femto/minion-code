@@ -30,9 +30,9 @@ agent = [
 ]
 
 [project.scripts]
-mc = "examples.simple_tui:run"
-mcode = "examples.simple_tui:run"
-minion-code = "minion_code.cli:app"
+mc = "examples.interruptible_tui:run"
+mcode = "examples.interruptible_tui:run"
+minion-code = "examples.interruptible_tui:run"
 
 [tool.setuptools.packages.find]
 where = ["."]

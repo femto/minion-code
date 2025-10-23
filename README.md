@@ -17,7 +17,7 @@
 # 克隆仓库
 git clone <repository-url>
 cd minion-code
-
+pip install -e .
 ```
 
 ## 快速开始
@@ -26,19 +26,19 @@ cd minion-code
 
 ```bash
 # 基本使用
-minion-code
+mcode
 
 # 指定工作目录
-minion-code --dir /path/to/project
+mcode --dir /path/to/project
 
 # 启用详细输出
-minion-code --verbose
+mcode --verbose
 
 # 使用MCP配置文件加载额外工具
-minion-code --config mcp.json
+mcode --config mcp.json
 
 # 组合使用
-minion-code --dir /path/to/project --config mcp.json --verbose
+mcode --dir /path/to/project --config mcp.json --verbose
 ```
 
 ### 编程接口
