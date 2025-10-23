@@ -1,6 +1,71 @@
 # Agent Development Guidelines
 
+## UI Component Implementation
+
+### Textual UI Components as React Simulation
+
+This project uses **Textual UI components** to simulate React controls and interfaces. When implementing UI components:
+
+- Use Textual widgets and containers to create React-like component structures
+- Leverage Textual's reactive system to mimic React's state management
+- Implement component composition patterns similar to React components
+- Use Textual's CSS-like styling system for component appearance
+
+### Logging Setup
+
+For logging functionality, use the logger from the minion package:
+
+```python
+from minion.logs import logger
+```
+
+This provides centralized logging across all components and maintains consistency with the project's logging infrastructure.
+
 ## File System Usage
+
+### MCP Filesystem Tools for External File Access
+
+When developing agents that need to access files outside the current workspace, you can use **MCP filesystem tools** which provide broader file system access compared to standard workspace-restricted tools.
+
+#### Available MCP Filesystem Tools
+
+- `mcp_filesystem_read_text_file` - Read text files from anywhere on the system
+- `mcp_filesystem_read_multiple_files` - Read multiple files simultaneously
+- `mcp_filesystem_write_file` - Write files outside workspace
+- `mcp_filesystem_list_directory` - List directories outside workspace
+- `mcp_filesystem_search_files` - Search for files across the system
+- `mcp_filesystem_get_file_info` - Get file metadata from any location
+
+#### Usage Examples
+
+```python
+# Reading user's global config file
+config_content = mcp_filesystem_read_text_file("~/.kiro/settings/mcp.json")
+
+# Reading system files
+system_info = mcp_filesystem_read_text_file("/etc/hosts")
+
+# Listing user's home directory
+home_contents = mcp_filesystem_list_directory("~")
+
+# Writing to user's global settings
+mcp_filesystem_write_file("~/.myapp/config.json", json_content)
+```
+
+#### When to Use MCP Filesystem Tools
+
+- Accessing user's global configuration files (e.g., `~/.kiro/settings/`)
+- Reading system configuration files
+- Working with files in user's home directory
+- Cross-workspace file operations
+- Backup and sync operations across different locations
+
+#### Security Considerations
+
+- MCP filesystem tools have broader access - use responsibly
+- Always validate file paths and permissions
+- Be cautious when writing files outside the workspace
+- Consider user privacy when accessing personal directories
 
 ### Workspace Directory Convention
 
