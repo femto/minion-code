@@ -146,3 +146,7 @@ ls -la .minion_workspace/
 ```
 
 The todo tools have been updated to use `.minion_workspace` by default, so existing todo data will continue to work after migration.
+
+Could you please provide the note you'd like me to transform for your KODING.md file?
+
+_Added on 10/26/2025, 9:05:40 PM GMT+8_
