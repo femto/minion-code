@@ -27,23 +27,48 @@ class MessageResponse(Container):
         response = MessageResponse(children=[message_widget, status_widget])
     """
     
-    CSS = """
+    DEFAULT_CSS = """
     MessageResponse {
         height: auto;
         width: 100%;
-        overflow: hidden;
+    }
+    
+    .message-response-container {
+        height: auto;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        layers: first second;
     }
     
     .response-indicator {
+        height: 1;
         width: auto;
         color: $text-muted;
         text-style: dim;
-        dock: left;
+        margin: 0;
+        padding: 0;
     }
     
     .response-content {
-        width: 1fr;
-        margin-left: 1;
+        width: 100%;
+        height: auto;
+        margin-left: 4;
+        margin-top: 0;
+        margin-bottom: 0;
+        padding: 0;
+    }
+    
+    .response-content > * {
+        margin: 0;
+        padding: 0;
+        height: auto;
+    }
+    
+    /* 移除Vertical容器的默认间距 */
+    .response-content Vertical {
+        margin: 0;
+        padding: 0;
     }
     """
     
@@ -64,33 +89,27 @@ class MessageResponse(Container):
     
     def compose(self):
         """Compose the MessageResponse interface"""
-        with Horizontal():
-            # Response indicator - equivalent to "  ⎿ &nbsp;"
-            yield Static("  ⎿ ", classes="response-indicator")
-            
-            # Content container
-            with Container(classes="response-content", id="content-area"):
-                # If we have direct content, show it
-                if self.content:
-                    yield Static(self.content)
-                
-                # Mount any children widgets passed during initialization
+        from textual.containers import Vertical
+        
+        # 使用Vertical多层布局
+        with Horizontal(classes="message-response-container"):
+            #yield (Static("  ⎿", classes="response-indicator"))
+            if self.children_widgets:
+
                 for child in self.children_widgets:
                     yield child
-    
+
+
+    # def on_mount(self):
+    #     print("mounting")
+    #     pass
     def mount_child(self, widget: Widget):
         """
         Mount a child widget to the content area
         Equivalent to React's children mounting
         """
-        try:
-            content_area = self.query_one("#content-area", Container)
-            content_area.mount(widget)
-        except Exception:
-            # If content area doesn't exist yet, add to pending children
-            if not hasattr(self, '_pending_children'):
-                self._pending_children = []
-            self._pending_children.append(widget)
+        content_area = self.query_one("#content-area", Container)
+        content_area.mount(widget)
     
     def mount_children(self, widgets: List[Widget]):
         """Mount multiple child widgets"""
@@ -99,25 +118,9 @@ class MessageResponse(Container):
     
     def clear_children(self):
         """Clear all child widgets from content area"""
-        try:
-            content_area = self.query_one("#content-area", Container)
-            for child in list(content_area.children):
-                child.remove()
-        except Exception:
-            # If content area doesn't exist, clear pending children
-            if hasattr(self, '_pending_children'):
-                self._pending_children.clear()
-    
-    def on_mount(self):
-        """Handle mounting of pending children when component is mounted"""
-        if hasattr(self, '_pending_children') and self._pending_children:
-            try:
-                content_area = self.query_one("#content-area", Container)
-                for widget in self._pending_children:
-                    content_area.mount(widget)
-                self._pending_children.clear()
-            except Exception:
-                pass  # Will try again later
+        content_area = self.query_one("#content-area", Container)
+        for child in list(content_area.children):
+            child.remove()
 
 
 class MessageResponseText(MessageResponse):

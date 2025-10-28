@@ -26,36 +26,42 @@ class Message(Container):
     Handles rendering of both user and assistant messages
     """
     
-    CSS = """
+    DEFAULT_CSS = """
     Message {
-        width: 100%;
+        width: 80%;
+        height: auto;
         margin-bottom: 1;
     }
     
     .user-message {
         border-left: thick blue;
         padding-left: 1;
+        height: auto;
     }
     
     .assistant-message {
         border-left: thick green;
         padding-left: 1;
+        height: auto;
     }
     
     .tool-use-message {
         border-left: thick yellow;
         padding-left: 1;
         background: $surface-lighten-1;
+        height: auto;
     }
     
     .error-message {
         border-left: thick red;
         padding-left: 1;
         background: $error 10%;
+        height: auto;
     }
     
     .message-content {
         width: 100%;
+        height: auto;
         padding: 1;
     }
     
@@ -165,17 +171,11 @@ class Message(Container):
             return
         
         try:
-            # Try to render as markdown if it contains markdown syntax
-            if any(marker in text for marker in ['#', '*', '`', '[', ']', '>']):
-                markdown = Markdown(text)
-                yield RichLog(markup=True, classes="message-content")
-                log_widget = self.query_one(RichLog)
-                log_widget.write(markdown)
-            else:
-                # Render as plain text
-                yield Static(text, classes="message-content")
+            # For now, just render as plain text to avoid compose-time issues
+            # TODO: Implement proper markdown rendering with RichLog after mount
+            yield Static(text, classes="message-content")
         except Exception as e:
-            logger.warning(f"Error rendering markdown: {e}")
+            logger.warning(f"Error rendering text: {e}")
             yield Static(text, classes="message-content")
     
     def _render_tool_use_block(self, block: Dict[str, Any]):
@@ -211,10 +211,8 @@ class Message(Container):
             if self.verbose and parameters:
                 try:
                     params_json = json.dumps(parameters, indent=2)
-                    syntax = Syntax(params_json, "json", theme="monokai")
-                    yield RichLog(markup=True, classes="message-content")
-                    log_widget = self.query_one(RichLog)
-                    log_widget.write(syntax)
+                    # For now, render as plain text to avoid compose-time issues
+                    yield Static(params_json, classes="message-content")
                 except Exception:
                     yield Static(str(parameters), classes="message-content")
     
