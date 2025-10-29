@@ -203,6 +203,13 @@ class MinionCodeAgent(CodeAgent):
             TodoReadTool(),
         ]
         
+        # Add TaskTool if available (avoid circular import)
+        try:
+            from ..tools.task_tool import TaskTool
+            minion_tools.append(TaskTool())
+        except ImportError:
+            pass
+        
         # Add any additional tools
         all_tools = minion_tools[:]
         if additional_tools:
