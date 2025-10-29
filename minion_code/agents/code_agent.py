@@ -77,7 +77,8 @@ class MinionCodeAgent(CodeAgent):
         "- Prefer taking actions with tools (read/write/edit/bash) over long prose.\n"
         "- Keep outputs terse. Use bullet lists / checklists when summarizing.\n"
         "- Never invent file paths. Ask via reads or list directories first if unsure.\n"
-        "- For edits, choose the right tool: string_edit for single string replacements, multi_edit for multiple changes to same file, file_edit for advanced operations.\n"
+        "- For edits, choose the right tool: file_edit for single string replacements, multi_edit for multiple changes to same file or large edits, file_write for complete rewrites.\n"
+        "- For large string edits (>2000 chars), prefer multi_edit tool or break into smaller chunks for better reliability.\n"
         "- Always read files before editing to establish freshness tracking.\n"
         "- For bash, avoid destructive or privileged commands; stay inside the workspace.\n"
         "- Use the Todo tool to maintain multi-step plans when needed.\n"
@@ -204,11 +205,11 @@ class MinionCodeAgent(CodeAgent):
         ]
         
         # Add TaskTool if available (avoid circular import)
-        try:
-            from ..tools.task_tool import TaskTool
-            minion_tools.append(TaskTool())
-        except ImportError:
-            pass
+        # try:
+        #     from ..tools.task_tool import TaskTool
+        #     minion_tools.append(TaskTool())
+        # except ImportError:
+        #     pass
         
         # Add any additional tools
         all_tools = minion_tools[:]
