@@ -29,7 +29,6 @@ from ..tools import (
     FileReadTool,
     FileWriteTool,
     FileEditTool,
-    FileEditToolNew,
     MultiEditTool,
     BashTool,
     GrepTool,
@@ -153,8 +152,7 @@ class MinionCodeAgent(CodeAgent):
         minion_tools = [
             FileReadTool(),
             FileWriteTool(),
-            #FileEditTool(),
-            FileEditToolNew(),
+            FileEditTool(),
             MultiEditTool(),
             BashTool(),
             GrepTool(),

@@ -20,7 +20,7 @@ A tool for editing files by replacing a single occurrence of `old_string` with `
 ### Usage
 
 ```python
-from minion_code.tools.file_edit_tool_new import FileEditTool
+from minion_code.tools.file_edit_tool import FileEditTool
 
 tool = FileEditTool()
 
@@ -33,7 +33,7 @@ result = tool.forward(
 
 # Edit existing file
 result = tool.forward(
-    file_path="/path/to/existing_file.py", 
+    file_path="/path/to/existing_file.py",
     old_string="old_text_to_replace",
     new_string="new_replacement_text"
 )
