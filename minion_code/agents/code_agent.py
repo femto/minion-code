@@ -119,9 +119,11 @@ class MinionCodeAgent(CodeAgent):
                     history_messages.append(msg)
                 else:
                     # Handle other message formats if needed
+                    content = getattr(msg, 'content', str(msg))
+                    # Keep content in its original format (string or list)
                     history_messages.append({
                         'role': getattr(msg, 'role', 'unknown'),
-                        'content': getattr(msg, 'content', str(msg))
+                        'content': content
                     })
             
             # Check if compacting is needed
@@ -352,9 +354,11 @@ class MinionCodeAgent(CodeAgent):
             if isinstance(msg, dict):
                 history_messages.append(msg)
             else:
+                content = getattr(msg, 'content', str(msg))
+                # Keep content in its original format (string or list)
                 history_messages.append({
                     'role': getattr(msg, 'role', 'unknown'),
-                    'content': getattr(msg, 'content', str(msg))
+                    'content': content
                 })
         
         return self.auto_compact.get_context_stats(history_messages)
@@ -370,9 +374,11 @@ class MinionCodeAgent(CodeAgent):
             if isinstance(msg, dict):
                 history_messages.append(msg)
             else:
+                content = getattr(msg, 'content', str(msg))
+                # Keep content in its original format (string or list)
                 history_messages.append({
                     'role': getattr(msg, 'role', 'unknown'),
-                    'content': getattr(msg, 'content', str(msg))
+                    'content': content
                 })
         
         original_count = len(history_messages)
