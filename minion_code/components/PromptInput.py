@@ -72,10 +72,8 @@ class PromptInput(Container):
     PromptInput {
         dock: bottom;
         height: auto;
-        min-height: 4;
         max-height: 15;
         margin: 1;
-        border: solid white;
         padding: 1;
     }
     
@@ -193,10 +191,7 @@ class PromptInput(Container):
     
     def compose(self):
         """Compose the PromptInput interface - working version"""
-        # Model info at top
-        yield self._render_model_info()
-        
-        # Help text
+        # Help text (model info moved to header)
         yield Static("Enter to submit · Ctrl+Enter/Ctrl+J/Tab for new line · ! for bash · # for AGENTS.md", classes="help-text")
         
         # Input area with mode prefix

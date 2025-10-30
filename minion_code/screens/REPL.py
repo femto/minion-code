@@ -280,7 +280,7 @@ class REPL(Container):
                 is_default_model=self.is_default_model,
                 update_banner_version=self.initial_update_version
             )
-            yield ModeIndicator(mode=self.input_mode)
+            # ModeIndicator removed - mode is shown in PromptInput prefix
             
             # Messages container (equivalent to messagesJSX mapping)
             with ScrollableContainer(id="messages_container"):
@@ -875,7 +875,6 @@ class REPLApp(App):
     
     #messages_container {
         height: 1fr;
-        border: solid cyan;
         margin: 1;
         scrollbar-background: gray 50%;
         scrollbar-color: white;
@@ -885,7 +884,6 @@ class REPLApp(App):
         dock: bottom;
         height: auto;
         margin: 1;
-        background: gray 10%;
     }
     
     #main_input {
@@ -917,23 +915,13 @@ class REPLApp(App):
         dock: top;
         height: 1;
         content-align: right middle;
-        background: gray 10%;
         color: white;
         margin-bottom: 1;
     }
     
     #input_container {
-        border: solid white;
         margin: 1;
         padding: 1;
-    }
-    
-    .mode-bash #input_container {
-        border: solid yellow;
-    }
-    
-    .mode-koding #input_container {
-        border: solid cyan;
     }
     
     #mode_prefix {
