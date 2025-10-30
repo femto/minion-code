@@ -16,6 +16,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 def run():
     """Main entry point for REPL TUI"""
     try:
+        # Setup TUI-friendly logging before importing REPL
+        from minion_code.utils.logs import setup_tui_logging
+        setup_tui_logging()
+        
         from minion_code.screens.REPL import run as run_repl
         run_repl()
     except ImportError as e:
@@ -92,6 +96,10 @@ Examples:
     
     # Start REPL with arguments
     try:
+        # Setup TUI-friendly logging before importing REPL
+        from minion_code.utils.logs import setup_tui_logging
+        setup_tui_logging()
+        
         from minion_code.screens.REPL import run as run_repl
         run_repl(
             initial_prompt=args.prompt,

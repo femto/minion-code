@@ -21,10 +21,9 @@ import uuid
 import time
 from pathlib import Path
 
-# Simple logging setup for TUI - disable to prevent screen interference
-import logging
-logger = logging.getLogger(__name__)
-logger.disabled = True
+# Setup TUI-friendly logging - removes console output to prevent UI interference
+from ..utils.logs import setup_tui_logging
+logger = setup_tui_logging()
 
 
 # Import shared types
@@ -547,9 +546,13 @@ class REPL(Container):
                     
             except Exception as e:
                 logger.error(f"Agent processing error: {e}")
+                
+                # Format error message for UI display
+                error_text = self._format_error_for_ui(e)
+                
                 error_message = Message(
                     type=MessageType.ASSISTANT,
-                    message=MessageContent(f"Error: {str(e)}"),
+                    message=MessageContent(error_text),
                     options={"error": True}
                 )
                 # Replace streaming message with error
@@ -557,6 +560,21 @@ class REPL(Container):
                 
         except Exception as e:
             logger.error(f"Query API error: {e}")
+            
+            # Show error message to user
+            error_text = self._format_error_for_ui(e)
+            error_message = Message(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(error_text),
+                options={"error": True}
+            )
+            
+            # Replace streaming message with error or add new error message
+            if self.messages and self.messages[-1].options.get("streaming"):
+                self.messages = [*self.messages[:-1], error_message]
+            else:
+                self.messages = [*self.messages, error_message]
+                
         finally:
             self.is_loading = False
     
@@ -686,6 +704,31 @@ class REPL(Container):
         """Get errored tool use IDs - equivalent to getErroredToolUseMessages"""
         # This would analyze messages for errored tool uses
         return set()
+    
+    def _format_error_for_ui(self, error: Exception) -> str:
+        """Format error message for UI display with appropriate context"""
+        error_type = type(error).__name__
+        error_msg = str(error)
+        
+        # Handle common error types with user-friendly messages
+        if "ImportError" in error_type or "ModuleNotFoundError" in error_type:
+            return f"❌ Module Error: {error_msg}\n💡 Try installing missing dependencies or check your environment setup."
+        
+        elif "ConnectionError" in error_type or "TimeoutError" in error_type:
+            return f"❌ Connection Error: {error_msg}\n💡 Check your internet connection or API configuration."
+        
+        elif "PermissionError" in error_type:
+            return f"❌ Permission Error: {error_msg}\n💡 Check file permissions or run with appropriate privileges."
+        
+        elif "FileNotFoundError" in error_type:
+            return f"❌ File Not Found: {error_msg}\n💡 Verify the file path exists and is accessible."
+        
+        elif "ValueError" in error_type or "TypeError" in error_type:
+            return f"❌ Input Error: {error_msg}\n💡 Please check your input format and try again."
+        
+        else:
+            # Generic error with helpful context
+            return f"❌ {error_type}: {error_msg}\n💡 If this error persists, please check the logs for more details."
     
     # Reactive property watchers (equivalent to React useEffect)
     def watch_fork_number(self, fork_number: int):
