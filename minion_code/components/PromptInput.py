@@ -36,7 +36,9 @@ class PromptInput(Container):
     CSS = """
     PromptInput {
         dock: bottom;
-        height: 6;
+        height: auto;
+        min-height: 6;
+        max-height: 15;
         margin: 1;
         border: solid white;
         padding: 1;
@@ -58,6 +60,9 @@ class PromptInput(Container):
     
     #main_input {
         width: 1fr;
+        height: auto;
+        min-height: 1;
+        max-height: 10;
     }
     
     .help-text {
@@ -169,13 +174,11 @@ class PromptInput(Container):
         # Input area with mode prefix
         with Horizontal():
             yield Static(self._get_mode_prefix(), id="mode_prefix")
-            from textual.widgets import TextArea
             yield TextArea(
                 text=self.input_value,
                 id="main_input",
                 disabled=self.is_disabled or self.is_loading,
-                show_line_numbers=False,
-
+                show_line_numbers=False
             )
     
     def _render_model_info(self) -> Static:
@@ -223,9 +226,8 @@ class PromptInput(Container):
     
     # Event handlers
     @on(TextArea.Changed, "#main_input")
-    def on_input_changed(self, event):
-        """Handle input value changes - equivalent to onChange callback"""
-        from textual.widgets import TextArea
+    def on_textarea_changed(self, event: TextArea.Changed):
+        """Handle TextArea content changes"""
         value = event.text_area.text
         
         # Handle mode switching based on input prefix
@@ -244,11 +246,19 @@ class PromptInput(Container):
         if self.on_input_change:
             self.on_input_change(value)
     
-    def on_key(self, event) -> bool:
-        """Handle key events for TextArea - Ctrl+Enter for newline, Enter for submit"""
+    def on_key(self, event: Key) -> bool:
+        """Handle key events - Ctrl+Enter for newline, Enter for submit"""
+        # Only handle keys when the TextArea has focus
+        try:
+            text_area = self.query_one("#main_input", expect_type=TextArea)
+            if not text_area.has_focus:
+                return False
+        except:
+            return False
+        
         if event.key == "enter":
-            # Regular Enter - submit
-            self._handle_submit() #submit a worker
+            # Regular Enter - submit (prevent default TextArea behavior)
+            self.run_worker(self._handle_submit())
             return True
         elif event.key == "ctrl+enter":
             # Ctrl+Enter - insert newline (let TextArea handle it naturally)
@@ -291,11 +301,8 @@ class PromptInput(Container):
         
         return False
 
-    @work
     async def _handle_submit(self):
         """Handle input submission - equivalent to onSubmit function"""
-        from textual.widgets import TextArea
-        
         try:
             text_area = self.query_one("#main_input", expect_type=TextArea)
             input_text = text_area.text.strip()
@@ -484,45 +491,7 @@ class PromptInput(Container):
         self.exit_message = {"show": True, "key": "Ctrl+C"}
         self.set_timer(3.0, lambda: setattr(self, 'exit_message', {"show": False, "key": ""}))
     
-    # Key event handling
-    def on_key(self, event: Key) -> bool:
-        """Handle special key combinations - equivalent to useInput hook"""
-        # Handle mode switching with backspace/delete
-        if event.key in ["backspace", "delete"]:
-            if self.mode == InputMode.BASH and not self.input_value:
-                self.mode = InputMode.PROMPT
-                if self.on_mode_change:
-                    self.on_mode_change(InputMode.PROMPT)
-                return True
-            elif self.mode == InputMode.KODING and not self.input_value:
-                self.mode = InputMode.PROMPT
-                if self.on_mode_change:
-                    self.on_mode_change(InputMode.PROMPT)
-                return True
-        
-        # Handle escape key
-        if event.key == "escape":
-            if not self.input_value and not self.is_loading and len(self.messages) > 0:
-                if self.on_show_message_selector:
-                    self.on_show_message_selector()
-                return True
-            else:
-                self.mode = InputMode.PROMPT
-                if self.on_mode_change:
-                    self.on_mode_change(InputMode.PROMPT)
-                return True
-        
-        # Handle Shift+M for model switching
-        if event.key == "shift+m":
-            self._handle_quick_model_switch()
-            return True
-        
-        # Handle Shift+Tab for mode cycling
-        if event.key == "shift+tab":
-            self._cycle_mode()
-            return True
-        
-        return False
+
     
     def _handle_quick_model_switch(self):
         """Handle quick model switching - equivalent to handleQuickModelSwitch"""
