@@ -28,7 +28,16 @@ from ..types import (
 
 
 class CustomTextArea(TextArea):
-    """Custom TextArea that posts key events to parent"""
+    """Custom TextArea with adaptive height and key event posting"""
+    
+    DEFAULT_CSS = """
+    CustomTextArea {
+        height: auto;
+        min-height: 1;
+        max-height: 10;
+        width: 1fr;
+    }
+    """
     
     class KeyPressed(Message):
         """Message posted when a key is pressed"""
@@ -59,12 +68,11 @@ class PromptInput(Container):
     Handles user input with mode switching and command processing
     """
     
-    # Working CSS
-    CSS = """
+    DEFAULT_CSS = """
     PromptInput {
         dock: bottom;
         height: auto;
-        min-height: 6;
+        min-height: 4;
         max-height: 15;
         margin: 1;
         border: solid white;
@@ -83,13 +91,6 @@ class PromptInput(Container):
         width: 3;
         content-align: center middle;
         text-style: bold;
-    }
-    
-    #main_input {
-        width: 1fr;
-        height: auto;
-        min-height: 1;
-        max-height: 10;
     }
     
     .help-text {
@@ -437,7 +438,7 @@ class PromptInput(Container):
         
         # This would be processed by the main query system
         if self.on_query:
-            user_message = Message(
+            user_message = MinionMessage(
                 type=MessageType.USER,
                 message=MessageContent(content),
                 options={"isKodingRequest": True, "kodingContext": koding_context}
@@ -479,9 +480,9 @@ class PromptInput(Container):
         except Exception as e:
             logger.error(f"Error writing to AGENTS.md: {e}")
     
-    async def _process_user_input(self, input_text: str, mode: InputMode) -> List[Message]:
+    async def _process_user_input(self, input_text: str, mode: InputMode) -> List[MinionMessage]:
         """Process user input - equivalent to processUserInput"""
-        user_message = Message(
+        user_message = MinionMessage(
             type=MessageType.USER,
             message=MessageContent(input_text),
             options={"mode": mode.value}

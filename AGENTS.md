@@ -150,3 +150,153 @@ The todo tools have been updated to use `.minion_workspace` by default, so exist
 Could you please provide the note you'd like me to transform for your KODING.md file?
 
 _Added on 10/26/2025, 9:05:40 PM GMT+8_
+##
+ Textual UI Component CSS Standards
+
+### DEFAULT_CSS Convention
+
+When creating custom Textual UI components, always use `DEFAULT_CSS` instead of `CSS` for styling. This follows Textual best practices and ensures proper CSS inheritance and component isolation.
+
+#### Correct Implementation
+
+```python
+class CustomTextArea(TextArea):
+    """Custom TextArea with adaptive height and key event posting"""
+    
+    DEFAULT_CSS = """
+    CustomTextArea {
+        height: auto;
+        min-height: 1;
+        max-height: 10;
+        width: 1fr;
+    }
+    """
+    
+    # Component implementation...
+
+class PromptInput(Container):
+    """Main input component with mode switching"""
+    
+    DEFAULT_CSS = """
+    PromptInput {
+        dock: bottom;
+        height: auto;
+        min-height: 4;
+        max-height: 15;
+        margin: 1;
+        border: solid white;
+        padding: 1;
+    }
+    
+    .mode-bash PromptInput {
+        border: solid yellow;
+    }
+    
+    .mode-koding PromptInput {
+        border: solid cyan;
+    }
+    
+    #mode_prefix {
+        width: 3;
+        content-align: center middle;
+        text-style: bold;
+    }
+    
+    .help-text {
+        color: gray;
+        text-style: dim;
+        margin-bottom: 1;
+    }
+    """
+```
+
+#### Why DEFAULT_CSS?
+
+1. **Component Isolation**: `DEFAULT_CSS` ensures styles are scoped to the component
+2. **Inheritance Control**: Allows proper CSS inheritance from parent components
+3. **Override Safety**: Prevents accidental style conflicts with global CSS
+4. **Textual Best Practice**: Follows official Textual framework conventions
+
+#### Adaptive Height Components
+
+For components that need to adapt their height based on content:
+
+```python
+DEFAULT_CSS = """
+ComponentName {
+    height: auto;          # Allow automatic height calculation
+    min-height: 1;         # Minimum height (1 line for text inputs)
+    max-height: 10;        # Maximum height before scrolling
+    width: 1fr;            # Take available width
+}
+"""
+```
+
+#### Common CSS Patterns
+
+**Input Components**:
+```css
+CustomInput {
+    height: auto;
+    min-height: 1;
+    max-height: 10;
+    width: 1fr;
+    border: solid white;
+}
+```
+
+**Container Components**:
+```css
+CustomContainer {
+    dock: bottom;
+    height: auto;
+    min-height: 4;
+    margin: 1;
+    padding: 1;
+}
+```
+
+**Mode-based Styling**:
+```css
+.mode-bash ComponentName {
+    border: solid yellow;
+}
+
+.mode-koding ComponentName {
+    border: solid cyan;
+}
+```
+
+### Key Event Handling in Custom Components
+
+When creating custom widgets that need to handle key events and communicate with parent components:
+
+```python
+class CustomWidget(Widget):
+    class KeyPressed(Message):
+        """Message posted when a key is pressed"""
+        def __init__(self, key: str) -> None:
+            super().__init__()
+            self.key = key
+    
+    def on_key(self, event: Key) -> bool:
+        # Post key event to parent for handling
+        self.post_message(self.KeyPressed(event.key))
+        
+        # Handle specific keys
+        if event.key == "enter":
+            return True  # Prevent default handling
+        
+        return False  # Allow default handling
+```
+
+Parent component handling:
+```python
+@on(CustomWidget.KeyPressed)
+def on_custom_widget_key(self, event: CustomWidget.KeyPressed):
+    if event.key == "enter":
+        # Handle enter key
+        pass
+```
+
+This pattern ensures proper event propagation and component communication in Textual applications.
