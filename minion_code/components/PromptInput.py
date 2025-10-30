@@ -51,6 +51,9 @@ class CustomTextArea(TextArea):
         self.post_message(self.KeyPressed(event.key))
         
         # Handle Ctrl+Enter, Tab, and Ctrl+J - prevent default, let parent add newline manually
+        if event.key in ["tab"]:
+            event.stop()
+            return True
         if event.key in ["ctrl+enter", "tab", "ctrl+j"]:
             return True  # Prevent TextArea from handling, parent will add newline
         
