@@ -175,7 +175,7 @@ class PromptInput(Container):
                 id="main_input",
                 disabled=self.is_disabled or self.is_loading,
                 show_line_numbers=False,
-                wrap="word"
+
             )
     
     def _render_model_info(self) -> Static:

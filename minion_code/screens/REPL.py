@@ -1009,7 +1009,7 @@ class REPLApp(App):
     
     def compose(self) -> ComposeResult:
         """Compose the main application - equivalent to React App render"""
-        yield Header(show_clock=True)
+        yield Header(show_clock=False)
         yield REPL(**self.repl_props)
         yield Footer()
     
