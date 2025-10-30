@@ -16,10 +16,7 @@ from enum import Enum
 import asyncio
 import time
 
-# Simple logging setup for TUI - disable to prevent screen interference
-import logging
-logger = logging.getLogger(__name__)
-logger.disabled = True
+# No logging in UI components to reduce noise
 
 # Import shared types
 from ..types import (
@@ -180,17 +177,14 @@ class PromptInput(Container):
         self.set_fork_convo_with_messages: Optional[Callable] = None
         self.on_model_change: Optional[Callable] = None
         self.set_tool_jsx: Optional[Callable] = None
-        
-        logger.info(f"PromptInput initialized in {mode.value} mode")
     
     def on_mount(self):
         """Set focus to input when component mounts"""
         try:
             input_widget = self.query_one("#main_input", expect_type=CustomTextArea)
             input_widget.focus()
-            logger.info("Focus set to main CustomTextArea input")
-        except Exception as e:
-            logger.warning(f"Could not set focus to CustomTextArea input: {e}")
+        except Exception:
+            pass  # Silently handle focus errors
     
     def compose(self):
         """Compose the PromptInput interface - working version"""
@@ -323,8 +317,6 @@ class PromptInput(Container):
         if self.is_disabled or self.is_loading:
             return
         
-        logger.info(f"Submitting input: {input_text[:50]}... (mode: {self.mode.value})")
-        
         # Handle exit commands
         if input_text.lower() in ['exit', 'quit', ':q', ':q!', ':wq', ':wq!']:
             self._handle_exit()
@@ -352,7 +344,6 @@ class PromptInput(Container):
     
     async def _handle_koding_input(self, input_text: str):
         """Handle koding mode input - equivalent to koding mode handling"""
-        logger.info(f"Processing koding input: {input_text}")
         
         # Strip # prefix if present
         content = input_text[1:].strip() if input_text.startswith('#') else input_text
@@ -370,7 +361,6 @@ class PromptInput(Container):
     
     async def _handle_bash_input(self, input_text: str):
         """Handle bash mode input - equivalent to bash command processing"""
-        logger.info(f"Processing bash input: {input_text}")
         
         # Strip ! prefix if present
         command = input_text[1:].strip() if input_text.startswith('!') else input_text
@@ -393,17 +383,16 @@ class PromptInput(Container):
                 response = f"Error: {result.stderr}"
             
             # This would typically be handled by the parent REPL component
-            logger.info(f"Bash command result: {response[:100]}...")
+            pass
             
-        except Exception as e:
-            logger.error(f"Error executing bash command: {e}")
+        except Exception:
+            pass  # Silently handle bash command errors
         
         # Add to history
         self._add_to_history(f"!{input_text}" if not input_text.startswith('!') else input_text)
     
     async def _handle_prompt_input(self, input_text: str):
         """Handle regular prompt input - equivalent to normal message processing"""
-        logger.info(f"Processing prompt input: {input_text}")
         
         if self.set_is_loading:
             self.set_is_loading(True)
@@ -424,7 +413,6 @@ class PromptInput(Container):
     
     async def _handle_koding_ai_request(self, content: str):
         """Handle AI request for koding mode"""
-        logger.info(f"Processing koding AI request: {content}")
         
         # This would integrate with the AI system to generate content for AGENTS.md
         # For now, just log the request
@@ -445,14 +433,12 @@ class PromptInput(Container):
     
     async def _handle_koding_note(self, content: str):
         """Handle direct note to AGENTS.md"""
-        logger.info(f"Adding note to AGENTS.md: {content}")
         
         # Interpret and format the note using AI (simplified version)
         try:
             interpreted_content = await self._interpret_hash_command(content)
             self._handle_hash_command(interpreted_content)
-        except Exception as e:
-            logger.error(f"Error interpreting hash command: {e}")
+        except Exception:
             # Fallback to simple formatting
             formatted_content = f"# {content}\n\n_Added on {time.strftime('%Y-%m-%d %H:%M:%S')}_"
             self._handle_hash_command(formatted_content)
@@ -472,11 +458,8 @@ class PromptInput(Container):
             if agents_md.exists():
                 with open(agents_md, "a", encoding="utf-8") as f:
                     f.write(f"\n\n{content}\n")
-                logger.info("Added content to AGENTS.md")
-            else:
-                logger.warning("AGENTS.md not found")
-        except Exception as e:
-            logger.error(f"Error writing to AGENTS.md: {e}")
+        except Exception:
+            pass  # Silently handle file write errors
     
     async def _process_user_input(self, input_text: str, mode: InputMode) -> List[MinionMessage]:
         """Process user input - equivalent to processUserInput"""
@@ -489,11 +472,10 @@ class PromptInput(Container):
     
     def _add_to_history(self, input_text: str):
         """Add input to history - equivalent to addToHistory"""
-        logger.info(f"Added to history: {input_text[:50]}...")
+        pass
     
     def _handle_exit(self):
         """Handle exit command"""
-        logger.info("Exit command received")
         # This would typically exit the application
         # For now, just show exit message
         self.exit_message = {"show": True, "key": "Ctrl+C"}
@@ -503,7 +485,6 @@ class PromptInput(Container):
     
     def _handle_quick_model_switch(self):
         """Handle quick model switching - equivalent to handleQuickModelSwitch"""
-        logger.info("Model switch requested")
         
         # This would integrate with the model manager
         # For now, show a mock message
@@ -558,8 +539,8 @@ class PromptInput(Container):
             if self.on_input_change:
                 self.on_input_change(new_text)
                 
-        except Exception as e:
-            logger.error(f"Error inserting newline: {e}")
+        except Exception:
+            pass  # Silently handle newline insertion errors
     
     def _cycle_mode(self):
         """Cycle through input modes"""
@@ -570,13 +551,10 @@ class PromptInput(Container):
         
         if self.on_mode_change:
             self.on_mode_change(new_mode)
-        
-        logger.info(f"Cycled to mode: {new_mode.value}")
     
     # Reactive property watchers
     def watch_mode(self, mode: InputMode):
         """Watch mode changes and update UI"""
-        logger.info(f"Mode changed to: {mode.value}")
         try:
             # Update mode prefix
             prefix_widget = self.query_one("#mode_prefix", expect_type=Static)

@@ -12,12 +12,9 @@ from rich.markdown import Markdown
 from rich.syntax import Syntax
 from typing import List, Dict, Any, Optional, Set
 import json
-import logging
 
 # Import shared types
 from ..types import Message as MessageType, MessageContent, InputMode
-
-logger = logging.getLogger(__name__)
 
 
 class Message(Container):
@@ -174,8 +171,7 @@ class Message(Container):
             # For now, just render as plain text to avoid compose-time issues
             # TODO: Implement proper markdown rendering with RichLog after mount
             yield Static(text, classes="message-content")
-        except Exception as e:
-            logger.warning(f"Error rendering text: {e}")
+        except Exception:
             yield Static(text, classes="message-content")
     
     def _render_tool_use_block(self, block: Dict[str, Any]):

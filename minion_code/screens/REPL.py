@@ -21,9 +21,7 @@ import uuid
 import time
 from pathlib import Path
 
-# Setup TUI-friendly logging - removes console output to prevent UI interference
-from ..utils.logs import setup_tui_logging
-logger = setup_tui_logging()
+# No logging in UI components to reduce noise
 
 
 # Import shared types
@@ -132,8 +130,8 @@ class MessageWidget(Container):
                 static_widgets = self.query("Static")
                 if len(static_widgets) > 1:
                     static_widgets[1].update(new_content)
-            except Exception as e:
-                logger.warning(f"Failed to update streaming content: {e}")
+            except Exception:
+                pass  # Silently handle streaming update errors
     
     def finalize_streaming(self, final_content: str):
         """Finalize streaming message with final content"""
@@ -267,8 +265,7 @@ class REPL(Container):
         self.binary_feedback_context: Optional[BinaryFeedbackContext] = None
         self.read_file_timestamps: Dict[str, float] = {}
         self.fork_convo_with_messages_on_next_render: Optional[List[Message]] = None
-        
-        logger.info(f"REPL initialized with {len(self.messages)} initial messages")
+
     
     def compose(self) -> ComposeResult:
         """Compose the REPL interface - equivalent to React render method"""
@@ -351,7 +348,6 @@ class REPL(Container):
     
     def on_mount(self):
         """Component lifecycle - equivalent to React useEffect(() => { onInit() }, [])"""
-        logger.info("REPL mounted, starting initialization")
         self.call_later(self.on_init)
         # Set focus to the input after a short delay to ensure it's mounted
         self.set_timer(0.1, self._set_focus_to_input)
@@ -362,29 +358,22 @@ class REPL(Container):
             # Try to find the main TextArea input
             input_widget = self.query_one("#main_input", expect_type=TextArea)
             input_widget.focus()
-            logger.info("Focus set to main TextArea input from REPL")
-        except Exception as e:
-            logger.warning(f"Could not set focus to main input: {e}")
+        except Exception:
             # If that fails, try to focus any TextArea or Input widget
             try:
                 text_areas = self.query("TextArea")
                 if text_areas:
                     text_areas[0].focus()
-                    logger.info("Focus set to first available TextArea")
                 else:
                     inputs = self.query("Input")
                     if inputs:
                         inputs[0].focus()
-                        logger.info("Focus set to first available Input")
-            except Exception as e2:
-                logger.warning(f"Could not set focus to any input: {e2}")
+            except Exception:
+                pass  # Silently handle focus errors
     
     async def on_init(self):
         """Initialize REPL - equivalent to React onInit function"""
-        logger.info("REPL initialization started")
-        
         if not self.initial_prompt:
-            logger.info("No initial prompt provided")
             return
         
         self.is_loading = True
@@ -406,15 +395,13 @@ class REPL(Container):
                 # Query API if needed (equivalent to query function)
                 await self.query_api(new_messages)
             
-        except Exception as e:
-            logger.error(f"Initialization failed: {e}")
+        except Exception:
+            pass  # Silently handle initialization errors
         finally:
             self.is_loading = False
-            logger.info("REPL initialization completed")
     
     async def process_user_input(self, input_text: str, mode: InputMode) -> List[Message]:
         """Process user input - equivalent to processUserInput function"""
-        logger.info(f"Processing user input: {input_text[:50]}... (mode: {mode.value})")
         
         # Create user message
         user_message = Message(
@@ -460,11 +447,9 @@ class REPL(Container):
     def set_agent(self, agent):
         """Set agent from app level"""
         self.agent = agent
-        logger.info("Agent set from app level")
     
     async def query_api(self, new_messages: List[Message]):
         """Query the AI API with streaming support - equivalent to query function"""
-        logger.info("Querying AI API with streaming")
         
         if not new_messages or new_messages[-1].type != MessageType.USER:
             return
@@ -545,8 +530,6 @@ class REPL(Container):
                     await self.handle_koding_response(final_message)
                     
             except Exception as e:
-                logger.error(f"Agent processing error: {e}")
-                
                 # Format error message for UI display
                 error_text = self._format_error_for_ui(e)
                 
@@ -559,8 +542,6 @@ class REPL(Container):
                 self.messages = [*self.messages[:-1], error_message]
                 
         except Exception as e:
-            logger.error(f"Query API error: {e}")
-            
             # Show error message to user
             error_text = self._format_error_for_ui(e)
             error_message = Message(
@@ -580,7 +561,6 @@ class REPL(Container):
     
     async def handle_koding_response(self, assistant_message: Message):
         """Handle Koding mode response - equivalent to handleHashCommand"""
-        logger.info("Handling Koding response")
         
         content = assistant_message.message.content
         if isinstance(content, str) and content.strip():
@@ -592,14 +572,13 @@ class REPL(Container):
                         f.write(f"\n\n## Koding Response - {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
                         f.write(content)
                         f.write("\n")
-                    logger.info("Saved Koding response to AGENTS.md")
-            except Exception as e:
-                logger.error(f"Error saving to AGENTS.md: {e}")
+            except Exception:
+                pass  # Silently handle file write errors
     
     def add_to_history(self, command: str):
         """Add command to history - equivalent to addToHistory"""
         # This would integrate with the history system
-        logger.info(f"Added to history: {command[:50]}...")
+        pass
     
     def on_cancel(self):
         """Cancel current operation - equivalent to onCancel function"""
@@ -612,13 +591,10 @@ class REPL(Container):
             self.tool_use_confirm.on_abort()
         elif self.abort_controller:
             self.abort_controller.cancel()
-        
-        logger.info("Operation cancelled")
     
     # Callback methods for PromptInput component
     async def on_query_from_prompt(self, messages: List[Message], abort_controller=None):
         """Handle query from PromptInput - equivalent to onQuery prop"""
-        logger.info(f"Received query from PromptInput with {len(messages)} messages")
         
         # Use passed AbortController or create new one
         controller_to_use = abort_controller or asyncio.create_task(asyncio.sleep(0))
@@ -665,7 +641,6 @@ class REPL(Container):
     def on_model_change_from_prompt(self):
         """Handle model change from PromptInput"""
         self.fork_number += 1
-        logger.info("Model changed, incrementing fork number")
     
     def set_tool_jsx_from_prompt(self, tool_jsx):
         """Set tool JSX from PromptInput"""
@@ -677,7 +652,6 @@ class REPL(Container):
         self.show_cost_dialog = False
         self.have_shown_cost_dialog = True
         self.config.has_acknowledged_cost_threshold = True
-        logger.info("Cost threshold acknowledged")
     
     def normalize_messages(self) -> List[Message]:
         """Normalize messages - equivalent to normalizeMessages function"""
@@ -733,15 +707,15 @@ class REPL(Container):
     # Reactive property watchers (equivalent to React useEffect)
     def watch_fork_number(self, fork_number: int):
         """Watch fork number changes"""
-        logger.info(f"Fork number changed to: {fork_number}")
+        pass
     
     def watch_is_loading(self, is_loading: bool):
         """Watch loading state changes"""
-        logger.info(f"Loading state changed to: {is_loading}")
+        pass
     
     def watch_messages(self, messages: List[Message]):
         """Watch messages changes - equivalent to useEffect([messages], ...)"""
-        logger.info(f"Messages updated, count: {len(messages)}")
+        pass
         
         # Check cost threshold (equivalent to cost threshold useEffect)
         total_cost = self.get_total_cost()
@@ -769,7 +743,6 @@ class REPL(Container):
     def on_simple_input_changed(self, event):
         """Handle simple input changes"""
         self.input_value = event.value
-        logger.info(f"Input changed: {event.value}")
     
     @on(Input.Submitted, "#simple_input")
     @on(Button.Pressed, "#simple_send")
@@ -780,8 +753,6 @@ class REPL(Container):
         
         if not input_text:
             return
-        
-        logger.info(f"Submitting: {input_text}")
         
         # Add user message to display
         user_message = Message(
@@ -823,8 +794,6 @@ class REPL(Container):
             input_widget.placeholder = f"Enter {self.input_mode.value} command..."
         except:
             pass
-        
-        logger.info(f"Mode changed to: {self.input_mode.value}")
 
 
 class REPLApp(App):
@@ -1055,7 +1024,6 @@ class REPLApp(App):
     def on_mount(self):
         """Application mount lifecycle"""
         self.title = "Minion Code Assistant"
-        logger.info("REPL Application started")
         # Initialize agent at app level
         self.run_worker(self._initialize_agent())
     
@@ -1068,7 +1036,6 @@ class REPLApp(App):
                 llm="sonnet"
             )
             self.agent_ready = True
-            logger.info("App-level agent initialized successfully")
             
             # Update REPL component with agent
             try:
@@ -1077,8 +1044,7 @@ class REPLApp(App):
             except:
                 pass  # REPL might not be mounted yet
                 
-        except Exception as e:
-            logger.error(f"Failed to initialize app-level agent: {e}")
+        except Exception:
             self.agent_ready = False
 
 
