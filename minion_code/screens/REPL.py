@@ -6,7 +6,7 @@ Simulates React-like component structure as documented in AGENTS.md
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
-from textual.widgets import Input, RichLog, Button, Static, Header, Footer, Label
+from textual.widgets import Input, RichLog, Button, Static, Header, Footer, Label, TextArea
 from textual.reactive import reactive, var
 from textual import on, work
 from textual.screen import Screen
@@ -77,21 +77,39 @@ class Spinner(Static):
         self.update(f"{self.spinner_chars[self.spinner_index]} Loading...")
 
 class MessageWidget(Container):
-    """Individual message display widget"""
+    """Individual message display widget with streaming support"""
     
     def __init__(self, message: Message, verbose: bool = False, debug: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.message = message
         self.verbose = verbose
         self.debug = debug
+        self.is_streaming = message.options.get("streaming", False) if message.options else False
+        self.is_error = message.options.get("error", False) if message.options else False
     
     def compose(self) -> ComposeResult:
+        content_text = self._get_content_text()
+        
         if self.message.type == MessageType.USER:
-            yield Static(f"👤 User: {self._get_content_text()}", classes="user-message")
+            yield Static(f"👤 User:", classes="user-label")
+            yield Static(content_text, classes="user-message")
         elif self.message.type == MessageType.ASSISTANT:
-            yield Static(f"🤖 Assistant: {self._get_content_text()}", classes="assistant-message")
+            if self.is_streaming:
+                yield Static(f"🤖 Assistant: ⠋ Thinking...", classes="assistant-streaming")
+            elif self.is_error:
+                yield Static(f"❌ Assistant:", classes="assistant-error-label")
+                yield Static(content_text, classes="assistant-error")
+            else:
+                yield Static(f"🤖 Assistant:", classes="assistant-label")
+                # Handle markdown content
+                if "```" in content_text or content_text.startswith("#"):
+                    from rich.markdown import Markdown
+                    yield Static(Markdown(content_text), classes="assistant-message")
+                else:
+                    yield Static(content_text, classes="assistant-message")
         elif self.message.type == MessageType.PROGRESS:
-            yield Static(f"⚙️ Progress: {self._get_content_text()}", classes="progress-message")
+            yield Static(f"⚙️ Progress:", classes="progress-label")
+            yield Static(content_text, classes="progress-message")
     
     def _get_content_text(self) -> str:
         if isinstance(self.message.message.content, str):
@@ -104,6 +122,28 @@ class MessageWidget(Container):
                     text_parts.append(block.get("text", ""))
             return "\n".join(text_parts)
         return str(self.message.message.content)
+    
+    def update_streaming_content(self, new_content: str):
+        """Update streaming message content"""
+        if self.is_streaming:
+            try:
+                # Update the message content
+                self.message.message.content = new_content
+                # Find and update the static widget
+                static_widgets = self.query("Static")
+                if len(static_widgets) > 1:
+                    static_widgets[1].update(new_content)
+            except Exception as e:
+                logger.warning(f"Failed to update streaming content: {e}")
+    
+    def finalize_streaming(self, final_content: str):
+        """Finalize streaming message with final content"""
+        if self.is_streaming:
+            self.is_streaming = False
+            self.message.options["streaming"] = False
+            self.message.message.content = final_content
+            # Refresh the entire widget
+            self.refresh()
 
 
 # PromptInput moved to components/PromptInput.py
@@ -316,18 +356,23 @@ class REPL(Container):
     def _set_focus_to_input(self):
         """Set focus to the main input widget"""
         try:
-            # Try to find the simplified input
-            input_widget = self.query_one("#simple_input", expect_type=Input)
+            # Try to find the main TextArea input
+            input_widget = self.query_one("#main_input", expect_type=TextArea)
             input_widget.focus()
-            logger.info("Focus set to simple input from REPL")
+            logger.info("Focus set to main TextArea input from REPL")
         except Exception as e:
-            logger.warning(f"Could not set focus to simple input: {e}")
-            # If that fails, try to focus any Input widget
+            logger.warning(f"Could not set focus to main input: {e}")
+            # If that fails, try to focus any TextArea or Input widget
             try:
-                inputs = self.query("Input")
-                if inputs:
-                    inputs[0].focus()
-                    logger.info("Focus set to first available input")
+                text_areas = self.query("TextArea")
+                if text_areas:
+                    text_areas[0].focus()
+                    logger.info("Focus set to first available TextArea")
+                else:
+                    inputs = self.query("Input")
+                    if inputs:
+                        inputs[0].focus()
+                        logger.info("Focus set to first available Input")
             except Exception as e2:
                 logger.warning(f"Could not set focus to any input: {e2}")
     
@@ -410,29 +455,108 @@ class REPL(Container):
             return f"Error executing command: {str(e)}"
     
     async def query_api(self, new_messages: List[Message]):
-        """Query the AI API - equivalent to query function"""
-        logger.info("Querying AI API")
+        """Query the AI API with streaming support - equivalent to query function"""
+        logger.info("Querying AI API with streaming")
         
-        # This would integrate with the actual AI API
-        # For now, create a mock response
-        if new_messages and new_messages[-1].type == MessageType.USER:
-            user_content = new_messages[-1].message.content
+        if not new_messages or new_messages[-1].type != MessageType.USER:
+            return
+        
+        user_content = new_messages[-1].message.content
+        if not isinstance(user_content, str):
+            return
+        
+        try:
+            # Set loading state
+            self.is_loading = True
             
-            # Mock AI response
-            response_content = f"I received your message: {user_content}"
+            # Initialize agent if not already done
+            if not hasattr(self, 'agent') or self.agent is None:
+                await self._initialize_agent()
             
-            assistant_message = Message(
+            # Create streaming response container
+            streaming_message = Message(
                 type=MessageType.ASSISTANT,
-                message=MessageContent(response_content)
+                message=MessageContent("⠋ Thinking..."),
+                options={"streaming": True}
             )
+            self.messages = [*self.messages, streaming_message]
             
-            # Update messages
-            self.messages = [*self.messages, assistant_message]
+            # Refresh UI to show streaming message
+            self.refresh()
             
-            # Handle Koding mode special case
-            if (new_messages[-1].options and 
-                new_messages[-1].options.get("isKodingRequest")):
-                await self.handle_koding_response(assistant_message)
+            # Process with agent - check if it supports streaming
+            try:
+                # Try to use streaming if available
+                if hasattr(self.agent, 'run_async') and hasattr(self.agent.run_async, '__code__'):
+                    # Check if run_async supports stream parameter
+                    import inspect
+                    sig = inspect.signature(self.agent.run_async)
+                    if 'stream' in sig.parameters:
+                        # Use streaming
+                        accumulated_response = ""
+                        async for chunk in self.agent.run_async(user_content, stream=True):
+                            if hasattr(chunk, 'answer'):
+                                accumulated_response += chunk.answer
+                            elif isinstance(chunk, str):
+                                accumulated_response += chunk
+                            
+                            # Update streaming message
+                            streaming_message.message.content = accumulated_response
+                            self.refresh()
+                        
+                        # Finalize with accumulated response
+                        final_content = accumulated_response
+                    else:
+                        # No streaming support, use regular call
+                        response = await self.agent.run_async(user_content)
+                        final_content = response.answer if hasattr(response, 'answer') else str(response)
+                else:
+                    # Fallback to regular call
+                    response = await self.agent.run_async(user_content)
+                    final_content = response.answer if hasattr(response, 'answer') else str(response)
+                
+                # Update the streaming message with final response
+                final_message = Message(
+                    type=MessageType.ASSISTANT,
+                    message=MessageContent(final_content),
+                    options={"streaming": False}
+                )
+                
+                # Replace the streaming message with final message
+                self.messages = [*self.messages[:-1], final_message]
+                
+                # Handle Koding mode special case
+                if (new_messages[-1].options and 
+                    new_messages[-1].options.get("isKodingRequest")):
+                    await self.handle_koding_response(final_message)
+                    
+            except Exception as e:
+                logger.error(f"Agent processing error: {e}")
+                error_message = Message(
+                    type=MessageType.ASSISTANT,
+                    message=MessageContent(f"Error: {str(e)}"),
+                    options={"error": True}
+                )
+                # Replace streaming message with error
+                self.messages = [*self.messages[:-1], error_message]
+                
+        except Exception as e:
+            logger.error(f"Query API error: {e}")
+        finally:
+            self.is_loading = False
+    
+    async def _initialize_agent(self):
+        """Initialize the MinionCodeAgent"""
+        try:
+            from minion_code import MinionCodeAgent
+            self.agent = await MinionCodeAgent.create(
+                name="REPL Assistant",
+                llm="sonnet"
+            )
+            logger.info("Agent initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize agent: {e}")
+            raise
     
     async def handle_koding_response(self, assistant_message: Message):
         """Handle Koding mode response - equivalent to handleHashCommand"""
@@ -665,29 +789,78 @@ class REPLApp(App):
     """
     
     CSS = """
-    /* Equivalent to CSS styling in React component */
+    /* Message styling */
+    .user-label {
+        text-style: bold;
+        color: blue;
+        margin-top: 1;
+        margin-bottom: 0;
+    }
+    
     .user-message {
         background: blue 20%;
         color: white;
         margin: 1;
+        margin-top: 0;
         padding: 1;
-        border: solid blue;
+        border-left: solid blue;
+    }
+    
+    .assistant-label {
+        text-style: bold;
+        color: green;
+        margin-top: 1;
+        margin-bottom: 0;
     }
     
     .assistant-message {
         background: green 20%;
         color: white;
         margin: 1;
+        margin-top: 0;
         padding: 1;
-        border: solid green;
+        border-left: solid green;
+    }
+    
+    .assistant-streaming {
+        background: yellow 20%;
+        color: black;
+        margin: 1;
+        padding: 1;
+        border-left: solid yellow;
+        text-style: italic;
+    }
+    
+    .assistant-error-label {
+        text-style: bold;
+        color: red;
+        margin-top: 1;
+        margin-bottom: 0;
+    }
+    
+    .assistant-error {
+        background: red 20%;
+        color: white;
+        margin: 1;
+        margin-top: 0;
+        padding: 1;
+        border-left: solid red;
+    }
+    
+    .progress-label {
+        text-style: bold;
+        color: yellow;
+        margin-top: 1;
+        margin-bottom: 0;
     }
     
     .progress-message {
         background: yellow 20%;
         color: black;
         margin: 1;
+        margin-top: 0;
         padding: 1;
-        border: solid yellow;
+        border-left: solid yellow;
     }
     
     .dialog-title {

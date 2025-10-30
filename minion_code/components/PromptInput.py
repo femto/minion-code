@@ -4,7 +4,7 @@ Handles user input with multiple modes (prompt, bash, koding)
 """
 
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Input, Static, Button
+from textual.widgets import Input, Static, Button, TextArea
 from textual.reactive import reactive, var
 from textual import on, work
 from textual.events import Key
@@ -152,11 +152,11 @@ class PromptInput(Container):
     def on_mount(self):
         """Set focus to input when component mounts"""
         try:
-            input_widget = self.query_one("#main_input", expect_type=Input)
+            input_widget = self.query_one("#main_input", expect_type=TextArea)
             input_widget.focus()
-            logger.info("Focus set to main input")
+            logger.info("Focus set to main TextArea input")
         except Exception as e:
-            logger.warning(f"Could not set focus to input: {e}")
+            logger.warning(f"Could not set focus to TextArea input: {e}")
     
     def compose(self):
         """Compose the PromptInput interface - working version"""
@@ -164,16 +164,18 @@ class PromptInput(Container):
         yield self._render_model_info()
         
         # Help text
-        yield Static("! for bash mode · # for AGENTS.md · / for commands", classes="help-text")
+        yield Static("Enter to submit · Ctrl+Enter for new line · ! for bash · # for AGENTS.md", classes="help-text")
         
         # Input area with mode prefix
         with Horizontal():
             yield Static(self._get_mode_prefix(), id="mode_prefix")
-            yield Input(
-                placeholder=self._get_placeholder(),
-                value=self.input_value,
+            from textual.widgets import TextArea
+            yield TextArea(
+                text=self.input_value,
                 id="main_input",
-                disabled=self.is_disabled or self.is_loading
+                disabled=self.is_disabled or self.is_loading,
+                show_line_numbers=False,
+                wrap="word"
             )
     
     def _render_model_info(self) -> Static:
@@ -220,10 +222,11 @@ class PromptInput(Container):
         )
     
     # Event handlers
-    @on(Input.Changed, "#main_input")
+    @on(TextArea.Changed, "#main_input")
     def on_input_changed(self, event):
         """Handle input value changes - equivalent to onChange callback"""
-        value = event.value
+        from textual.widgets import TextArea
+        value = event.text_area.text
         
         # Handle mode switching based on input prefix
         if value.startswith('!'):
@@ -241,10 +244,63 @@ class PromptInput(Container):
         if self.on_input_change:
             self.on_input_change(value)
     
-    @on(Input.Submitted, "#main_input")
-    async def on_submit(self, event):
+    def on_key(self, event) -> bool:
+        """Handle key events for TextArea - Ctrl+Enter for newline, Enter for submit"""
+        if event.key == "enter":
+            # Regular Enter - submit
+            self._handle_submit() #submit a worker
+            return True
+        elif event.key == "ctrl+enter":
+            # Ctrl+Enter - insert newline (let TextArea handle it naturally)
+            return False
+        
+        # Handle other special keys
+        if event.key in ["backspace", "delete"]:
+            if self.mode == InputMode.BASH and not self.input_value:
+                self.mode = InputMode.PROMPT
+                if self.on_mode_change:
+                    self.on_mode_change(InputMode.PROMPT)
+                return True
+            elif self.mode == InputMode.KODING and not self.input_value:
+                self.mode = InputMode.PROMPT
+                if self.on_mode_change:
+                    self.on_mode_change(InputMode.PROMPT)
+                return True
+        
+        # Handle escape key
+        if event.key == "escape":
+            if not self.input_value and not self.is_loading and len(self.messages) > 0:
+                if self.on_show_message_selector:
+                    self.on_show_message_selector()
+                return True
+            else:
+                self.mode = InputMode.PROMPT
+                if self.on_mode_change:
+                    self.on_mode_change(InputMode.PROMPT)
+                return True
+        
+        # Handle Shift+M for model switching
+        if event.key == "shift+m":
+            self._handle_quick_model_switch()
+            return True
+        
+        # Handle Shift+Tab for mode cycling
+        if event.key == "shift+tab":
+            self._cycle_mode()
+            return True
+        
+        return False
+
+    @work
+    async def _handle_submit(self):
         """Handle input submission - equivalent to onSubmit function"""
-        input_text = event.value.strip()
+        from textual.widgets import TextArea
+        
+        try:
+            text_area = self.query_one("#main_input", expect_type=TextArea)
+            input_text = text_area.text.strip()
+        except:
+            return
         
         if not input_text:
             return
@@ -268,6 +324,7 @@ class PromptInput(Container):
             await self._handle_prompt_input(input_text)
         
         # Clear input and reset mode
+        text_area.text = ""
         self.input_value = ""
         self.mode = InputMode.PROMPT
         if self.on_mode_change:
@@ -519,7 +576,7 @@ class PromptInput(Container):
     def watch_is_loading(self, is_loading: bool):
         """Watch loading state changes"""
         try:
-            input_widget = self.query_one("#main_input", expect_type=Input)
+            input_widget = self.query_one("#main_input", expect_type=TextArea)
             input_widget.disabled = self.is_disabled or is_loading
         except:
             pass
@@ -527,8 +584,8 @@ class PromptInput(Container):
     def watch_input_value(self, value: str):
         """Watch input value changes"""
         try:
-            input_widget = self.query_one("#main_input", expect_type=Input)
-            if input_widget.value != value:
-                input_widget.value = value
+            input_widget = self.query_one("#main_input", expect_type=TextArea)
+            if input_widget.text != value:
+                input_widget.text = value
         except:
             pass

@@ -430,6 +430,72 @@ class InterruptibleCLI:
 
 
 @app.command()
+def repl(
+    dir: Optional[str] = typer.Option(
+        None,
+        "--dir",
+        "-d",
+        help="🗂️  Change to specified directory before starting"
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="🔍 Enable verbose output with additional debugging information"
+    ),
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        help="🐛 Enable debug mode for development"
+    ),
+    prompt: Optional[str] = typer.Option(
+        None,
+        "--prompt",
+        "-p",
+        help="💬 Initial prompt to send to the agent"
+    )
+):
+    """
+    🖥️  Start the REPL (Read-Eval-Print Loop) interface
+    
+    A modern TUI interface with streaming responses and interactive features.
+    """
+    console = Console()
+    
+    # Change directory if specified
+    if dir:
+        try:
+            target_dir = Path(dir).resolve()
+            if not target_dir.exists():
+                console.print(f"❌ [bold red]Directory does not exist: {dir}[/bold red]")
+                raise typer.Exit(1)
+            if not target_dir.is_dir():
+                console.print(f"❌ [bold red]Path is not a directory: {dir}[/bold red]")
+                raise typer.Exit(1)
+            
+            os.chdir(target_dir)
+            if verbose:
+                console.print(f"📁 [bold green]Changed to directory: {target_dir}[/bold green]")
+        except Exception as e:
+            console.print(f"❌ [bold red]Failed to change directory: {e}[/bold red]")
+            raise typer.Exit(1)
+    
+    # Import and run REPL
+    try:
+        from minion_code.screens.REPL import run
+        run(initial_prompt=prompt, debug=debug, verbose=verbose)
+    except ImportError as e:
+        console.print(f"❌ [bold red]Failed to import REPL: {e}[/bold red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"❌ [bold red]REPL error: {e}[/bold red]")
+        if verbose:
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
+        raise typer.Exit(1)
+
+
+@app.command()
 def main(
     dir: Optional[str] = typer.Option(
         None,
