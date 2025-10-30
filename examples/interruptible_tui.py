@@ -498,6 +498,7 @@ def main(
     except KeyboardInterrupt:
         console.print("\n👋 [bold yellow]Goodbye![/bold yellow]")
 
-
+def run():
+    app()
 if __name__ == "__main__":
     app()
