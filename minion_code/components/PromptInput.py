@@ -50,9 +50,9 @@ class CustomTextArea(TextArea):
         # Post key event to parent for handling
         self.post_message(self.KeyPressed(event.key))
         
-        # Handle Ctrl+Enter specially - let TextArea handle it
-        if event.key == "ctrl+enter":
-            return False  # Let TextArea handle newline insertion
+        # Handle Ctrl+Enter, Tab, and Ctrl+J - prevent default, let parent add newline manually
+        if event.key in ["ctrl+enter", "tab", "ctrl+j"]:
+            return True  # Prevent TextArea from handling, parent will add newline
         
         # Handle Enter - prevent default and let parent handle
         if event.key == "enter":
@@ -197,7 +197,7 @@ class PromptInput(Container):
         yield self._render_model_info()
         
         # Help text
-        yield Static("Enter to submit · Ctrl+Enter for new line · ! for bash · # for AGENTS.md", classes="help-text")
+        yield Static("Enter to submit · Ctrl+Enter/Ctrl+J/Tab for new line · ! for bash · # for AGENTS.md", classes="help-text")
         
         # Input area with mode prefix
         with Horizontal():
@@ -282,9 +282,9 @@ class PromptInput(Container):
         if key == "enter":
             # Regular Enter - submit
             self.run_worker(self._handle_submit())
-        elif key == "ctrl+enter":
-            # Ctrl+Enter - newline (already handled by TextArea)
-            pass
+        elif key in ["ctrl+enter", "tab", "ctrl+j"]:
+            # Ctrl+Enter, Tab, or Ctrl+J - manually add newline
+            self._insert_newline()
         elif key in ["backspace", "delete"]:
             # Handle mode reset on empty input
             if self.mode == InputMode.BASH and not self.input_value:
@@ -519,6 +519,49 @@ class PromptInput(Container):
         
         if self.on_model_change:
             self.on_model_change()
+    
+    def _insert_newline(self):
+        """Insert newline at current cursor position"""
+        try:
+            text_area = self.query_one("#main_input", expect_type=CustomTextArea)
+            
+            # Get current cursor position
+            cursor_row, cursor_col = text_area.cursor_location
+            
+            # Get current text
+            current_text = text_area.text
+            
+            # Split text into lines
+            lines = current_text.split('\n')
+            
+            # Insert newline at cursor position
+            if cursor_row < len(lines):
+                line = lines[cursor_row]
+                # Split the current line at cursor position
+                before_cursor = line[:cursor_col]
+                after_cursor = line[cursor_col:]
+                
+                # Replace current line with split lines
+                lines[cursor_row] = before_cursor
+                lines.insert(cursor_row + 1, after_cursor)
+            else:
+                # Cursor is beyond existing lines, just add a new line
+                lines.append('')
+            
+            # Update text area with new content
+            new_text = '\n'.join(lines)
+            text_area.text = new_text
+            
+            # Move cursor to next line
+            text_area.cursor_location = (cursor_row + 1, 0)
+            
+            # Update input value
+            self.input_value = new_text
+            if self.on_input_change:
+                self.on_input_change(new_text)
+                
+        except Exception as e:
+            logger.error(f"Error inserting newline: {e}")
     
     def _cycle_mode(self):
         """Cycle through input modes"""
