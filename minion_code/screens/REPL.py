@@ -234,6 +234,7 @@ class REPL(Container):
                  is_default_model=True,
                  initial_update_version=None,
                  initial_update_commands=None,
+                 agent=None,  # Agent passed from app level
                  **kwargs):
         super().__init__(**kwargs)
         
@@ -255,6 +256,9 @@ class REPL(Container):
         # Initialize state
         self.messages = initial_messages or []
         self.fork_number = initial_fork_number
+        
+        # Agent from app level
+        self.agent = agent
         
         # Internal state
         self.config = REPLConfig()
@@ -454,6 +458,11 @@ class REPL(Container):
         except Exception as e:
             return f"Error executing command: {str(e)}"
     
+    def set_agent(self, agent):
+        """Set agent from app level"""
+        self.agent = agent
+        logger.info("Agent set from app level")
+    
     async def query_api(self, new_messages: List[Message]):
         """Query the AI API with streaming support - equivalent to query function"""
         logger.info("Querying AI API with streaming")
@@ -465,13 +474,19 @@ class REPL(Container):
         if not isinstance(user_content, str):
             return
         
+        # Check if agent is available
+        if not self.agent:
+            error_message = Message(
+                type=MessageType.ASSISTANT,
+                message=MessageContent("❌ Agent not initialized yet. Please wait..."),
+                options={"error": True}
+            )
+            self.messages = [*self.messages, error_message]
+            return
+        
         try:
             # Set loading state
             self.is_loading = True
-            
-            # Initialize agent if not already done
-            if not hasattr(self, 'agent') or self.agent is None:
-                await self._initialize_agent()
             
             # Create streaming response container
             streaming_message = Message(
@@ -544,19 +559,6 @@ class REPL(Container):
             logger.error(f"Query API error: {e}")
         finally:
             self.is_loading = False
-    
-    async def _initialize_agent(self):
-        """Initialize the MinionCodeAgent"""
-        try:
-            from minion_code import MinionCodeAgent
-            self.agent = await MinionCodeAgent.create(
-                name="REPL Assistant",
-                llm="sonnet"
-            )
-            logger.info("Agent initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize agent: {e}")
-            raise
     
     async def handle_koding_response(self, assistant_message: Message):
         """Handle Koding mode response - equivalent to handleHashCommand"""
@@ -785,7 +787,7 @@ class REPL(Container):
 class REPLApp(App):
     """
     Main REPL Application - equivalent to the main App wrapper in React
-    Provides the application context and styling
+    Provides the application context, agent management, and styling
     """
     
     CSS = """
@@ -1006,17 +1008,47 @@ class REPLApp(App):
             "initial_update_version": None,
             "initial_update_commands": None
         }
+        
+        # App-level agent management
+        self.agent = None
+        self.agent_ready = False
     
     def compose(self) -> ComposeResult:
         """Compose the main application - equivalent to React App render"""
         yield Header(show_clock=False)
-        yield REPL(**self.repl_props)
+        # Pass agent to REPL component
+        repl_props_with_agent = {**self.repl_props, "agent": self.agent}
+        yield REPL(**repl_props_with_agent)
         yield Footer()
     
     def on_mount(self):
         """Application mount lifecycle"""
         self.title = "Minion Code Assistant"
         logger.info("REPL Application started")
+        # Initialize agent at app level
+        self.run_worker(self._initialize_agent())
+    
+    async def _initialize_agent(self):
+        """Initialize the MinionCodeAgent at app level"""
+        try:
+            from minion_code import MinionCodeAgent
+            self.agent = await MinionCodeAgent.create(
+                name="REPL Assistant",
+                llm="sonnet"
+            )
+            self.agent_ready = True
+            logger.info("App-level agent initialized successfully")
+            
+            # Update REPL component with agent
+            try:
+                repl_component = self.query_one(REPL)
+                repl_component.set_agent(self.agent)
+            except:
+                pass  # REPL might not be mounted yet
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize app-level agent: {e}")
+            self.agent_ready = False
 
 
 # Utility functions equivalent to TypeScript utility functions

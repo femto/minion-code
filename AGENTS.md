@@ -300,3 +300,125 @@ def on_custom_widget_key(self, event: CustomWidget.KeyPressed):
 ```
 
 This pattern ensures proper event propagation and component communication in Textual applications.
+## Agent A
+rchitecture Best Practices
+
+### App-Level Agent Management
+
+Agents should be managed at the **Application level**, not within UI components. This ensures proper separation of concerns and makes the architecture more maintainable.
+
+#### Correct Architecture
+
+```python
+class REPLApp(App):
+    """Main application manages agent lifecycle"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # App-level agent management
+        self.agent = None
+        self.agent_ready = False
+    
+    def compose(self) -> ComposeResult:
+        # Pass agent to components as props
+        repl_props_with_agent = {**self.repl_props, "agent": self.agent}
+        yield REPL(**repl_props_with_agent)
+    
+    def on_mount(self):
+        # Initialize agent at app level
+        self.run_worker(self._initialize_agent())
+    
+    async def _initialize_agent(self):
+        """Initialize agent at app level"""
+        try:
+            from minion_code import MinionCodeAgent
+            self.agent = await MinionCodeAgent.create(
+                name="App Assistant",
+                llm="sonnet"
+            )
+            self.agent_ready = True
+            
+            # Update components with agent
+            repl_component = self.query_one(REPL)
+            repl_component.set_agent(self.agent)
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize agent: {e}")
+            self.agent_ready = False
+
+class REPL(Container):
+    """UI component receives agent as prop"""
+    
+    def __init__(self, agent=None, **kwargs):
+        super().__init__(**kwargs)
+        self.agent = agent  # Received from app level
+    
+    def set_agent(self, agent):
+        """Set agent from app level"""
+        self.agent = agent
+    
+    async def query_api(self, messages):
+        """Use agent for queries"""
+        if not self.agent:
+            # Handle agent not ready case
+            error_message = "❌ Agent not initialized yet"
+            return
+        
+        # Use agent for processing
+        response = await self.agent.run_async(user_input)
+```
+
+#### Why App-Level Management?
+
+1. **Single Responsibility**: App manages infrastructure, components handle UI
+2. **Lifecycle Control**: App controls when agent is created/destroyed
+3. **Resource Sharing**: Multiple components can share the same agent
+4. **Error Handling**: Centralized agent error handling
+5. **Testing**: Easier to mock agent at app level
+
+#### Anti-Pattern: Component-Level Agent
+
+```python
+# ❌ DON'T DO THIS
+class REPL(Container):
+    async def on_mount(self):
+        # Wrong: UI component initializing agent
+        self.agent = await MinionCodeAgent.create(...)
+    
+    async def query_api(self, messages):
+        # Wrong: Agent lifecycle mixed with UI logic
+        if not hasattr(self, 'agent'):
+            await self._initialize_agent()
+```
+
+#### Benefits of Proper Architecture
+
+- **Separation of Concerns**: UI components focus on presentation
+- **Testability**: Easy to inject mock agents for testing
+- **Scalability**: Can support multiple agents or agent switching
+- **Maintainability**: Clear ownership of agent lifecycle
+- **Performance**: Avoid duplicate agent initialization
+
+### Agent Prop Passing Pattern
+
+```python
+# App level
+def compose(self):
+    component_props = {
+        "agent": self.agent,
+        "other_props": self.other_data
+    }
+    yield MyComponent(**component_props)
+
+# Component level
+class MyComponent(Container):
+    def __init__(self, agent=None, **kwargs):
+        super().__init__(**kwargs)
+        self.agent = agent
+    
+    def set_agent(self, agent):
+        """Allow dynamic agent updates"""
+        self.agent = agent
+```
+
+This pattern ensures clean architecture and proper separation between infrastructure (agent) and presentation (UI components).
