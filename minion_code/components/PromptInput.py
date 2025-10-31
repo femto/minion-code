@@ -371,7 +371,8 @@ class PromptInput(Container):
         # 2. 立即创建并显示用户消息
         user_message = self._create_user_message(input_text, original_mode)
         if self.on_query:
-            self.on_query([user_message])
+            await self.on_query([user_message])
+        return
 
         # 3. 然后处理不同模式的逻辑（可能涉及网络请求）
         if original_mode == InputMode.KODING or input_text.startswith('#'):
