@@ -49,6 +49,7 @@ class CustomTextArea(TextArea):
         
         # Handle Ctrl+Enter, Tab, and Ctrl+J - prevent default, let parent add newline manually
         if event.key in ["tab"]:
+            event.prevent_default()
             event.stop()
             return True
         if event.key in ["ctrl+enter", "tab", "ctrl+j"]:
@@ -56,6 +57,8 @@ class CustomTextArea(TextArea):
         
         # Handle Enter - prevent default and let parent handle
         if event.key == "enter":
+            event.prevent_default()
+            event.stop()
             return True  # Prevent TextArea from handling
         
         # Let TextArea handle all other keys normally
@@ -328,14 +331,12 @@ class PromptInput(Container):
             text_area.text = ""
         self.input_value = ""
         self.mode = InputMode.PROMPT
+
         if self.on_mode_change:
             self.on_mode_change(InputMode.PROMPT)
 
         # 2. 立即创建并显示用户消息
         user_message = self._create_user_message(input_text, original_mode)
-        if self.on_query and user_message:
-            # 先显示用户消息（不等待网络请求）
-            await self.on_query([user_message])
 
         # 3. 然后处理不同模式的逻辑（可能涉及网络请求）
         if original_mode == InputMode.KODING or input_text.startswith('#'):
@@ -426,9 +427,7 @@ class PromptInput(Container):
 
         # 这里不再创建用户消息，因为已经在 _handle_submit 中创建并显示了
         # 直接触发 AI 响应处理
-        if self.on_query:
-            # 传递空消息列表，表示只需要处理 AI 响应
-            await self.on_query([], trigger_ai_response=True, user_input=input_text)
+
 
     async def _handle_prompt_input(self, input_text: str):
         """Handle regular prompt input - equivalent to normal message processing (deprecated)"""

@@ -603,6 +603,7 @@ class REPL(Container):
         
         # Update messages
         self.messages = [*self.messages, *messages]
+        return
         
         # Query API
         await self.query_api(messages)
