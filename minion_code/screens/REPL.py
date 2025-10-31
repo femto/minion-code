@@ -290,7 +290,7 @@ class REPL(Container):
     }
     
     #messages_container {
-        height: auto;
+        height: 1fr;
         margin: 1;
         scrollbar-background: gray 50%;
         scrollbar-color: white;
@@ -298,7 +298,7 @@ class REPL(Container):
     
     #dynamic_content {
         dock: bottom;
-        height: auto;
+        height: 10;
         margin: 1;
     }
     
@@ -311,7 +311,7 @@ class REPL(Container):
     
     /* PromptInput component styles */
     .model-info {
-        dock: top;
+        
         height: 1;
         content-align: right middle;
         color: white;
@@ -500,25 +500,26 @@ Try typing something to get started!"""),
     
     def compose(self) -> ComposeResult:
         """Compose the REPL interface - equivalent to React render method"""
-        # Logo at the top
-        yield Logo(
-            mcp_clients=self.mcp_clients,
-            is_default_model=self.is_default_model,
-            update_banner_version=self.initial_update_version
-        )
-        
-        # Messages container (main content area)
-        print(f"DEBUG: REPL.compose() creating Messages component with {len(self.messages)} messages")
-        yield Messages(
-            #messages=self.messages,
-            tools=self.tools,
-            verbose=self.verbose,
-            debug=self.debug,
-            id="messages_container"
-        ).data_bind(REPL.messages)
-        
-        # Dynamic content area (equivalent to conditional rendering in React)
-        with Container(id="dynamic_content"):
+        with Vertical():
+            # Logo at the top
+            yield Logo(
+                mcp_clients=self.mcp_clients,
+                is_default_model=self.is_default_model,
+                update_banner_version=self.initial_update_version
+            )
+            
+            # Messages container (main content area)
+            print(f"DEBUG: REPL.compose() creating Messages component with {len(self.messages)} messages")
+            yield Messages(
+                messages=self.messages,
+                tools=self.tools,
+                verbose=self.verbose,
+                debug=self.debug,
+                id="messages_container"
+            )
+            
+            # Dynamic content area (equivalent to conditional rendering in React)
+            with Container(id="dynamic_content"):
                 # Spinner (equivalent to {!toolJSX && !toolUseConfirm && !binaryFeedbackContext && isLoading && <Spinner />})
                 if self.is_loading and not self.tool_jsx and not self.tool_use_confirm and not self.binary_feedback_context:
                     yield Spinner()
@@ -571,10 +572,10 @@ Try typing something to get started!"""),
                     prompt_input.set_tool_jsx = self.set_tool_jsx_from_prompt
 
                     yield prompt_input
-        
-        # Message selector (equivalent to {isMessageSelectorVisible && <MessageSelector />})
-        if self.is_message_selector_visible:
-            yield MessageSelector(messages=self.messages)
+            
+            # Message selector (equivalent to {isMessageSelectorVisible && <MessageSelector />})
+            if self.is_message_selector_visible:
+                yield MessageSelector(messages=self.messages)
     
     def on_mount(self):
         """Component lifecycle - equivalent to React useEffect(() => { onInit() }, [])"""
