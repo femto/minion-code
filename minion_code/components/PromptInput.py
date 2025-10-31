@@ -194,6 +194,9 @@ class PromptInput(Container):
         # Help text (model info moved to header)
         yield Static("Enter to submit · Ctrl+Enter/Ctrl+J/Tab for new line · ! for bash · # for AGENTS.md", classes="help-text")
         
+        # Debug: Static before TextArea
+        yield Static("BEFORE TextArea - Ready", id="debug_before")
+        
         # Input area with mode prefix
         with Horizontal():
             yield Static(self._get_mode_prefix(), id="mode_prefix")
@@ -203,6 +206,9 @@ class PromptInput(Container):
                 disabled=self.is_disabled or self.is_loading,
                 show_line_numbers=False
             )
+        
+        # Debug: Static after TextArea
+        yield Static("AFTER TextArea - Ready", id="debug_after")
     
     def _render_model_info(self) -> Static:
         """Render model information - equivalent to model info display"""
@@ -327,16 +333,42 @@ class PromptInput(Container):
         
         # 1. 立即清空输入框并重置模式 - 提供即时反馈
         original_mode = self.mode
+        
+        # Debug: 更新 BEFORE static 测试 UI 更新
+        try:
+            debug_before = self.query_one("#debug_before", expect_type=Static)
+            debug_before.update("BEFORE - Clearing input...")
+            debug_before.refresh()
+        except:
+            pass
+        
         with text_area.prevent(TextArea.Changed):
             text_area.text = ""
         self.input_value = ""
         self.mode = InputMode.PROMPT
 
+        # Debug: 更新 AFTER static 测试 UI 更新
+        try:
+            debug_after = self.query_one("#debug_after", expect_type=Static)
+            debug_after.update("AFTER - Input cleared!")
+            debug_after.refresh()
+        except:
+            pass
+
         if self.on_mode_change:
             self.on_mode_change(InputMode.PROMPT)
+        
+        # 强制刷新整个组件
+        #text_area.refresh()
+        #self.refresh()
+        
+        # Debug: 延迟重置 static 显示
+        self.set_timer(2.0, self._reset_debug_static)
 
         # 2. 立即创建并显示用户消息
         user_message = self._create_user_message(input_text, original_mode)
+        if self.on_query:
+            self.on_query([user_message])
 
         # 3. 然后处理不同模式的逻辑（可能涉及网络请求）
         if original_mode == InputMode.KODING or input_text.startswith('#'):
@@ -492,6 +524,18 @@ class PromptInput(Container):
             options={"mode": mode.value}
         )
         return [user_message]
+    
+    def _reset_debug_static(self):
+        """重置 debug static 显示"""
+        try:
+            debug_before = self.query_one("#debug_before", expect_type=Static)
+            debug_after = self.query_one("#debug_after", expect_type=Static)
+            debug_before.update("BEFORE TextArea - Ready")
+            debug_after.update("AFTER TextArea - Ready")
+            debug_before.refresh()
+            debug_after.refresh()
+        except:
+            pass
     
     def _add_to_history(self, input_text: str):
         """Add input to history - equivalent to addToHistory"""
