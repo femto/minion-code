@@ -216,6 +216,7 @@ class REPL(Container):
     is_message_selector_visible = reactive(False)
     show_cost_dialog = reactive(False)
     have_shown_cost_dialog = reactive(False)
+    should_show_prompt_input = reactive(True, recompose=True)
     
     def __init__(self, 
                  commands=None,
@@ -243,7 +244,6 @@ class REPL(Container):
         self.initial_fork_number = initial_fork_number
         self.initial_prompt = initial_prompt
         self.message_log_name = message_log_name
-        self.should_show_prompt_input = should_show_prompt_input
         self.tools = tools or []
         self.verbose = verbose
         self.mcp_clients = mcp_clients or []
@@ -252,8 +252,12 @@ class REPL(Container):
         self.initial_update_commands = initial_update_commands
         
         # Initialize state
-        self.messages = initial_messages or []
+        test_messages = self._create_test_messages()
+        print(f"DEBUG: Created {len(test_messages)} test messages")
+        self.messages = initial_messages or test_messages
+        print(f"DEBUG: REPL initialized with {len(self.messages)} messages")
         self.fork_number = initial_fork_number
+        self.should_show_prompt_input = should_show_prompt_input
         
         # Agent from app level
         self.agent = agent
@@ -267,6 +271,62 @@ class REPL(Container):
         self.read_file_timestamps: Dict[str, float] = {}
         self.fork_convo_with_messages_on_next_render: Optional[List[Message]] = None
 
+    def _create_test_messages(self) -> List[Message]:
+        """Create some test messages for development/testing"""
+        import time
+        
+        test_messages = []
+        
+        # Welcome message from assistant
+        test_messages.append(Message(
+            type=MessageType.ASSISTANT,
+            message=MessageContent("👋 Welcome to Minion Code Assistant! I'm here to help you with coding tasks, file operations, and more. What would you like to work on today?"),
+            timestamp=time.time() - 120,
+            options={}
+        ))
+        
+        # Example user message
+        test_messages.append(Message(
+            type=MessageType.USER,
+            message=MessageContent("Can you help me understand how to use this REPL interface?"),
+            timestamp=time.time() - 100,
+            options={}
+        ))
+        
+        # Example assistant response with code
+        test_messages.append(Message(
+            type=MessageType.ASSISTANT,
+            message=MessageContent("""Absolutely! Here's how to use the REPL interface:
+
+## Input Modes
+- **Prompt mode** (`>`): Regular conversation with the AI assistant
+- **Bash mode** (`!`): Execute shell commands directly
+- **Koding mode** (`#`): Add notes or generate content for AGENTS.md
+
+## Keyboard Shortcuts
+- `Enter`: Submit your message
+- `Ctrl+Enter`, `Tab`, or `Ctrl+J`: Add a new line
+- `Escape`: Switch modes or show message selector
+- `Shift+M`: Quick model switching
+
+## Examples
+```bash
+# Bash mode - execute commands
+!ls -la
+
+# Koding mode - add to AGENTS.md
+#Create a new Python function for data processing
+
+# Regular prompt
+How do I implement error handling in Python?
+```
+
+Try typing something to get started!"""),
+            timestamp=time.time() - 80,
+            options={}
+        ))
+        
+        return test_messages
     
     def compose(self) -> ComposeResult:
         """Compose the REPL interface - equivalent to React render method"""
@@ -280,6 +340,7 @@ class REPL(Container):
             # ModeIndicator removed - mode is shown in PromptInput prefix
             
             # Messages container (equivalent to messagesJSX mapping)
+            print(f"DEBUG: REPL.compose() creating Messages component with {len(self.messages)} messages")
             yield Messages(
                 messages=self.messages,
                 tools=self.tools,
@@ -310,8 +371,8 @@ class REPL(Container):
                 if self.show_cost_dialog and not self.is_loading:
                     yield CostThresholdDialog()
                 
-                # PromptInput component (now working)
-                if True:  # Always show for now
+                # PromptInput component (controlled by reactive property)
+                if self.should_show_prompt_input:
                     prompt_input = PromptInput(
                         commands=self.commands,
                         fork_number=self.fork_number,
@@ -685,6 +746,18 @@ class REPL(Container):
         """Set tool JSX from PromptInput"""
         self.tool_jsx = tool_jsx
     
+    def show_prompt_input(self):
+        """Show the prompt input component"""
+        self.should_show_prompt_input = True
+    
+    def hide_prompt_input(self):
+        """Hide the prompt input component"""
+        self.should_show_prompt_input = False
+    
+    def toggle_prompt_input(self):
+        """Toggle the prompt input component visibility"""
+        self.should_show_prompt_input = not self.should_show_prompt_input
+    
     @on(Button.Pressed, "#acknowledge_btn")
     def acknowledge_cost_dialog(self):
         """Acknowledge cost threshold dialog"""
@@ -750,6 +823,11 @@ class REPL(Container):
     
     def watch_is_loading(self, is_loading: bool):
         """Watch loading state changes"""
+        pass
+    
+    def watch_should_show_prompt_input(self, should_show: bool):
+        """Watch prompt input visibility changes"""
+        # This will trigger recomposition when the property changes
         pass
     
     def watch_messages(self, messages: List[Message]):

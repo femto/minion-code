@@ -68,6 +68,7 @@ class Messages(ScrollableContainer):
         
         # Props equivalent to TypeScript Props interface
         self._initial_messages = messages or []
+        print(f"DEBUG: Messages component initialized with {len(self._initial_messages)} initial messages")
         self.tools = tools or []
         self.verbose = verbose
         self.debug = debug
@@ -82,20 +83,25 @@ class Messages(ScrollableContainer):
         self._is_mounted = False
         
         # Set messages after initialization to avoid watch_messages being called too early
-        self.messages = self._initial_messages
+        if self._initial_messages:
+            self.messages = self._initial_messages.copy()
     
     def compose(self):
         """Compose the messages interface - equivalent to React render method"""
+        print(f"DEBUG: Messages.compose() called with {len(self.messages)} messages")
         if not self.messages:
             # Empty state - equivalent to showing placeholder when no messages
+            print("DEBUG: Showing empty state")
             yield Static(
                 "💬 Start a conversation by typing a message below...",
                 classes="empty-state"
             )
         else:
             # Messages container
+            print(f"DEBUG: Rendering {len(self.messages)} messages")
             with Vertical(classes="messages-container"):
                 for i, message in enumerate(self.messages):
+                    print(f"DEBUG: Creating message widget {i}: {message.type}")
                     yield self._create_message_widget(message, i)
     
     def on_mount(self):
@@ -205,7 +211,6 @@ class Messages(ScrollableContainer):
     
     def _update_display(self):
         """Update the display when messages change"""
-        print(f"DEBUG: _update_display called, recomposing with {len(self.messages)} messages")
         # Use recompose to rebuild the entire widget tree
         self.recompose()
     
@@ -238,12 +243,9 @@ class Messages(ScrollableContainer):
     # Reactive property watchers
     def watch_messages(self, messages: List[MessageType]):
         """Watch for changes to the messages list"""
-        print(f"DEBUG: watch_messages called with {len(messages)} messages, mounted: {self._is_mounted}")
-        
         # Only update display if the widget is mounted
         if self._is_mounted:
-            print("DEBUG: Calling _update_display()")
-            #self._update_display()
+            self._update_display()
             
             # Auto-scroll if new messages were added
             if len(messages) > self._last_message_count and self.auto_scroll:
