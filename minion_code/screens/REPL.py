@@ -206,6 +206,176 @@ class REPL(Container):
     Manages the entire conversation interface with AI assistant
     """
     
+    DEFAULT_CSS = """
+    /* Message styling */
+    .user-label {
+        text-style: bold;
+        color: blue;
+        margin-top: 1;
+        margin-bottom: 0;
+    }
+    
+    .user-message {
+        background: blue 20%;
+        color: white;
+        margin: 1;
+        margin-top: 0;
+        padding: 1;
+        border-left: solid blue;
+    }
+    
+    .assistant-label {
+        text-style: bold;
+        color: green;
+        margin-top: 1;
+        margin-bottom: 0;
+    }
+    
+    .assistant-message {
+        background: green 20%;
+        color: white;
+        margin: 1;
+        margin-top: 0;
+        padding: 1;
+        border-left: solid green;
+    }
+    
+    .assistant-streaming {
+        background: yellow 20%;
+        color: black;
+        margin: 1;
+        padding: 1;
+        border-left: solid yellow;
+        text-style: italic;
+    }
+    
+    .assistant-error-label {
+        text-style: bold;
+        color: red;
+        margin-top: 1;
+        margin-bottom: 0;
+    }
+    
+    .assistant-error {
+        background: red 20%;
+        color: white;
+        margin: 1;
+        margin-top: 0;
+        padding: 1;
+        border-left: solid red;
+    }
+    
+    .progress-label {
+        text-style: bold;
+        color: yellow;
+        margin-top: 1;
+        margin-bottom: 0;
+    }
+    
+    .progress-message {
+        background: yellow 20%;
+        color: black;
+        margin: 1;
+        margin-top: 0;
+        padding: 1;
+        border-left: solid yellow;
+    }
+    
+    .dialog-title {
+        text-style: bold;
+        content-align: center middle;
+        margin: 1;
+        background: cyan 30%;
+        color: black;
+    }
+    
+    #messages_container {
+        height: auto;
+        margin: 1;
+        scrollbar-background: gray 50%;
+        scrollbar-color: white;
+    }
+    
+    #dynamic_content {
+        dock: bottom;
+        height: auto;
+        margin: 1;
+    }
+    
+    #main_input {
+        width: 1fr;
+        margin-right: 1;
+        border: solid white;
+        dock: bottom;
+    }
+    
+    /* PromptInput component styles */
+    .model-info {
+        dock: top;
+        height: 1;
+        content-align: right middle;
+        color: white;
+        margin-bottom: 1;
+    }
+    
+    #input_container {
+        margin: 1;
+        padding: 1;
+    }
+    
+    #mode_prefix {
+        width: 3;
+        content-align: center middle;
+        text-style: bold;
+    }
+    
+    .mode-bash #mode_prefix {
+        color: yellow;
+    }
+    
+    .mode-koding #mode_prefix {
+        color: cyan;
+    }
+    
+    #status_area {
+        dock: bottom;
+        height: 2;
+        margin: 1;
+    }
+    
+    .status-message {
+        color: white;
+        text-style: dim;
+    }
+    
+    .model-switch-message {
+        color: green;
+        text-style: bold;
+    }
+    
+    .help-text {
+        margin-right: 2;
+    }
+    
+    .help-text.active {
+        color: white;
+        text-style: bold;
+    }
+    
+    .help-text.inactive {
+        color: gray;
+        text-style: dim;
+    }
+    
+    Button {
+        margin: 1;
+    }
+    
+    Input {
+        border: solid white;
+    }
+    """
+    
     # Reactive properties equivalent to React useState
     fork_number = reactive(0)
     is_loading = reactive(False)
@@ -330,47 +500,45 @@ Try typing something to get started!"""),
     
     def compose(self) -> ComposeResult:
         """Compose the REPL interface - equivalent to React render method"""
-        # Static header section (equivalent to Static items in React)
-        with Vertical():
-            yield Logo(
-                mcp_clients=self.mcp_clients,
-                is_default_model=self.is_default_model,
-                update_banner_version=self.initial_update_version
-            )
-            # ModeIndicator removed - mode is shown in PromptInput prefix
-            
-            # Messages container (equivalent to messagesJSX mapping)
-            print(f"DEBUG: REPL.compose() creating Messages component with {len(self.messages)} messages")
-            yield Messages(
-                messages=self.messages,
-                tools=self.tools,
-                verbose=self.verbose,
-                debug=self.debug,
-                id="messages_container"
-            )
-            
-            # Dynamic content area (equivalent to conditional rendering in React)
-            with Container(id="dynamic_content"):
+        # Logo at the top
+        yield Logo(
+            mcp_clients=self.mcp_clients,
+            is_default_model=self.is_default_model,
+            update_banner_version=self.initial_update_version
+        )
+        
+        # Messages container (main content area)
+        print(f"DEBUG: REPL.compose() creating Messages component with {len(self.messages)} messages")
+        yield Messages(
+            #messages=self.messages,
+            tools=self.tools,
+            verbose=self.verbose,
+            debug=self.debug,
+            id="messages_container"
+        ).data_bind(REPL.messages)
+        
+        # Dynamic content area (equivalent to conditional rendering in React)
+        with Container(id="dynamic_content"):
                 # Spinner (equivalent to {!toolJSX && !toolUseConfirm && !binaryFeedbackContext && isLoading && <Spinner />})
                 if self.is_loading and not self.tool_jsx and not self.tool_use_confirm and not self.binary_feedback_context:
                     yield Spinner()
-                
+
                 # Tool JSX (equivalent to {toolJSX ? toolJSX.jsx : null})
                 if self.tool_jsx and self.tool_jsx.jsx:
                     yield self.tool_jsx.jsx
-                
+
                 # Binary feedback (equivalent to BinaryFeedback component)
                 if self.binary_feedback_context and not self.is_message_selector_visible:
                     yield Static("🔄 Binary feedback component would render here")
-                
+
                 # Permission request (equivalent to PermissionRequest component)
                 if self.tool_use_confirm and not self.is_message_selector_visible and not self.binary_feedback_context:
                     yield PermissionRequest(self.tool_use_confirm)
-                
+
                 # Cost dialog (equivalent to CostThresholdDialog component)
                 if self.show_cost_dialog and not self.is_loading:
                     yield CostThresholdDialog()
-                
+
                 # PromptInput component (controlled by reactive property)
                 if self.should_show_prompt_input:
                     prompt_input = PromptInput(
@@ -389,7 +557,7 @@ Try typing something to get started!"""),
                         read_file_timestamps=self.read_file_timestamps,
                         abort_controller=self.abort_controller
                     )
-                    
+
                     # Set up callbacks
                     prompt_input.on_query = self.on_query_from_prompt
                     prompt_input.on_input_change = self.on_input_change_from_prompt
@@ -401,12 +569,12 @@ Try typing something to get started!"""),
                     prompt_input.set_fork_convo_with_messages = self.set_fork_convo_messages
                     prompt_input.on_model_change = self.on_model_change_from_prompt
                     prompt_input.set_tool_jsx = self.set_tool_jsx_from_prompt
-                    
+
                     yield prompt_input
-            
-            # Message selector (equivalent to {isMessageSelectorVisible && <MessageSelector />})
-            if self.is_message_selector_visible:
-                yield MessageSelector(messages=self.messages)
+        
+        # Message selector (equivalent to {isMessageSelectorVisible && <MessageSelector />})
+        if self.is_message_selector_visible:
+            yield MessageSelector(messages=self.messages)
     
     def on_mount(self):
         """Component lifecycle - equivalent to React useEffect(() => { onInit() }, [])"""
@@ -917,193 +1085,6 @@ class REPLApp(App):
     """
     Main REPL Application - equivalent to the main App wrapper in React
     Provides the application context, agent management, and styling
-    """
-    
-    CSS = """
-    /* Message styling */
-    .user-label {
-        text-style: bold;
-        color: blue;
-        margin-top: 1;
-        margin-bottom: 0;
-    }
-    
-    .user-message {
-        background: blue 20%;
-        color: white;
-        margin: 1;
-        margin-top: 0;
-        padding: 1;
-        border-left: solid blue;
-    }
-    
-    .assistant-label {
-        text-style: bold;
-        color: green;
-        margin-top: 1;
-        margin-bottom: 0;
-    }
-    
-    .assistant-message {
-        background: green 20%;
-        color: white;
-        margin: 1;
-        margin-top: 0;
-        padding: 1;
-        border-left: solid green;
-    }
-    
-    .assistant-streaming {
-        background: yellow 20%;
-        color: black;
-        margin: 1;
-        padding: 1;
-        border-left: solid yellow;
-        text-style: italic;
-    }
-    
-    .assistant-error-label {
-        text-style: bold;
-        color: red;
-        margin-top: 1;
-        margin-bottom: 0;
-    }
-    
-    .assistant-error {
-        background: red 20%;
-        color: white;
-        margin: 1;
-        margin-top: 0;
-        padding: 1;
-        border-left: solid red;
-    }
-    
-    .progress-label {
-        text-style: bold;
-        color: yellow;
-        margin-top: 1;
-        margin-bottom: 0;
-    }
-    
-    .progress-message {
-        background: yellow 20%;
-        color: black;
-        margin: 1;
-        margin-top: 0;
-        padding: 1;
-        border-left: solid yellow;
-    }
-    
-    .dialog-title {
-        text-style: bold;
-        content-align: center middle;
-        margin: 1;
-        background: cyan 30%;
-        color: black;
-    }
-    
-    #messages_container {
-        height: 1fr;
-        margin: 1;
-        scrollbar-background: gray 50%;
-        scrollbar-color: white;
-    }
-    
-    #dynamic_content {
-        dock: bottom;
-        height: auto;
-        margin: 1;
-    }
-    
-    #main_input {
-        width: 1fr;
-        margin-right: 1;
-        border: solid white;
-    }
-    
-    #simple_input_area {
-        dock: bottom;
-        height: 3;
-        margin: 1;
-    }
-    
-    #mode_indicator {
-        width: 3;
-        content-align: center middle;
-        text-style: bold;
-        background: gray 20%;
-    }
-    
-    #simple_input {
-        width: 1fr;
-        margin-right: 1;
-    }
-    
-    /* PromptInput component styles */
-    .model-info {
-        dock: top;
-        height: 1;
-        content-align: right middle;
-        color: white;
-        margin-bottom: 1;
-    }
-    
-    #input_container {
-        margin: 1;
-        padding: 1;
-    }
-    
-    #mode_prefix {
-        width: 3;
-        content-align: center middle;
-        text-style: bold;
-    }
-    
-    .mode-bash #mode_prefix {
-        color: yellow;
-    }
-    
-    .mode-koding #mode_prefix {
-        color: cyan;
-    }
-    
-    #status_area {
-        dock: bottom;
-        height: 2;
-        margin: 1;
-    }
-    
-    .status-message {
-        color: white;
-        text-style: dim;
-    }
-    
-    .model-switch-message {
-        color: green;
-        text-style: bold;
-    }
-    
-    .help-text {
-        margin-right: 2;
-    }
-    
-    .help-text.active {
-        color: white;
-        text-style: bold;
-    }
-    
-    .help-text.inactive {
-        color: gray;
-        text-style: dim;
-    }
-    
-    Button {
-        margin: 1;
-    }
-    
-    Input {
-        border: solid white;
-    }
     """
     
     def __init__(self, **kwargs):

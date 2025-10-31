@@ -73,6 +73,12 @@ Examples:
         help="Change to specified directory before starting"
     )
     
+    parser.add_argument(
+        "--test-messages",
+        action="store_true",
+        help="Start with test messages for development"
+    )
+    
     args = parser.parse_args()
     
     # Change directory if specified
@@ -100,12 +106,17 @@ Examples:
         from minion_code.utils.logs import setup_tui_logging
         setup_tui_logging()
         
-        from minion_code.screens.REPL import run as run_repl
-        run_repl(
-            initial_prompt=args.prompt,
-            debug=args.debug,
-            verbose=args.verbose
-        )
+        if args.test_messages:
+            # Use the test messages version
+            from examples.repl_with_test_messages import main as run_test_repl
+            run_test_repl()
+        else:
+            from minion_code.screens.REPL import run as run_repl
+            run_repl(
+                initial_prompt=args.prompt,
+                debug=args.debug,
+                verbose=args.verbose
+            )
     except ImportError as e:
         print(f"❌ TUI dependencies not available: {e}")
         print("💡 Install with: pip install textual rich")
