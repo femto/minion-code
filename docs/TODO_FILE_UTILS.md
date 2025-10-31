@@ -18,7 +18,7 @@ This refactoring centralizes the logic in `minion_code/utils/todo_file_utils.py`
 
 #### `get_todo_file_path(agent_id, storage_dir)`
 ```python
-def get_todo_file_path(agent_id: Optional[str] = None, storage_dir: str = ".minion_workspace") -> str:
+def get_todo_file_path(agent_id: Optional[str] = None, storage_dir: str = ".minion") -> str:
     """
     Get the file path for todo storage for a specific agent.
     
@@ -34,10 +34,10 @@ def get_todo_file_path(agent_id: Optional[str] = None, storage_dir: str = ".mini
 **Examples:**
 ```python
 # Default agent
-path = get_todo_file_path()  # ".minion_workspace/todos_default.json"
+path = get_todo_file_path()  # ".minion/todos_default.json"
 
 # Specific agent
-path = get_todo_file_path("agent123")  # ".minion_workspace/todos_agent123.json"
+path = get_todo_file_path("agent123")  # ".minion/todos_agent123.json"
 
 # Custom storage directory
 path = get_todo_file_path("agent123", "/custom/path")  # "/custom/path/todos_agent123.json"
@@ -49,7 +49,7 @@ def get_default_storage_dir() -> str:
     """Get the default storage directory for todo files."""
 ```
 
-Returns `".minion_workspace"` - the standard directory for minion workspace files.
+Returns `".minion"` - the standard directory for minion workspace files.
 
 #### `ensure_storage_dir_exists(storage_dir)`
 ```python
@@ -247,7 +247,7 @@ Replace manual path construction with utility functions:
 
 ```python
 # Before
-todo_file = f".minion_workspace/todos_{agent_id}.json"
+todo_file = f".minion/todos_{agent_id}.json"
 
 # After
 from minion_code.utils.todo_file_utils import get_todo_file_path

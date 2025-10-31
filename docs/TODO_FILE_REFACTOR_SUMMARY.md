@@ -67,7 +67,7 @@ file_path = get_todo_file_path(agent_id)
 All components now use the same naming convention:
 - Default agent: `todos_default.json`
 - Specific agent: `todos_{agent_id}.json`
-- Consistent storage directory: `.minion_workspace`
+- Consistent storage directory: `.minion`
 
 ### 3. Enhanced Functionality
 New capabilities added:
@@ -118,7 +118,7 @@ from minion_code.utils.todo_file_utils import (
 ```
 === Testing Todo File Utilities ===
 ✅ Path generation: todos_default.json, todos_agent123.json
-✅ Directory creation: .minion_workspace created
+✅ Directory creation: .minion created
 ✅ File listing: Found 4 todo files
 ✅ Agent ID extraction: agent1, test_agent, default, agent2
 ✅ File type checking: Correctly identified todo files
@@ -153,7 +153,7 @@ minion_code/
 ```python
 # Get todo file path for any agent
 from minion_code.utils import get_todo_file_path
-path = get_todo_file_path("my_agent")  # .minion_workspace/todos_my_agent.json
+path = get_todo_file_path("my_agent")  # .minion/todos_my_agent.json
 ```
 
 ### File Discovery

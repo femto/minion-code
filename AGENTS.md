@@ -69,9 +69,9 @@ mcp_filesystem_write_file("~/.myapp/config.json", json_content)
 
 ### Workspace Directory Convention
 
-When developing agents and tools that need to store persistent data or work with files, **always use `.minion_workspace`** as the default directory instead of other directory names.
+When developing agents and tools that need to store persistent data or work with files, **always use `.minion`** as the default directory instead of other directory names.
 
-#### Why .minion_workspace?
+#### Why .minion?
 
 - **Consistency**: All agents and tools use the same workspace directory
 - **Organization**: Keeps agent-related files separate from project files
@@ -84,13 +84,13 @@ When developing agents and tools that need to store persistent data or work with
 ```python
 # In todo storage
 class TodoStorage:
-    def __init__(self, storage_dir: str = ".minion_workspace"):
+    def __init__(self, storage_dir: str = ".minion"):
         self.storage_dir = storage_dir
         os.makedirs(storage_dir, exist_ok=True)
 
 # In file tools
 def save_agent_data(data, filename):
-    workspace_dir = ".minion_workspace"
+    workspace_dir = ".minion"
     os.makedirs(workspace_dir, exist_ok=True)
     filepath = os.path.join(workspace_dir, filename)
     # ... save data
@@ -106,7 +106,7 @@ storage_dir = "temp_files"    # Not clearly agent-related
 
 ### File Naming Conventions
 
-Within `.minion_workspace`, use descriptive filenames that include:
+Within `.minion`, use descriptive filenames that include:
 - Agent ID or identifier when relevant
 - File type or purpose
 - Appropriate file extensions
@@ -119,7 +119,7 @@ Examples:
 
 ### Implementation Notes
 
-- Always create the `.minion_workspace` directory if it doesn't exist
+- Always create the `.minion` directory if it doesn't exist
 - Handle file permissions and access errors gracefully
 - Use appropriate file formats (JSON for structured data, TXT for logs)
 - Include proper error handling for file operations
@@ -127,25 +127,25 @@ Examples:
 ### Migration
 
 If you have existing tools using other directory names:
-1. Update the default directory to `.minion_workspace`
+1. Update the default directory to `.minion`
 2. Consider migration logic for existing data
 3. Update documentation and examples
 4. Test with existing agent configurations
 #
 # Migration from .minion_todos
 
-If you have existing data in `.minion_todos`, you can migrate it to `.minion_workspace`:
+If you have existing data in `.minion_todos`, you can migrate it to `.minion`:
 
 ```bash
 # Copy existing todo files
-mkdir -p .minion_workspace
-cp .minion_todos/*.json .minion_workspace/
+mkdir -p .minion
+cp .minion_todos/*.json .minion/
 
 # Verify migration
-ls -la .minion_workspace/
+ls -la .minion/
 ```
 
-The todo tools have been updated to use `.minion_workspace` by default, so existing todo data will continue to work after migration.
+The todo tools have been updated to use `.minion` by default, so existing todo data will continue to work after migration.
 
 Could you please provide the note you'd like me to transform for your KODING.md file?
 

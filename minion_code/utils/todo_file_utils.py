@@ -4,7 +4,7 @@ import os
 from typing import Optional
 
 
-def get_todo_file_path(agent_id: Optional[str] = None, storage_dir: str = ".minion_workspace") -> str:
+def get_todo_file_path(agent_id: Optional[str] = None, storage_dir: str = ".minion") -> str:
     """
     Get the file path for todo storage for a specific agent.
     
@@ -29,7 +29,7 @@ def get_todo_file_path(agent_id: Optional[str] = None, storage_dir: str = ".mini
 
 def get_default_storage_dir() -> str:
     """Get the default storage directory for todo files."""
-    return ".minion_workspace"
+    return ".minion"
 
 
 def ensure_storage_dir_exists(storage_dir: Optional[str] = None) -> str:
