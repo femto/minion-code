@@ -148,6 +148,7 @@ class Messages(ScrollableContainer):
     
     def add_message(self, message: MessageType):
         """Add a new message to the list"""
+        self.messages.append(message)
         self.mutate_reactive(Messages.messages)
         
         if self.auto_scroll:
@@ -156,7 +157,9 @@ class Messages(ScrollableContainer):
     def update_messages(self, messages: List[MessageType]):
         """Update the entire messages list"""
         # Clear and replace all messages
+        self.messages = messages
         self.mutate_reactive(Messages.messages)
+
         
         # Auto-scroll if new messages were added
         if len(messages) > self._last_message_count and self.auto_scroll:
@@ -197,7 +200,8 @@ class Messages(ScrollableContainer):
     
     def clear_messages(self):
         """Clear all messages"""
-        self.mutate_reactive(Messages.messages).clear()
+        self.messages = []
+        self.mutate_reactive(Messages.messages)
     
     def _update_display(self):
         """Update the display when messages change"""

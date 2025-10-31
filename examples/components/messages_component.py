@@ -5,7 +5,7 @@ Verifies that the Messages component can render a list of messages correctly
 """
 
 from textual.app import App, ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Horizontal
 from textual.widgets import Header, Footer, Button
 from textual import on
 
@@ -29,8 +29,14 @@ class TestMessagesApp(App):
     
     #controls {
         dock: bottom;
-        height: 3;
+        height: auto;
         margin: 1;
+        
+    }
+    
+    Button {
+        margin: 1;
+        min-width: 20;
     }
     """
     
@@ -100,7 +106,7 @@ List comprehensions are more readable and often faster than traditional for loop
                 id="test_messages"
             )
         
-        with Container(id="controls"):
+        with Horizontal(id="controls"):
             yield Button("Add User Message", id="add_user", variant="primary")
             yield Button("Add Assistant Message", id="add_assistant", variant="success")
             yield Button("Clear Messages", id="clear", variant="error")
