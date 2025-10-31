@@ -37,7 +37,7 @@ def setup_tui_logging():
     # Only add file logging for TUI mode
     current_date = datetime.now()
     formatted_date = current_date.strftime("%Y%m%d")
-    log_name = f"tui_{formatted_date}"
+    log_name = f"{formatted_date}"
     
     # Ensure logs directory exists
     logs_dir = MINION_ROOT / "logs"

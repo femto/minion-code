@@ -273,7 +273,7 @@ class PromptInput(Container):
         
         if key == "enter":
             # Regular Enter - submit
-            self.run_worker(self._handle_submit())
+            self.run_worker(self._handle_submit(), exclusive=True)
         elif key in ["ctrl+enter", "tab", "ctrl+j"]:
             # Ctrl+Enter, Tab, or Ctrl+J - manually add newline
             self._insert_newline()
@@ -322,32 +322,44 @@ class PromptInput(Container):
             self._handle_exit()
             return
         
-        # Handle different modes
-        if self.mode == InputMode.KODING or input_text.startswith('#'):
-            await self._handle_koding_input(input_text)
-        elif self.mode == InputMode.BASH or input_text.startswith('!'):
-            await self._handle_bash_input(input_text)
-        else:
-            await self._handle_prompt_input(input_text)
-        
-        # Clear input and reset mode
-        text_area.text = ""
+        # 1. 立即清空输入框并重置模式 - 提供即时反馈
+        original_mode = self.mode
+        with text_area.prevent(TextArea.Changed):
+            text_area.text = ""
         self.input_value = ""
         self.mode = InputMode.PROMPT
         if self.on_mode_change:
             self.on_mode_change(InputMode.PROMPT)
-        
-        # Update submit count
+
+        # 2. 立即创建并显示用户消息
+        user_message = self._create_user_message(input_text, original_mode)
+        if self.on_query and user_message:
+            # 先显示用户消息（不等待网络请求）
+            await self.on_query([user_message])
+
+        # 3. 然后处理不同模式的逻辑（可能涉及网络请求）
+        if original_mode == InputMode.KODING or input_text.startswith('#'):
+            await self._handle_koding_input(input_text)
+        elif original_mode == InputMode.BASH or input_text.startswith('!'):
+            await self._handle_bash_input(input_text)
+        else:
+            # 对于普通 prompt，用户消息已经显示，现在处理 AI 响应
+            await self._handle_prompt_response(input_text)
+
+        # 4. 更新提交计数
         self.submit_count += 1
         if self.on_submit_count_change:
             self.on_submit_count_change(lambda x: x + 1)
-    
+
+        # 5. 添加到历史记录
+        self._add_to_history(input_text)
+
     async def _handle_koding_input(self, input_text: str):
         """Handle koding mode input - equivalent to koding mode handling"""
-        
+
         # Strip # prefix if present
         content = input_text[1:].strip() if input_text.startswith('#') else input_text
-        
+
         # Check if this is an action prompt (put, create, generate, etc.)
         if any(word in content.lower() for word in ['put', 'create', 'generate', 'write', 'give', 'provide']):
             # Handle as AI request for AGENTS.md content
@@ -355,16 +367,16 @@ class PromptInput(Container):
         else:
             # Handle as direct note to AGENTS.md
             await self._handle_koding_note(content)
-        
+
         # Add to history
         self._add_to_history(f"#{input_text}" if not input_text.startswith('#') else input_text)
-    
+
     async def _handle_bash_input(self, input_text: str):
         """Handle bash mode input - equivalent to bash command processing"""
-        
+
         # Strip ! prefix if present
         command = input_text[1:].strip() if input_text.startswith('!') else input_text
-        
+
         try:
             # Execute bash command (simplified version)
             import subprocess
@@ -375,41 +387,53 @@ class PromptInput(Container):
                 text=True,
                 timeout=30
             )
-            
+
             # Create assistant message with result
             if result.returncode == 0:
                 response = result.stdout or "Command executed successfully"
             else:
                 response = f"Error: {result.stderr}"
-            
+
             # This would typically be handled by the parent REPL component
             pass
-            
+
         except Exception:
             pass  # Silently handle bash command errors
-        
+
         # Add to history
         self._add_to_history(f"!{input_text}" if not input_text.startswith('!') else input_text)
-    
-    async def _handle_prompt_input(self, input_text: str):
-        """Handle regular prompt input - equivalent to normal message processing"""
-        
+
+    def _create_user_message(self, input_text: str, mode: InputMode):
+        """Create user message for immediate display"""
+        from ..types import Message as MinionMessage, MessageType, MessageContent
+
+        return MinionMessage(
+            type=MessageType.USER,
+            message=MessageContent(input_text),
+            options={"mode": mode.value}
+        )
+
+    async def _handle_prompt_response(self, input_text: str):
+        """Handle AI response for regular prompt input"""
+
         if self.set_is_loading:
             self.set_is_loading(True)
-        
+
         # Create new abort controller
         if self.set_abort_controller:
             new_controller = asyncio.create_task(asyncio.sleep(0))  # Mock controller
             self.set_abort_controller(new_controller)
-        
-        # Process user input (this would integrate with the actual message processing)
-        messages = await self._process_user_input(input_text, self.mode)
-        
-        if messages and self.on_query:
-            await self.on_query(messages)
-        
-        # Add to history
-        self._add_to_history(input_text)
+
+        # 这里不再创建用户消息，因为已经在 _handle_submit 中创建并显示了
+        # 直接触发 AI 响应处理
+        if self.on_query:
+            # 传递空消息列表，表示只需要处理 AI 响应
+            await self.on_query([], trigger_ai_response=True, user_input=input_text)
+
+    async def _handle_prompt_input(self, input_text: str):
+        """Handle regular prompt input - equivalent to normal message processing (deprecated)"""
+        # 这个方法现在被 _handle_prompt_response 替代
+        await self._handle_prompt_response(input_text)
     
     async def _handle_koding_ai_request(self, content: str):
         """Handle AI request for koding mode"""
