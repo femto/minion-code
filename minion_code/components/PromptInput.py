@@ -542,9 +542,9 @@ class PromptInput(Container):
             pass
     
     def _add_to_history(self, input_text: str):
-        """Add input to history - equivalent to addToHistory"""
-        pass
-    
+        from minion_code.utils.history import add_to_history
+        add_to_history(input_text)
+
     def _handle_exit(self):
         """Handle exit command"""
         # This would typically exit the application
