@@ -5,6 +5,7 @@ Contains reusable UI components using Textual
 
 from .PromptInput import PromptInput
 from .Message import Message, UserMessage, AssistantMessage, ToolUseMessage
+from .Messages import Messages, MessagesWithStatus
 from .MessageResponse import (
     MessageResponse, 
     MessageResponseText, 
@@ -20,6 +21,8 @@ __all__ = [
     'UserMessage', 
     'AssistantMessage',
     'ToolUseMessage',
+    'Messages',
+    'MessagesWithStatus',
     'MessageResponse',
     'MessageResponseText',
     'MessageResponseStatus', 

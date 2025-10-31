@@ -143,8 +143,9 @@ class MessageWidget(Container):
             self.refresh()
 
 
-# PromptInput moved to components/PromptInput.py
+# Import components
 from ..components.PromptInput import PromptInput
+from ..components.Messages import Messages
 
 class CostThresholdDialog(Container):
     """Cost threshold warning dialog"""
@@ -279,13 +280,13 @@ class REPL(Container):
             # ModeIndicator removed - mode is shown in PromptInput prefix
             
             # Messages container (equivalent to messagesJSX mapping)
-            with ScrollableContainer(id="messages_container"):
-                for message in self.messages:
-                    yield MessageWidget(
-                        message=message,
-                        verbose=self.verbose,
-                        debug=self.debug
-                    )
+            yield Messages(
+                messages=self.messages,
+                tools=self.tools,
+                verbose=self.verbose,
+                debug=self.debug,
+                id="messages_container"
+            )
             
             # Dynamic content area (equivalent to conditional rendering in React)
             with Container(id="dynamic_content"):
@@ -480,8 +481,12 @@ class REPL(Container):
             )
             self.messages = [*self.messages, streaming_message]
             
-            # Refresh UI to show streaming message
-            self.refresh()
+            # Update Messages component
+            try:
+                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                messages_component.update_messages(self.messages)
+            except Exception:
+                self.refresh()  # Fallback to full refresh
             
             # Process with agent - check if it supports streaming
             try:
@@ -501,7 +506,11 @@ class REPL(Container):
                             
                             # Update streaming message
                             streaming_message.message.content = accumulated_response
-                            self.refresh()
+                            try:
+                                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                                messages_component.update_streaming_message(len(self.messages) - 1, accumulated_response)
+                            except Exception:
+                                self.refresh()  # Fallback to full refresh
                         
                         # Finalize with accumulated response
                         final_content = accumulated_response
@@ -524,6 +533,13 @@ class REPL(Container):
                 # Replace the streaming message with final message
                 self.messages = [*self.messages[:-1], final_message]
                 
+                # Update Messages component
+                try:
+                    messages_component = self.query_one("#messages_container", expect_type=Messages)
+                    messages_component.update_messages(self.messages)
+                except Exception:
+                    self.refresh()  # Fallback to full refresh
+                
                 # Handle Koding mode special case
                 if (new_messages[-1].options and 
                     new_messages[-1].options.get("isKodingRequest")):
@@ -541,6 +557,13 @@ class REPL(Container):
                 # Replace streaming message with error
                 self.messages = [*self.messages[:-1], error_message]
                 
+                # Update Messages component
+                try:
+                    messages_component = self.query_one("#messages_container", expect_type=Messages)
+                    messages_component.update_messages(self.messages)
+                except Exception:
+                    self.refresh()  # Fallback to full refresh
+                
         except Exception as e:
             # Show error message to user
             error_text = self._format_error_for_ui(e)
@@ -555,6 +578,13 @@ class REPL(Container):
                 self.messages = [*self.messages[:-1], error_message]
             else:
                 self.messages = [*self.messages, error_message]
+            
+            # Update Messages component
+            try:
+                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                messages_component.update_messages(self.messages)
+            except Exception:
+                self.refresh()  # Fallback to full refresh
                 
         finally:
             self.is_loading = False
@@ -603,6 +633,14 @@ class REPL(Container):
         
         # Update messages
         self.messages = [*self.messages, *messages]
+        
+        # Update Messages component
+        try:
+            messages_component = self.query_one("#messages_container", expect_type=Messages)
+            messages_component.update_messages(self.messages)
+        except Exception:
+            self.refresh()  # Fallback to full refresh
+        
         return
         
         # Query API
