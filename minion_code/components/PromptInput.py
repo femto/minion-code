@@ -106,6 +106,9 @@ class PromptInput(Container):
         background: gray 10%;
         color: white;
     }
+    CustomTextArea {
+        dock:bottom;
+    }
     """
     
     # Reactive properties equivalent to React useState
