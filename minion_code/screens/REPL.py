@@ -721,10 +721,8 @@ Try typing something to get started!"""),
                             options={"streaming": True}
                         )
 
-                        # Update streaming message
-                        streaming_message.message.content = chunk.content
-                        self.messages = [*self.messages, streaming_message]
                         try:
+                            streaming_message.message.content = chunk.content
                             messages_component = self.query_one("#messages_container", expect_type=Messages)
                             messages_component.update_streaming_message(len(self.messages) - 1, chunk)
                             self.messages = [*self.messages[:-1], streaming_message]
