@@ -700,12 +700,7 @@ Try typing something to get started!"""),
             self.is_loading = True
             
             # Create streaming response container
-            streaming_message = Message(
-                type=MessageType.ASSISTANT,
-                message=MessageContent("⠋ Thinking..."),
-                options={"streaming": True}
-            )
-            self.messages = [*self.messages, streaming_message]
+
             
             # Update Messages component
             try:
@@ -719,50 +714,27 @@ Try typing something to get started!"""),
                 if hasattr(self.agent, 'run_async') and hasattr(self.agent.run_async, '__code__'):
                     # Check if run_async supports stream parameter
                     # Use streaming
-                    accumulated_response = ""
                     async for chunk in (await self.agent.run_async(user_content, stream=True)):
-                        if hasattr(chunk, 'answer'):
-                            accumulated_response += chunk.answer
-                        elif isinstance(chunk, str):
-                            accumulated_response += chunk
+                        streaming_message = Message(
+                            type=MessageType.ASSISTANT,
+                            message=MessageContent("⠋ Thinking..."),
+                            options={"streaming": True}
+                        )
 
                         # Update streaming message
-                        streaming_message.message.content = accumulated_response
+                        streaming_message.message.content = chunk.content
+                        self.messages = [*self.messages, streaming_message]
                         try:
                             messages_component = self.query_one("#messages_container", expect_type=Messages)
-                            messages_component.update_streaming_message(len(self.messages) - 1, accumulated_response)
+                            messages_component.update_streaming_message(len(self.messages) - 1, chunk)
+                            self.messages = [*self.messages[:-1], streaming_message]
                         except Exception:
                             self.refresh()  # Fallback to full refresh
 
-                    # Finalize with accumulated response
-                    final_content = accumulated_response
-
-                else:
-                    # Fallback to regular call
-                    response = await self.agent.run_async(user_content)
-                    final_content = response.answer if hasattr(response, 'answer') else str(response)
-                
-                # Update the streaming message with final response
-                final_message = Message(
-                    type=MessageType.ASSISTANT,
-                    message=MessageContent(final_content),
-                    options={"streaming": False}
-                )
-                
-                # Replace the streaming message with final message
-                self.messages = [*self.messages[:-1], final_message]
-                
-                # Update Messages component
-                try:
-                    messages_component = self.query_one("#messages_container", expect_type=Messages)
-                    messages_component.update_messages(self.messages)
-                except Exception:
-                    self.refresh()  # Fallback to full refresh
-                
                 # Handle Koding mode special case
                 if (new_messages[-1].options and 
                     new_messages[-1].options.get("isKodingRequest")):
-                    await self.handle_koding_response(final_message)
+                    await self.handle_koding_response(streaming_message)
                     
             except Exception as e:
                 # Format error message for UI display
