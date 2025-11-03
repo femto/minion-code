@@ -422,9 +422,7 @@ class REPL(Container):
         self.initial_update_commands = initial_update_commands
         
         # Initialize state
-        test_messages = self._create_test_messages()
-        print(f"DEBUG: Created {len(test_messages)} test messages")
-        self.messages = initial_messages or test_messages
+        self.messages = initial_messages or []
         print(f"DEBUG: REPL initialized with {len(self.messages)} messages")
         self.fork_number = initial_fork_number
         self.should_show_prompt_input = should_show_prompt_input
@@ -686,9 +684,7 @@ Try typing something to get started!"""),
             return
         
         user_content = new_messages[-1].message.content
-        if not isinstance(user_content, str):
-            return
-        
+
         # Check if agent is available
         if not self.agent:
             error_message = Message(
@@ -720,34 +716,27 @@ Try typing something to get started!"""),
             
             # Process with agent - check if it supports streaming
             try:
-                # Try to use streaming if available
                 if hasattr(self.agent, 'run_async') and hasattr(self.agent.run_async, '__code__'):
                     # Check if run_async supports stream parameter
-                    import inspect
-                    sig = inspect.signature(self.agent.run_async)
-                    if 'stream' in sig.parameters:
-                        # Use streaming
-                        accumulated_response = ""
-                        async for chunk in self.agent.run_async(user_content, stream=True):
-                            if hasattr(chunk, 'answer'):
-                                accumulated_response += chunk.answer
-                            elif isinstance(chunk, str):
-                                accumulated_response += chunk
-                            
-                            # Update streaming message
-                            streaming_message.message.content = accumulated_response
-                            try:
-                                messages_component = self.query_one("#messages_container", expect_type=Messages)
-                                messages_component.update_streaming_message(len(self.messages) - 1, accumulated_response)
-                            except Exception:
-                                self.refresh()  # Fallback to full refresh
-                        
-                        # Finalize with accumulated response
-                        final_content = accumulated_response
-                    else:
-                        # No streaming support, use regular call
-                        response = await self.agent.run_async(user_content)
-                        final_content = response.answer if hasattr(response, 'answer') else str(response)
+                    # Use streaming
+                    accumulated_response = ""
+                    async for chunk in (await self.agent.run_async(user_content, stream=True)):
+                        if hasattr(chunk, 'answer'):
+                            accumulated_response += chunk.answer
+                        elif isinstance(chunk, str):
+                            accumulated_response += chunk
+
+                        # Update streaming message
+                        streaming_message.message.content = accumulated_response
+                        try:
+                            messages_component = self.query_one("#messages_container", expect_type=Messages)
+                            messages_component.update_streaming_message(len(self.messages) - 1, accumulated_response)
+                        except Exception:
+                            self.refresh()  # Fallback to full refresh
+
+                    # Finalize with accumulated response
+                    final_content = accumulated_response
+
                 else:
                     # Fallback to regular call
                     response = await self.agent.run_async(user_content)
@@ -870,8 +859,6 @@ Try typing something to get started!"""),
             messages_component.update_messages(self.messages)
         except Exception:
             self.refresh()  # Fallback to full refresh
-        
-        return
         
         # Query API
         await self.query_api(messages)
