@@ -382,14 +382,12 @@ class PromptInput(Container):
         else:
             # 对于普通 prompt，用户消息已经显示，现在处理 AI 响应
             await self._handle_prompt_response(input_text)
+            self._add_to_history(input_text)
 
         # 4. 更新提交计数
         self.submit_count += 1
         if self.on_submit_count_change:
             self.on_submit_count_change(lambda x: x + 1)
-
-        # 5. 添加到历史记录
-        self._add_to_history(input_text)
 
     async def _handle_koding_input(self, input_text: str):
         """Handle koding mode input - equivalent to koding mode handling"""
