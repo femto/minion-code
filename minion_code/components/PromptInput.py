@@ -36,6 +36,9 @@ class CustomTextArea(TextArea):
     }
     """
     
+    # Define COMPONENT_CLASSES to inherit from TextArea
+    COMPONENT_CLASSES = TextArea.COMPONENT_CLASSES.copy()
+    
     class KeyPressed(Message):
         """Message posted when a key is pressed"""
         def __init__(self, key: str) -> None:

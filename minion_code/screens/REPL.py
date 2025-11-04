@@ -418,13 +418,13 @@ class REPL(Container):
     
     # Reactive properties equivalent to React useState
     fork_number = reactive(0)
-    is_loading = reactive(False)
+    is_loading = reactive(False, recompose=True)  # Recompose when loading state changes
     messages = var(list)  # List[Message]
     input_value = reactive("")
     input_mode = reactive(InputMode.PROMPT)
     submit_count = reactive(0)
-    is_message_selector_visible = reactive(False)
-    show_cost_dialog = reactive(False)
+    is_message_selector_visible = reactive(False, recompose=True)  # Recompose when selector visibility changes
+    show_cost_dialog = reactive(False, recompose=True)  # Recompose when dialog visibility changes
     have_shown_cost_dialog = reactive(False)
     should_show_prompt_input = reactive(True, recompose=True)
     
@@ -794,18 +794,8 @@ Try typing something to get started!"""),
                         )
                         self.messages = [*self.messages[:-1], final_message]
                         
-                    except Exception:
-                        # Fallback to non-streaming
-                        response = await self.agent.run_async(user_content)
-                        response_content = response.content if hasattr(response, 'content') else str(response)
-                        
-                        final_message = Message(
-                            type=MessageType.ASSISTANT,
-                            message=MessageContent(response_content),
-                            options={}
-                        )
-                        # Replace the thinking message
-                        self.messages = [*self.messages[:-1], final_message]
+                    except Exception as e:
+                        raise
                 else:
                     # Agent doesn't support async, show error
                     error_message = Message(
