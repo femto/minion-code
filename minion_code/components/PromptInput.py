@@ -36,8 +36,8 @@ class CustomTextArea(TextArea):
     }
     """
     
-    # Define COMPONENT_CLASSES to inherit from TextArea
-    COMPONENT_CLASSES = TextArea.COMPONENT_CLASSES.copy()
+    # Inherit COMPONENT_CLASSES from TextArea
+    COMPONENT_CLASSES = TextArea.COMPONENT_CLASSES
     
     class KeyPressed(Message):
         """Message posted when a key is pressed"""
@@ -76,7 +76,6 @@ class PromptInput(Container):
     
     DEFAULT_CSS = """
     PromptInput {
-        dock: bottom;
         height: auto;
         max-height: 15;
         margin: 1;
@@ -110,7 +109,7 @@ class PromptInput(Container):
         color: white;
     }
     CustomTextArea {
-        dock:bottom;
+        width: 1fr;
     }
     """
     

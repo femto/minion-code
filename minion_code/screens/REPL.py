@@ -317,7 +317,9 @@ class REPL(Container):
     
     #dynamic_content {
         dock: bottom;
-        height: 10;
+        height: auto;
+        min-height: 4;
+        max-height: 15;
         margin: 1;
     }
     
@@ -396,12 +398,14 @@ class REPL(Container):
     
     /* Loading overlay styles */
     .loading-overlay {
-        dock: bottom;
-        height: 4;
-        background: $surface-lighten-1;
+        height: auto;
+        min-height: 4;
+        background: $primary 20%;
+        
         border: solid $primary;
         margin: 1;
-        padding: 1;
+        padding: 2;
+        width: 100%;
     }
     
     #loading_container {
@@ -418,7 +422,7 @@ class REPL(Container):
     
     # Reactive properties equivalent to React useState
     fork_number = reactive(0)
-    is_loading = reactive(False, recompose=True)  # Recompose when loading state changes
+    is_loading = reactive(False, recompose=False)  # Recompose when loading state changes
     messages = var(list)  # List[Message]
     input_value = reactive("")
     input_mode = reactive(InputMode.PROMPT)
@@ -558,7 +562,7 @@ Try typing something to get started!"""),
             
             # Dynamic content area (equivalent to conditional rendering in React)
             with Container(id="dynamic_content"):
-                # Loading indicator - always show when loading, regardless of other states
+                # Loading indicator - show when loading
                 if self.is_loading:
                     yield Container(
                         Spinner(),
