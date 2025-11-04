@@ -724,8 +724,9 @@ Try typing something to get started!"""),
                         try:
                             streaming_message.message.content = chunk.content
                             messages_component = self.query_one("#messages_container", expect_type=Messages)
-                            messages_component.update_streaming_message(len(self.messages) - 1, chunk)
+
                             self.messages = [*self.messages[:-1], streaming_message]
+                            messages_component.update_messages(self.messages)
                         except Exception:
                             self.refresh()  # Fallback to full refresh
 
