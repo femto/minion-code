@@ -58,21 +58,21 @@ class ModeIndicator(Static):
         return f"Mode: {self.mode.value.upper()}"
 
 class Spinner(Static):
-    """Loading spinner component with enhanced visual feedback"""
+    """Simple loading spinner - just one line of animated text"""
     
     DEFAULT_CSS = """
     Spinner {
         color: $primary;
-        text-style: bold;
-        content-align: center middle;
+        text-style: italic;
         height: 1;
+        margin: 1 0;
+        padding: 0 1;
     }
     """
     
     def __init__(self, message: str = "Processing", **kwargs):
         super().__init__("⠋ Processing...", **kwargs)
         self.base_message = message
-        self.auto_refresh = 0.1
         self.spinner_chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
         self.spinner_index = 0
         self._timer = None
@@ -388,42 +388,12 @@ class REPL(Container):
         border: solid white;
     }
     
-    /* Loading status bar styles - between Messages and PromptInput */
-    .loading-status-bar {
-        height: auto;
-        min-height: 3;
-        background: $primary 20%;
-        border: solid $primary;
-        margin: 1 0;
-        padding: 1;
-        width: 100%;
-        content-align: center middle;
-    }
-    
-    #loading_container {
-        content-align: center middle;
-    }
-    
-    .loading-message {
-        color: $primary;
-        text-style: italic;
-        content-align: center middle;
-        margin-top: 1;
-    }
-    
-    .debug-info {
-        background: yellow 80%;
-        color: black;
-        padding: 1;
-        margin: 1;
-        text-style: bold;
-        height: 2;
-    }
+
     """
     
     # Reactive properties equivalent to React useState
     fork_number = reactive(0)
-    is_loading = reactive(False, recompose=False)  # Recompose when loading state changes
+    is_loading = reactive(False)  # Recompose when loading state changes
     messages = var(list)  # List[Message]
     input_value = reactive("")
     input_mode = reactive(InputMode.PROMPT)
@@ -561,25 +531,9 @@ Try typing something to get started!"""),
                 id="messages_container"
             )
             
-            # Debug: Always show loading state
-            yield Static(f"🐛 DEBUG: is_loading = {self.is_loading}", classes="debug-info")
-            
-            # Loading indicator - between Messages and PromptInput (no dock)
+            # Loading indicator - simple one-line text with animation
             if self.is_loading:
-                yield Container(
-                    Spinner(),
-                    Static("Assistant is processing your request...", classes="loading-message"),
-                    id="loading_container",
-                    classes="loading-status-bar"
-                )
-            
-            # Force show loading for debugging
-            yield Container(
-                Spinner(),
-                Static("🔧 FORCED LOADING - This should ALWAYS be visible", classes="loading-message"),
-                id="forced_loading_container",
-                classes="loading-status-bar"
-            )
+                yield Spinner(message="Assistant is thinking")
             
             # Other dynamic content (dialogs, etc.) - also between Messages and PromptInput
             # Tool JSX (equivalent to {toolJSX ? toolJSX.jsx : null})
