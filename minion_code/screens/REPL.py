@@ -698,6 +698,7 @@ Try typing something to get started!"""),
         try:
             # Set loading state
             self.is_loading = True
+            self.loading = True
             
             # Create streaming response container
 
@@ -778,7 +779,8 @@ Try typing something to get started!"""),
                 
         finally:
             self.is_loading = False
-    
+            self.loading = False
+
     async def handle_koding_response(self, assistant_message: Message):
         """Handle Koding mode response - equivalent to handleHashCommand"""
         
@@ -806,6 +808,7 @@ Try typing something to get started!"""),
             return
         
         self.is_loading = False
+        self.loading = False
         
         if self.tool_use_confirm:
             self.tool_use_confirm.on_abort()
