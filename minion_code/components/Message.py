@@ -67,6 +67,12 @@ class Message(Container):
         text-style: dim;
         height: 1;
     }
+    
+    .streaming-message {
+        color: $primary;
+        text-style: italic;
+        background: $primary 10%;
+    }
     """
     
     def __init__(self,
@@ -163,14 +169,33 @@ class Message(Container):
             yield Static(f"[Unknown content type: {block_type}]", classes="error-message")
     
     def _render_text_content(self, text: str):
-        """Render text content with markdown support"""
+        """Render text content with markdown support and streaming indicators"""
         if not text.strip():
             return
+        
+        # Check if this is a streaming or temporary message
+        is_streaming = self.message.options.get("streaming", False) if self.message.options else False
+        is_temporary = self.message.options.get("temporary", False) if self.message.options else False
+        is_error = self.message.options.get("error", False) if self.message.options else False
+        
+        # Add visual indicators for different states
+        if is_streaming:
+            text = f"⠋ {text}"
+        elif is_temporary:
+            text = f"🤔 {text}"
+        elif is_error:
+            text = f"❌ {text}"
         
         try:
             # For now, just render as plain text to avoid compose-time issues
             # TODO: Implement proper markdown rendering with RichLog after mount
-            yield Static(text, classes="message-content")
+            classes = "message-content"
+            if is_error:
+                classes += " error-message"
+            elif is_streaming or is_temporary:
+                classes += " streaming-message"
+                
+            yield Static(text, classes=classes)
         except Exception:
             yield Static(text, classes="message-content")
     

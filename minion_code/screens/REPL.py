@@ -58,20 +58,39 @@ class ModeIndicator(Static):
         return f"Mode: {self.mode.value.upper()}"
 
 class Spinner(Static):
-    """Loading spinner component"""
+    """Loading spinner component with enhanced visual feedback"""
     
-    def __init__(self, **kwargs):
-        super().__init__("⠋ Loading...", **kwargs)
+    DEFAULT_CSS = """
+    Spinner {
+        color: $primary;
+        text-style: bold;
+        content-align: center middle;
+        height: 1;
+    }
+    """
+    
+    def __init__(self, message: str = "Processing", **kwargs):
+        super().__init__("⠋ Processing...", **kwargs)
+        self.base_message = message
         self.auto_refresh = 0.1
         self.spinner_chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
         self.spinner_index = 0
+        self._timer = None
     
     def on_mount(self):
-        self.set_interval(0.1, self.update_spinner)
+        self._timer = self.set_interval(0.1, self.update_spinner)
+    
+    def on_unmount(self):
+        if self._timer:
+            self._timer.stop()
     
     def update_spinner(self):
         self.spinner_index = (self.spinner_index + 1) % len(self.spinner_chars)
-        self.update(f"{self.spinner_chars[self.spinner_index]} Loading...")
+        self.update(f"{self.spinner_chars[self.spinner_index]} {self.base_message}...")
+    
+    def set_message(self, message: str):
+        """Update the spinner message"""
+        self.base_message = message
 
 class MessageWidget(Container):
     """Individual message display widget with streaming support"""
@@ -374,6 +393,27 @@ class REPL(Container):
     Input {
         border: solid white;
     }
+    
+    /* Loading overlay styles */
+    .loading-overlay {
+        dock: bottom;
+        height: 4;
+        background: $surface-lighten-1;
+        border: solid $primary;
+        margin: 1;
+        padding: 1;
+    }
+    
+    #loading_container {
+        content-align: center middle;
+    }
+    
+    .loading-message {
+        color: $primary;
+        text-style: italic;
+        content-align: center middle;
+        margin-top: 1;
+    }
     """
     
     # Reactive properties equivalent to React useState
@@ -518,9 +558,14 @@ Try typing something to get started!"""),
             
             # Dynamic content area (equivalent to conditional rendering in React)
             with Container(id="dynamic_content"):
-                # Spinner (equivalent to {!toolJSX && !toolUseConfirm && !binaryFeedbackContext && isLoading && <Spinner />})
-                if self.is_loading and not self.tool_jsx and not self.tool_use_confirm and not self.binary_feedback_context:
-                    yield Spinner()
+                # Loading indicator - always show when loading, regardless of other states
+                if self.is_loading:
+                    yield Container(
+                        Spinner(),
+                        Static("Assistant is processing your request...", classes="loading-message"),
+                        id="loading_container",
+                        classes="loading-overlay"
+                    )
 
                 # Tool JSX (equivalent to {toolJSX ? toolJSX.jsx : null})
                 if self.tool_jsx and self.tool_jsx.jsx:
@@ -696,14 +741,18 @@ Try typing something to get started!"""),
             return
         
         try:
-            # Set loading state
+            # Set loading state with immediate UI feedback
             self.is_loading = True
-            self.loading = True
             
-            # Create streaming response container
-
+            # Add a temporary "thinking" message to show immediate feedback
+            thinking_message = Message(
+                type=MessageType.ASSISTANT,
+                message=MessageContent("🤔 Thinking..."),
+                options={"streaming": True, "temporary": True}
+            )
+            self.messages = [*self.messages, thinking_message]
             
-            # Update Messages component
+            # Update Messages component immediately
             try:
                 messages_component = self.query_one("#messages_container", expect_type=Messages)
                 messages_component.update_messages(self.messages)
@@ -712,29 +761,64 @@ Try typing something to get started!"""),
             
             # Process with agent - check if it supports streaming
             try:
-                if hasattr(self.agent, 'run_async') and hasattr(self.agent.run_async, '__code__'):
-                    # Check if run_async supports stream parameter
-                    # Use streaming
-                    async for chunk in (await self.agent.run_async(user_content, stream=True)):
-                        streaming_message = Message(
+                if hasattr(self.agent, 'run_async'):
+                    # Try to use streaming if supported
+                    try:
+                        # Attempt streaming response
+                        response_content = ""
+                        async for chunk in (await self.agent.run_async(user_content, stream=True)):
+                            if hasattr(chunk, 'content'):
+                                response_content += chunk.content
+                                
+                                # Update the thinking message with streaming content
+                                streaming_message = Message(
+                                    type=MessageType.ASSISTANT,
+                                    message=MessageContent(response_content),
+                                    options={"streaming": True}
+                                )
+                                
+                                # Replace the thinking message
+                                self.messages = [*self.messages[:-1], streaming_message]
+                                
+                                try:
+                                    messages_component = self.query_one("#messages_container", expect_type=Messages)
+                                    messages_component.update_messages(self.messages)
+                                except Exception:
+                                    self.refresh()  # Fallback to full refresh
+                        
+                        # Finalize the streaming message
+                        final_message = Message(
                             type=MessageType.ASSISTANT,
-                            message=MessageContent("⠋ Thinking..."),
-                            options={"streaming": True}
+                            message=MessageContent(response_content),
+                            options={}  # Remove streaming flag
                         )
-
-                        try:
-                            streaming_message.message.content = chunk.content
-                            messages_component = self.query_one("#messages_container", expect_type=Messages)
-
-                            self.messages = [*self.messages[:-1], streaming_message]
-                            messages_component.update_messages(self.messages)
-                        except Exception:
-                            self.refresh()  # Fallback to full refresh
+                        self.messages = [*self.messages[:-1], final_message]
+                        
+                    except Exception:
+                        # Fallback to non-streaming
+                        response = await self.agent.run_async(user_content)
+                        response_content = response.content if hasattr(response, 'content') else str(response)
+                        
+                        final_message = Message(
+                            type=MessageType.ASSISTANT,
+                            message=MessageContent(response_content),
+                            options={}
+                        )
+                        # Replace the thinking message
+                        self.messages = [*self.messages[:-1], final_message]
+                else:
+                    # Agent doesn't support async, show error
+                    error_message = Message(
+                        type=MessageType.ASSISTANT,
+                        message=MessageContent("❌ Agent does not support async operations"),
+                        options={"error": True}
+                    )
+                    self.messages = [*self.messages[:-1], error_message]
 
                 # Handle Koding mode special case
                 if (new_messages[-1].options and 
                     new_messages[-1].options.get("isKodingRequest")):
-                    await self.handle_koding_response(streaming_message)
+                    await self.handle_koding_response(self.messages[-1])
                     
             except Exception as e:
                 # Format error message for UI display
@@ -745,7 +829,7 @@ Try typing something to get started!"""),
                     message=MessageContent(error_text),
                     options={"error": True}
                 )
-                # Replace streaming message with error
+                # Replace thinking message with error
                 self.messages = [*self.messages[:-1], error_message]
                 
                 # Update Messages component
@@ -764,8 +848,10 @@ Try typing something to get started!"""),
                 options={"error": True}
             )
             
-            # Replace streaming message with error or add new error message
-            if self.messages and self.messages[-1].options.get("streaming"):
+            # Replace thinking/streaming message with error
+            if (self.messages and 
+                (self.messages[-1].options.get("streaming") or 
+                 self.messages[-1].options.get("temporary"))):
                 self.messages = [*self.messages[:-1], error_message]
             else:
                 self.messages = [*self.messages, error_message]
@@ -779,7 +865,13 @@ Try typing something to get started!"""),
                 
         finally:
             self.is_loading = False
-            self.loading = False
+            
+            # Final UI update to remove loading indicators
+            try:
+                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                messages_component.update_messages(self.messages)
+            except Exception:
+                self.refresh()  # Fallback to full refresh
 
     async def handle_koding_response(self, assistant_message: Message):
         """Handle Koding mode response - equivalent to handleHashCommand"""
@@ -828,6 +920,16 @@ Try typing something to get started!"""),
         self.messages = [*self.messages, *messages]
         
         # Update Messages component
+        try:
+            messages_component = self.query_one("#messages_container", expect_type=Messages)
+            messages_component.update_messages(self.messages)
+        except Exception:
+            self.refresh()  # Fallback to full refresh
+        
+        # Show loading state immediately
+        self.is_loading = True
+        
+        # Update UI to show loading
         try:
             messages_component = self.query_one("#messages_container", expect_type=Messages)
             messages_component.update_messages(self.messages)
