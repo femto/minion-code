@@ -315,14 +315,6 @@ class REPL(Container):
         scrollbar-color: white;
     }
     
-    #dynamic_content {
-        dock: bottom;
-        height: auto;
-        min-height: 4;
-        max-height: 15;
-        margin: 1;
-    }
-    
     #main_input {
         width: 1fr;
         margin-right: 1;
@@ -396,16 +388,16 @@ class REPL(Container):
         border: solid white;
     }
     
-    /* Loading overlay styles */
-    .loading-overlay {
+    /* Loading status bar styles - between Messages and PromptInput */
+    .loading-status-bar {
         height: auto;
-        min-height: 4;
+        min-height: 3;
         background: $primary 20%;
-        
         border: solid $primary;
-        margin: 1;
-        padding: 2;
+        margin: 1 0;
+        padding: 1;
         width: 100%;
+        content-align: center middle;
     }
     
     #loading_container {
@@ -417,6 +409,15 @@ class REPL(Container):
         text-style: italic;
         content-align: center middle;
         margin-top: 1;
+    }
+    
+    .debug-info {
+        background: yellow 80%;
+        color: black;
+        padding: 1;
+        margin: 1;
+        text-style: bold;
+        height: 2;
     }
     """
     
@@ -550,7 +551,7 @@ Try typing something to get started!"""),
                 update_banner_version=self.initial_update_version
             )
             
-            # Messages container (main content area)
+            # Messages container (main content area) - takes remaining space
             print(f"DEBUG: REPL.compose() creating Messages component with {len(self.messages)} messages")
             yield Messages(
                 messages=self.messages,
@@ -560,69 +561,79 @@ Try typing something to get started!"""),
                 id="messages_container"
             )
             
-            # Dynamic content area (equivalent to conditional rendering in React)
-            with Container(id="dynamic_content"):
-                # Loading indicator - show when loading
-                if self.is_loading:
-                    yield Container(
-                        Spinner(),
-                        Static("Assistant is processing your request...", classes="loading-message"),
-                        id="loading_container",
-                        classes="loading-overlay"
-                    )
-
-                # Tool JSX (equivalent to {toolJSX ? toolJSX.jsx : null})
-                if self.tool_jsx and self.tool_jsx.jsx:
-                    yield self.tool_jsx.jsx
-
-                # Binary feedback (equivalent to BinaryFeedback component)
-                if self.binary_feedback_context and not self.is_message_selector_visible:
-                    yield Static("🔄 Binary feedback component would render here")
-
-                # Permission request (equivalent to PermissionRequest component)
-                if self.tool_use_confirm and not self.is_message_selector_visible and not self.binary_feedback_context:
-                    yield PermissionRequest(self.tool_use_confirm)
-
-                # Cost dialog (equivalent to CostThresholdDialog component)
-                if self.show_cost_dialog and not self.is_loading:
-                    yield CostThresholdDialog()
-
-                # PromptInput component (controlled by reactive property)
-                if self.should_show_prompt_input:
-                    prompt_input = PromptInput(
-                        commands=self.commands,
-                        fork_number=self.fork_number,
-                        message_log_name=self.message_log_name,
-                        is_disabled=False,
-                        is_loading=self.is_loading,
-                        debug=self.debug,
-                        verbose=self.verbose,
-                        messages=self.messages,
-                        tools=self.tools,
-                        input_value=self.input_value,
-                        mode=self.input_mode,
-                        submit_count=self.submit_count,
-                        read_file_timestamps=self.read_file_timestamps,
-                        abort_controller=self.abort_controller
-                    )
-
-                    # Set up callbacks
-                    prompt_input.on_query = self.on_query_from_prompt
-                    prompt_input.on_input_change = self.on_input_change_from_prompt
-                    prompt_input.on_mode_change = self.on_mode_change_from_prompt
-                    prompt_input.on_submit_count_change = self.on_submit_count_change_from_prompt
-                    prompt_input.set_is_loading = self.set_loading_from_prompt
-                    prompt_input.set_abort_controller = self.set_abort_controller_from_prompt
-                    prompt_input.on_show_message_selector = self.show_message_selector
-                    prompt_input.set_fork_convo_with_messages = self.set_fork_convo_messages
-                    prompt_input.on_model_change = self.on_model_change_from_prompt
-                    prompt_input.set_tool_jsx = self.set_tool_jsx_from_prompt
-
-                    yield prompt_input
+            # Debug: Always show loading state
+            yield Static(f"🐛 DEBUG: is_loading = {self.is_loading}", classes="debug-info")
             
+            # Loading indicator - between Messages and PromptInput (no dock)
+            if self.is_loading:
+                yield Container(
+                    Spinner(),
+                    Static("Assistant is processing your request...", classes="loading-message"),
+                    id="loading_container",
+                    classes="loading-status-bar"
+                )
+            
+            # Force show loading for debugging
+            yield Container(
+                Spinner(),
+                Static("🔧 FORCED LOADING - This should ALWAYS be visible", classes="loading-message"),
+                id="forced_loading_container",
+                classes="loading-status-bar"
+            )
+            
+            # Other dynamic content (dialogs, etc.) - also between Messages and PromptInput
+            # Tool JSX (equivalent to {toolJSX ? toolJSX.jsx : null})
+            if self.tool_jsx and self.tool_jsx.jsx:
+                yield self.tool_jsx.jsx
+
+            # Binary feedback (equivalent to BinaryFeedback component)
+            if self.binary_feedback_context and not self.is_message_selector_visible:
+                yield Static("🔄 Binary feedback component would render here")
+
+            # Permission request (equivalent to PermissionRequest component)
+            if self.tool_use_confirm and not self.is_message_selector_visible and not self.binary_feedback_context:
+                yield PermissionRequest(self.tool_use_confirm)
+
+            # Cost dialog (equivalent to CostThresholdDialog component)
+            if self.show_cost_dialog and not self.is_loading:
+                yield CostThresholdDialog()
+
             # Message selector (equivalent to {isMessageSelectorVisible && <MessageSelector />})
             if self.is_message_selector_visible:
                 yield MessageSelector(messages=self.messages)
+            
+            # PromptInput component at the bottom (dock: bottom)
+            if self.should_show_prompt_input:
+                prompt_input = PromptInput(
+                    commands=self.commands,
+                    fork_number=self.fork_number,
+                    message_log_name=self.message_log_name,
+                    is_disabled=False,
+                    is_loading=self.is_loading,
+                    debug=self.debug,
+                    verbose=self.verbose,
+                    messages=self.messages,
+                    tools=self.tools,
+                    input_value=self.input_value,
+                    mode=self.input_mode,
+                    submit_count=self.submit_count,
+                    read_file_timestamps=self.read_file_timestamps,
+                    abort_controller=self.abort_controller
+                )
+
+                # Set up callbacks
+                prompt_input.on_query = self.on_query_from_prompt
+                prompt_input.on_input_change = self.on_input_change_from_prompt
+                prompt_input.on_mode_change = self.on_mode_change_from_prompt
+                prompt_input.on_submit_count_change = self.on_submit_count_change_from_prompt
+                prompt_input.set_is_loading = self.set_loading_from_prompt
+                prompt_input.set_abort_controller = self.set_abort_controller_from_prompt
+                prompt_input.on_show_message_selector = self.show_message_selector
+                prompt_input.set_fork_convo_with_messages = self.set_fork_convo_messages
+                prompt_input.on_model_change = self.on_model_change_from_prompt
+                prompt_input.set_tool_jsx = self.set_tool_jsx_from_prompt
+
+                yield prompt_input
     
     def on_mount(self):
         """Component lifecycle - equivalent to React useEffect(() => { onInit() }, [])"""

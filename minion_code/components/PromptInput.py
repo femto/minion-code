@@ -76,6 +76,7 @@ class PromptInput(Container):
     
     DEFAULT_CSS = """
     PromptInput {
+        dock: bottom;
         height: auto;
         max-height: 15;
         margin: 1;
