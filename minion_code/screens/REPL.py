@@ -393,7 +393,7 @@ class REPL(Container):
     
     # Reactive properties equivalent to React useState
     fork_number = reactive(0)
-    is_loading = reactive(False)  # Recompose when loading state changes
+    is_loading = reactive(False, recompose=True)  # Recompose when loading state changes
     messages = var(list)  # List[Message]
     input_value = reactive("")
     input_mode = reactive(InputMode.PROMPT)

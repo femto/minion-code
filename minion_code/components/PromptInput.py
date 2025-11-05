@@ -196,25 +196,27 @@ class PromptInput(Container):
             pass  # Silently handle focus errors
     
     def compose(self):
-        """Compose the PromptInput interface - working version"""
+        """Compose the PromptInput interface with loading indicator"""
         # Help text (model info moved to header)
-        yield Static("Enter to submit · Ctrl+Enter/Ctrl+J/Tab for new line · ! for bash · # for AGENTS.md", classes="help-text")
+
         
-        # Debug: Static before TextArea
-        yield Static("BEFORE TextArea - Ready", id="debug_before")
+        # Loading indicator - replaces "BEFORE TextArea - Ready"
+        if self.is_loading:
+            yield Static("⠋ Assistant is thinking...", id="loading_status", classes="loading-status")
         
-        # Input area with mode prefix
-        with Horizontal():
-            yield Static(self._get_mode_prefix(), id="mode_prefix")
+        # Input area with mode prefix - no spacing between prefix and textarea
+        with Horizontal(classes="input-row"):
+            yield Static(self._get_mode_prefix(), id="mode_prefix", classes="mode-prefix")
             yield CustomTextArea(
                 text=self.input_value,
                 id="main_input",
                 disabled=self.is_disabled or self.is_loading,
                 show_line_numbers=False
             )
-        
-        # Debug: Static after TextArea
-        yield Static("AFTER TextArea - Ready", id="debug_after")
+
+        yield Static("Enter to submit · Ctrl+Enter/Ctrl+J/Tab for new line · ! for bash · # for AGENTS.md",
+                 classes="help-text")
+
     
     def _render_model_info(self) -> Static:
         """Render model information - equivalent to model info display"""
