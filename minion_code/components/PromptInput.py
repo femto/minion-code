@@ -33,6 +33,7 @@ class CustomTextArea(TextArea):
         min-height: 1;
         max-height: 10;
         width: 1fr;
+        border: solid white;
     }
     """
     
@@ -91,10 +92,18 @@ class PromptInput(Container):
         border: solid cyan;
     }
     
+    .input-row {
+        height: auto;
+        width: 1fr;
+    }
+    
     #mode_prefix {
-        width: 3;
+        width: 4;
+        min-width: 4;
+        max-width: 4;
         content-align: center middle;
         text-style: bold;
+        margin-right: 1;
     }
     
     .help-text {
@@ -109,8 +118,12 @@ class PromptInput(Container):
         background: gray 10%;
         color: white;
     }
+    
     CustomTextArea {
         width: 1fr;
+        height: auto;
+        min-height: 1;
+        max-height: 10;
     }
     """
     
@@ -197,16 +210,13 @@ class PromptInput(Container):
     
     def compose(self):
         """Compose the PromptInput interface with loading indicator"""
-        # Help text (model info moved to header)
-
-        
         # Loading indicator - replaces "BEFORE TextArea - Ready"
         if self.is_loading:
             yield Static("⠋ Assistant is thinking...", id="loading_status", classes="loading-status")
         
-        # Input area with mode prefix - no spacing between prefix and textarea
+        # Input area with mode prefix in horizontal layout
         with Horizontal(classes="input-row"):
-            yield Static(self._get_mode_prefix(), id="mode_prefix", classes="mode-prefix")
+            yield Static(self._get_mode_prefix(), id="mode_prefix")
             yield CustomTextArea(
                 text=self.input_value,
                 id="main_input",
