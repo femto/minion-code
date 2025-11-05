@@ -762,7 +762,9 @@ Try typing something to get started!"""),
                             options={}  # Remove streaming flag
                         )
                         self.messages = [*self.messages[:-1], final_message]
-                        
+                        messages_component = self.query_one("#messages_container", expect_type=Messages)
+                        messages_component.update_messages(self.messages)
+
                     except Exception as e:
                         raise
                 else:
