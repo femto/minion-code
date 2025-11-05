@@ -577,6 +577,7 @@ Try typing something to get started!"""),
 
                 # Set up callbacks
                 prompt_input.on_query = self.on_query_from_prompt
+                prompt_input.on_add_user_message = self.on_add_user_message_from_prompt  # New immediate display callback
                 prompt_input.on_input_change = self.on_input_change_from_prompt
                 prompt_input.on_mode_change = self.on_mode_change_from_prompt
                 prompt_input.on_submit_count_change = self.on_submit_count_change_from_prompt
@@ -869,36 +870,53 @@ Try typing something to get started!"""),
             self.abort_controller.cancel()
     
     # Callback methods for PromptInput component
+    def on_add_user_message_from_prompt(self, user_message: Message):
+        """Handle immediate user message display (synchronous)"""
+        # 立即显示用户消息 - 同步操作，不等待任何异步处理
+        self.messages = [*self.messages, user_message]
+        
+        # 立即更新UI显示用户消息
+        try:
+            messages_component = self.query_one("#messages_container", expect_type=Messages)
+            messages_component.update_messages(self.messages)
+        except Exception:
+            self.refresh()  # Fallback to full refresh
+    
     async def on_query_from_prompt(self, messages: List[Message], abort_controller=None):
-        """Handle query from PromptInput - equivalent to onQuery prop"""
-        
-        # Use passed AbortController or create new one
-        controller_to_use = abort_controller or asyncio.create_task(asyncio.sleep(0))
-        if not abort_controller:
-            self.abort_controller = controller_to_use
-        
-        # Update messages
-        self.messages = [*self.messages, *messages]
-        
-        # Update Messages component
+        """Handle AI query processing (user message already displayed)"""
+        # 用户消息已经通过 on_add_user_message_from_prompt 显示了
+        # 这里只处理AI响应
+        self.run_worker(self._process_ai_response(messages, abort_controller), exclusive=True)
+    
+    async def _process_ai_response(self, user_messages: List[Message], abort_controller=None):
+        """Process AI response in background worker"""
         try:
-            messages_component = self.query_one("#messages_container", expect_type=Messages)
-            messages_component.update_messages(self.messages)
-        except Exception:
-            self.refresh()  # Fallback to full refresh
-
-        # Show loading state immediately
-        self.is_loading = True
-        
-        # Update UI to show loading
-        try:
-            messages_component = self.query_one("#messages_container", expect_type=Messages)
-            messages_component.update_messages(self.messages)
-        except Exception:
-            self.refresh()  # Fallback to full refresh
-        
-        # Query API
-        await self.query_api(messages)
+            # Use passed AbortController or create new one
+            controller_to_use = abort_controller or asyncio.create_task(asyncio.sleep(0))
+            if not abort_controller:
+                self.abort_controller = controller_to_use
+            
+            # Query API for AI response (query_api handles its own loading state)
+            await self.query_api(user_messages)
+            
+        except Exception as e:
+            # Handle errors in background processing
+            error_message = Message(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(f"❌ Error processing request: {str(e)}"),
+                options={"error": True}
+            )
+            self.messages = [*self.messages, error_message]
+            
+            # Update UI with error
+            try:
+                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                messages_component.update_messages(self.messages)
+            except Exception:
+                self.refresh()
+            
+            # Clear loading state on error
+            self.is_loading = False
     
     def on_input_change_from_prompt(self, value: str):
         """Handle input change from PromptInput"""

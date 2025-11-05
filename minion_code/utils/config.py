@@ -287,16 +287,30 @@ class ConfigManager:
         if not global_config.projects:
             return self._default_project_config(project_path)
         
-        project_config = global_config.projects.get(project_path)
-        if project_config is None:
+        project_config_data = global_config.projects.get(project_path)
+        if project_config_data is None:
             return self._default_project_config(project_path)
         
-        # Handle legacy string format for allowed_tools
-        if isinstance(project_config.allowed_tools, str):
-            try:
-                project_config.allowed_tools = json.loads(project_config.allowed_tools)
-            except json.JSONDecodeError:
-                project_config.allowed_tools = []
+        # Convert dict to ProjectConfig instance if needed
+        if isinstance(project_config_data, dict):
+            # Handle legacy string format for allowed_tools
+            if isinstance(project_config_data.get('allowed_tools'), str):
+                try:
+                    project_config_data['allowed_tools'] = json.loads(project_config_data['allowed_tools'])
+                except json.JSONDecodeError:
+                    project_config_data['allowed_tools'] = []
+            
+            # Create ProjectConfig instance from dict
+            project_config = ProjectConfig(**project_config_data)
+        else:
+            # Already a ProjectConfig instance
+            project_config = project_config_data
+            # Handle legacy string format for allowed_tools
+            if isinstance(project_config.allowed_tools, str):
+                try:
+                    project_config.allowed_tools = json.loads(project_config.allowed_tools)
+                except json.JSONDecodeError:
+                    project_config.allowed_tools = []
         
         return project_config
     

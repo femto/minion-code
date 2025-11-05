@@ -190,6 +190,7 @@ class PromptInput(Container):
         
         # Callbacks (would be passed as props in React)
         self.on_query: Optional[Callable] = None
+        self.on_add_user_message: Optional[Callable] = None  # New callback for immediate message display
         self.on_input_change: Optional[Callable] = None
         self.on_mode_change: Optional[Callable] = None
         self.on_submit_count_change: Optional[Callable] = None
@@ -331,7 +332,7 @@ class PromptInput(Container):
             self._cycle_mode()
 
     async def _handle_submit(self):
-        """Handle input submission - equivalent to onSubmit function"""
+        """Handle input submission with immediate UI feedback"""
         try:
             text_area = self.query_one("#main_input", expect_type=CustomTextArea)
             input_text = text_area.text.strip()
@@ -352,57 +353,37 @@ class PromptInput(Container):
         # 1. 立即清空输入框并重置模式 - 提供即时反馈
         original_mode = self.mode
         
-        # Debug: 更新 BEFORE static 测试 UI 更新
-        try:
-            debug_before = self.query_one("#debug_before", expect_type=Static)
-            debug_before.update("BEFORE - Clearing input...")
-            debug_before.refresh()
-        except:
-            pass
-        
         with text_area.prevent(TextArea.Changed):
             text_area.text = ""
         self.input_value = ""
         self.mode = InputMode.PROMPT
 
-        # Debug: 更新 AFTER static 测试 UI 更新
-        try:
-            debug_after = self.query_one("#debug_after", expect_type=Static)
-            debug_after.update("AFTER - Input cleared!")
-            debug_after.refresh()
-        except:
-            pass
-
         if self.on_mode_change:
             self.on_mode_change(InputMode.PROMPT)
         
-        # 强制刷新整个组件
-        #text_area.refresh()
-        #self.refresh()
-        
-        # Debug: 延迟重置 static 显示
-        self.set_timer(2.0, self._reset_debug_static)
-
-        # 2. 立即创建并显示用户消息
+        # 2. 立即创建用户消息
         user_message = self._create_user_message(input_text, original_mode)
+        
+        # 3. 立即显示用户消息（同步操作，不等待网络）
+        if self.on_add_user_message:
+            self.on_add_user_message(user_message)
+        
+        # 4. 启动后台AI处理
         if self.on_query:
-            await self.on_query([user_message])
-        return
-
-        # 3. 然后处理不同模式的逻辑（可能涉及网络请求）
-        if original_mode == InputMode.KODING or input_text.startswith('#'):
-            await self._handle_koding_input(input_text)
-        elif original_mode == InputMode.BASH or input_text.startswith('!'):
-            await self._handle_bash_input(input_text)
-        else:
-            # 对于普通 prompt，用户消息已经显示，现在处理 AI 响应
-            await self._handle_prompt_response(input_text)
-            self._add_to_history(input_text)
-
-        # 4. 更新提交计数
+            # 只传递用户消息用于AI处理，不用于显示（已经显示了）
+            self.run_worker(self._process_ai_query(user_message), exclusive=True)
+        
+        # 5. 更新提交计数和历史记录
         self.submit_count += 1
         if self.on_submit_count_change:
             self.on_submit_count_change(lambda x: x + 1)
+        
+        self._add_to_history(input_text)
+    
+    async def _process_ai_query(self, user_message):
+        """Process AI query in background worker"""
+        if self.on_query:
+            await self.on_query([user_message])
 
     async def _handle_koding_input(self, input_text: str):
         """Handle koding mode input - equivalent to koding mode handling"""
@@ -542,17 +523,7 @@ class PromptInput(Container):
         )
         return [user_message]
     
-    def _reset_debug_static(self):
-        """重置 debug static 显示"""
-        try:
-            debug_before = self.query_one("#debug_before", expect_type=Static)
-            debug_after = self.query_one("#debug_after", expect_type=Static)
-            debug_before.update("BEFORE TextArea - Ready")
-            debug_after.update("AFTER TextArea - Ready")
-            debug_before.refresh()
-            debug_after.refresh()
-        except:
-            pass
+
     
     def _add_to_history(self, input_text: str):
         from minion_code.utils.history import add_to_history
