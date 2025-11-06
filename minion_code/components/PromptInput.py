@@ -368,10 +368,10 @@ class PromptInput(Container):
         if self.on_add_user_message:
             self.on_add_user_message(user_message)
         
-        # 4. 启动后台AI处理
+        # 4. 启动后台AI处理 - 让父组件管理 worker
         if self.on_query:
-            # 只传递用户消息用于AI处理，不用于显示（已经显示了）
-            self.run_worker(self._process_ai_query(user_message), exclusive=True)
+            # 直接调用父组件的回调，让父组件管理 worker
+            await self.on_query([user_message])
         
         # 5. 更新提交计数和历史记录
         self.submit_count += 1
@@ -380,10 +380,7 @@ class PromptInput(Container):
         
         self._add_to_history(input_text)
     
-    async def _process_ai_query(self, user_message):
-        """Process AI query in background worker"""
-        if self.on_query:
-            await self.on_query([user_message])
+
 
     async def _handle_koding_input(self, input_text: str):
         """Handle koding mode input - equivalent to koding mode handling"""

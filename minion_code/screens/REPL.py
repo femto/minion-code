@@ -886,7 +886,7 @@ Try typing something to get started!"""),
         """Handle AI query processing (user message already displayed)"""
         # 用户消息已经通过 on_add_user_message_from_prompt 显示了
         # 这里只处理AI响应
-        self.run_worker(self._process_ai_response(messages, abort_controller), exclusive=True)
+        self.run_worker(self._process_ai_response(messages, abort_controller), exclusive=False)
     
     async def _process_ai_response(self, user_messages: List[Message], abort_controller=None):
         """Process AI response in background worker"""
