@@ -30,9 +30,10 @@ agent = [
 ]
 
 [project.scripts]
-mc = "examples.interruptible_tui:run"
-mcode = "examples.interruptible_tui:run"
-minion-code = "examples.interruptible_tui:run"
+# Specific interface entry points
+mc = "examples.repl_tui:run"
+mcode = "examples.repl_tui:run"
+minion-code = "examples.repl_tui:run"
 
 [tool.setuptools.packages.find]
 where = ["."]

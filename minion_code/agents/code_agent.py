@@ -23,11 +23,14 @@ from typing import List, Optional, Union, Any
 import sys
 
 from minion.agents import CodeAgent
+from ..utils.auto_compact_core import AutoCompactCore, CompactConfig
 
 # Import all minion_code tools
 from ..tools import (
     FileReadTool,
     FileWriteTool,
+    FileEditTool,
+    MultiEditTool,
     BashTool,
     GrepTool,
     GlobTool,
@@ -37,7 +40,7 @@ from ..tools import (
 
     TodoWriteTool,
     TodoReadTool,
-    TOOL_MAPPING, FileEditTool,
+    TOOL_MAPPING,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,7 +77,9 @@ class MinionCodeAgent(CodeAgent):
         "- Prefer taking actions with tools (read/write/edit/bash) over long prose.\n"
         "- Keep outputs terse. Use bullet lists / checklists when summarizing.\n"
         "- Never invent file paths. Ask via reads or list directories first if unsure.\n"
-        "- For edits, apply the smallest change that satisfies the request.\n"
+        "- For edits, choose the right tool: file_edit for single string replacements, multi_edit for multiple changes to same file or large edits, file_write for complete rewrites.\n"
+        "- For large string edits (>2000 chars), prefer multi_edit tool or break into smaller chunks for better reliability.\n"
+        "- Always read files before editing to establish freshness tracking.\n"
         "- For bash, avoid destructive or privileged commands; stay inside the workspace.\n"
         "- Use the Todo tool to maintain multi-step plans when needed.\n"
         "- After finishing, summarize what changed and how to run or test."
@@ -84,9 +89,16 @@ class MinionCodeAgent(CodeAgent):
         """Initialize the CodeAgent with thinking capabilities and optional state tracking."""
         super().__post_init__()
         self.conversation_history = []
+        # Initialize auto-compact functionality
+        self.auto_compact = AutoCompactCore(CompactConfig(
+            context_window=128000,  # 128k tokens
+            compact_threshold=0.92,  # 92%
+            preserve_recent_messages=10,
+            compression_ratio=0.5
+        ))
     
     async def pre_step(self, input_data, kwargs):
-        """Override pre_step to track iterations without todo usage."""
+        """Override pre_step to track iterations without todo usage and handle auto-compacting."""
         # Call parent pre_step first
         result = await super().pre_step(input_data, kwargs)
         
@@ -99,6 +111,39 @@ class MinionCodeAgent(CodeAgent):
         # Increment iteration counter
         self.state.metadata["iteration_without_todos"] += 1
         
+        # AUTO_COMPACT: Check if history needs compacting
+        if hasattr(self.state, 'history') and self.state.history:
+            # Convert history to list of dicts if needed
+            history_messages = []
+            for msg in self.state.history:
+                if isinstance(msg, dict):
+                    history_messages.append(msg)
+                else:
+                    # Handle other message formats if needed
+                    content = getattr(msg, 'content', str(msg))
+                    # Keep content in its original format (string or list)
+                    history_messages.append({
+                        'role': getattr(msg, 'role', 'unknown'),
+                        'content': content
+                    })
+            
+            # Check if compacting is needed
+            if self.auto_compact.needs_compacting(history_messages):
+                logger.info(f"AUTO_COMPACT: Compacting history from {len(history_messages)} messages")
+                compacted_messages = self.auto_compact.compact_history(history_messages)
+                
+                # Update the history with compacted messages
+                self.state.history.clear()
+                for msg in compacted_messages:
+                    self.state.history.append(msg)
+                
+                logger.info(f"AUTO_COMPACT: History compacted to {len(compacted_messages)} messages")
+                
+                # Log context stats
+                stats = self.auto_compact.get_context_stats(compacted_messages)
+                logger.info(f"AUTO_COMPACT: Context usage: {stats['usage_percentage']:.1%} "
+                           f"({stats['total_tokens']}/{self.auto_compact.config.context_window} tokens)")
+        
         # Add nag reminder if more than 10 iterations without todo usage
         if self.state.metadata["iteration_without_todos"] > 10:
             self.state.history.append({
@@ -107,8 +152,6 @@ class MinionCodeAgent(CodeAgent):
             })
             # Reset counter to avoid spamming reminders
             self.state.metadata["iteration_without_todos"] = 0
-        
-        return result
         
         return result
     
@@ -150,6 +193,7 @@ class MinionCodeAgent(CodeAgent):
             FileReadTool(),
             FileWriteTool(),
             FileEditTool(),
+            MultiEditTool(),
             BashTool(),
             GrepTool(),
             GlobTool(),
@@ -159,6 +203,13 @@ class MinionCodeAgent(CodeAgent):
             TodoWriteTool(),
             TodoReadTool(),
         ]
+        
+        # Add TaskTool if available (avoid circular import)
+        # try:
+        #     from ..tools.task_tool import TaskTool
+        #     minion_tools.append(TaskTool())
+        # except ImportError:
+        #     pass
         
         # Add any additional tools
         all_tools = minion_tools[:]
@@ -294,6 +345,68 @@ class MinionCodeAgent(CodeAgent):
                     print(f"  {readonly_icon} {tool['name']}: {tool['description']}")
         
         print(f"\n🔒 = readonly tool, ✏️ = read/write tool")
+    
+    def get_context_stats(self) -> dict:
+        """Get current context usage statistics."""
+        if not hasattr(self.state, 'history') or not self.state.history:
+            return {
+                'total_tokens': 0,
+                'usage_percentage': 0.0,
+                'needs_compacting': False,
+                'remaining_tokens': self.auto_compact.config.context_window
+            }
+        
+        # Convert history to list of dicts if needed
+        history_messages = []
+        for msg in self.state.history:
+            if isinstance(msg, dict):
+                history_messages.append(msg)
+            else:
+                content = getattr(msg, 'content', str(msg))
+                # Keep content in its original format (string or list)
+                history_messages.append({
+                    'role': getattr(msg, 'role', 'unknown'),
+                    'content': content
+                })
+        
+        return self.auto_compact.get_context_stats(history_messages)
+    
+    def force_compact_history(self) -> bool:
+        """Manually trigger history compaction. Returns True if compaction occurred."""
+        if not hasattr(self.state, 'history') or not self.state.history:
+            return False
+        
+        # Convert history to list of dicts if needed
+        history_messages = []
+        for msg in self.state.history:
+            if isinstance(msg, dict):
+                history_messages.append(msg)
+            else:
+                content = getattr(msg, 'content', str(msg))
+                # Keep content in its original format (string or list)
+                history_messages.append({
+                    'role': getattr(msg, 'role', 'unknown'),
+                    'content': content
+                })
+        
+        original_count = len(history_messages)
+        compacted_messages = self.auto_compact.compact_history(history_messages)
+        
+        if len(compacted_messages) < original_count:
+            # Update the history with compacted messages
+            self.state.history.clear()
+            for msg in compacted_messages:
+                self.state.history.append(msg)
+            
+            logger.info(f"Manual compaction: {original_count} -> {len(compacted_messages)} messages")
+            return True
+        
+        return False
+    
+    def update_compact_config(self, **kwargs) -> None:
+        """Update auto-compact configuration."""
+        self.auto_compact.update_config(**kwargs)
+        logger.info(f"Updated auto-compact config: {kwargs}")
 
 
 # Convenience function for quick setup
