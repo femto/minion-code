@@ -527,3 +527,94 @@ _Added on [timestamp]_
 This ensures notes are never lost, even if AI processing fails.
 
 _Added on 11/07/2025, 6:20:00 PM GMT+8_
+
+## Koding Mode Flow Fix
+
+### Problem Identified
+
+The original implementation of `_handle_submit` in PromptInput.py did not properly route koding mode inputs to the appropriate handler functions. All inputs, regardless of mode, were sent through `on_query` to the REPL, bypassing the special koding mode processing logic.
+
+### Root Cause
+
+```python
+# Original implementation (incorrect)
+async def _handle_submit(self):
+    # Always created user message and called on_query
+    user_message = self._create_user_message(input_text, original_mode)
+    if self.on_query:
+        await self.on_query([user_message])  # ❌ All modes go here
+```
+
+### Solution
+
+Modified `_handle_submit` to route based on `original_mode`:
+
+```python
+# Fixed implementation
+async def _handle_submit(self):
+    if original_mode == InputMode.KODING:
+        # ✅ Koding mode: process note directly
+        await self._handle_koding_input(input_text)
+    elif original_mode == InputMode.BASH:
+        # ✅ Bash mode: execute command
+        await self._handle_bash_input(input_text)
+    else:
+        # ✅ Prompt mode: normal AI conversation
+        user_message = self._create_user_message(input_text, original_mode)
+        if self.on_add_user_message:
+            self.on_add_user_message(user_message)
+        if self.on_query:
+            await self.on_query([user_message])
+```
+
+### Complete Flow
+
+```
+User: # remember to use query_quick
+  ↓
+Detects KODING mode (# prefix)
+  ↓
+_handle_submit checks original_mode
+  ↓
+Calls _handle_koding_input
+  ↓
+Strips # prefix
+  ↓
+Checks if action prompt
+  ├─ Yes → _handle_koding_ai_request → on_query
+  └─ No  → _handle_koding_note
+            ↓
+       Shows "🤔 Formatting note with AI..."
+            ↓
+       _interpret_hash_command (uses query_quick)
+            ↓
+       AI formats into structured markdown
+            ↓
+       _handle_hash_command
+            ↓
+       Writes to AGENTS.md
+            ↓
+       Shows "✅ Note added to AGENTS.md"
+```
+
+### Key Improvements
+
+1. **Mode-based Routing**: Each input mode has its own handler
+2. **User Feedback**: Shows processing and success messages
+3. **Error Handling**: Fallback to simple formatting if AI fails
+4. **File Management**: Creates AGENTS.md if it doesn't exist
+
+### Testing
+
+Test the complete flow:
+```bash
+python3 examples/test_koding_mode_flow.py
+```
+
+### Documentation
+
+- Complete flow: `docs/KODING_MODE_FLOW.md`
+- Fix summary: `docs/KODING_MODE_FIX_SUMMARY.md`
+- Hash command: `docs/HASH_COMMAND.md`
+
+_Added on 11/07/2025, 7:00:00 PM GMT+8_

@@ -26,7 +26,7 @@ from pathlib import Path
 
 # Import shared types
 from ..types import (
-    MessageType, InputMode, MessageContent, Message, 
+    MessageType, InputMode, MessageContent, Message as MessageData, 
     ToolUseConfirm, BinaryFeedbackContext, ToolJSXContext, 
     REPLConfig, ModelInfo
 )
@@ -95,7 +95,7 @@ class Spinner(Static):
 class MessageWidget(Container):
     """Individual message display widget with streaming support"""
     
-    def __init__(self, message: Message, verbose: bool = False, debug: bool = False, **kwargs):
+    def __init__(self, message: MessageData, verbose: bool = False, debug: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.message = message
         self.verbose = verbose
@@ -201,7 +201,7 @@ class PermissionRequest(Container):
 class MessageSelector(Container):
     """Message selector for conversation forking"""
     
-    def __init__(self, messages: List[Message], **kwargs):
+    def __init__(self, messages: List[MessageData], **kwargs):
         super().__init__(**kwargs)
         self.messages = messages
     
@@ -213,7 +213,7 @@ class MessageSelector(Container):
                 yield Button(f"{i}: {content[:50]}...", id=f"msg_{i}")
         yield Button("Cancel", id="cancel_selector", variant="error")
     
-    def _get_message_preview(self, message: Message) -> str:
+    def _get_message_preview(self, message: MessageData) -> str:
         if isinstance(message.message.content, str):
             return message.message.content
         return str(message.message.content)[:50]
@@ -394,7 +394,7 @@ class REPL(Container):
     # Reactive properties equivalent to React useState
     fork_number = reactive(0)
     is_loading = reactive(False)  # Recompose when loading state changes
-    messages = var(list)  # List[Message]
+    messages = var(list)  # List[MessageData]
     input_value = reactive("")
     input_mode = reactive(InputMode.PROMPT)
     submit_count = reactive(0)
@@ -452,16 +452,16 @@ class REPL(Container):
         self.tool_use_confirm: Optional[ToolUseConfirm] = None
         self.binary_feedback_context: Optional[BinaryFeedbackContext] = None
         self.read_file_timestamps: Dict[str, float] = {}
-        self.fork_convo_with_messages_on_next_render: Optional[List[Message]] = None
+        self.fork_convo_with_messages_on_next_render: Optional[List[MessageData]] = None
 
-    def _create_test_messages(self) -> List[Message]:
+    def _create_test_messages(self) -> List[MessageData]:
         """Create some test messages for development/testing"""
         import time
         
         test_messages = []
         
         # Welcome message from assistant
-        test_messages.append(Message(
+        test_messages.append(MessageData(
             type=MessageType.ASSISTANT,
             message=MessageContent("👋 Welcome to Minion Code Assistant! I'm here to help you with coding tasks, file operations, and more. What would you like to work on today?"),
             timestamp=time.time() - 120,
@@ -469,7 +469,7 @@ class REPL(Container):
         ))
         
         # Example user message
-        test_messages.append(Message(
+        test_messages.append(MessageData(
             type=MessageType.USER,
             message=MessageContent("Can you help me understand how to use this REPL interface?"),
             timestamp=time.time() - 100,
@@ -477,7 +477,7 @@ class REPL(Container):
         ))
         
         # Example assistant response with code
-        test_messages.append(Message(
+        test_messages.append(MessageData(
             type=MessageType.ASSISTANT,
             message=MessageContent("""Absolutely! Here's how to use the REPL interface:
 
@@ -644,11 +644,11 @@ Try typing something to get started!"""),
         finally:
             self.is_loading = False
     
-    async def process_user_input(self, input_text: str, mode: InputMode) -> List[Message]:
+    async def process_user_input(self, input_text: str, mode: InputMode) -> List[MessageData]:
         """Process user input - equivalent to processUserInput function"""
         
         # Create user message
-        user_message = Message(
+        user_message = MessageData(
             type=MessageType.USER,
             message=MessageContent(input_text),
             options={"isKodingRequest": mode == InputMode.KODING}
@@ -658,7 +658,7 @@ Try typing something to get started!"""),
         if mode == InputMode.BASH:
             # Handle bash command
             result = await self.execute_bash_command(input_text)
-            assistant_message = Message(
+            assistant_message = MessageData(
                 type=MessageType.ASSISTANT,
                 message=MessageContent(result)
             )
@@ -692,7 +692,7 @@ Try typing something to get started!"""),
         """Set agent from app level"""
         self.agent = agent
     
-    async def query_api(self, new_messages: List[Message]):
+    async def query_api(self, new_messages: List[MessageData]):
         """Query the AI API with streaming support - equivalent to query function"""
         
         if not new_messages or new_messages[-1].type != MessageType.USER:
@@ -702,7 +702,7 @@ Try typing something to get started!"""),
 
         # Check if agent is available
         if not self.agent:
-            error_message = Message(
+            error_message = MessageData(
                 type=MessageType.ASSISTANT,
                 message=MessageContent("❌ Agent not initialized yet. Please wait..."),
                 options={"error": True}
@@ -715,7 +715,7 @@ Try typing something to get started!"""),
             self.is_loading = True
             
             # Add a temporary "thinking" message to show immediate feedback
-            thinking_message = Message(
+            thinking_message = MessageData(
                 type=MessageType.ASSISTANT,
                 message=MessageContent("🤔 Thinking..."),
                 options={"streaming": True, "temporary": True}
@@ -741,7 +741,7 @@ Try typing something to get started!"""),
                                 response_content += chunk.content
                                 
                                 # Update the thinking message with streaming content
-                                streaming_message = Message(
+                                streaming_message = MessageData(
                                     type=MessageType.ASSISTANT,
                                     message=MessageContent(response_content),
                                     options={"streaming": True}
@@ -757,7 +757,7 @@ Try typing something to get started!"""),
                                     self.refresh()  # Fallback to full refresh
                         
                         # Finalize the streaming message
-                        final_message = Message(
+                        final_message = MessageData(
                             type=MessageType.ASSISTANT,
                             message=MessageContent(response_content),
                             options={}  # Remove streaming flag
@@ -770,7 +770,7 @@ Try typing something to get started!"""),
                         raise
                 else:
                     # Agent doesn't support async, show error
-                    error_message = Message(
+                    error_message = MessageData(
                         type=MessageType.ASSISTANT,
                         message=MessageContent("❌ Agent does not support async operations"),
                         options={"error": True}
@@ -786,7 +786,7 @@ Try typing something to get started!"""),
                 # Format error message for UI display
                 error_text = self._format_error_for_ui(e)
                 
-                error_message = Message(
+                error_message = MessageData(
                     type=MessageType.ASSISTANT,
                     message=MessageContent(error_text),
                     options={"error": True}
@@ -804,7 +804,7 @@ Try typing something to get started!"""),
         except Exception as e:
             # Show error message to user
             error_text = self._format_error_for_ui(e)
-            error_message = Message(
+            error_message = MessageData(
                 type=MessageType.ASSISTANT,
                 message=MessageContent(error_text),
                 options={"error": True}
@@ -835,7 +835,7 @@ Try typing something to get started!"""),
             except Exception:
                 self.refresh()  # Fallback to full refresh
 
-    async def handle_koding_response(self, assistant_message: Message):
+    async def handle_koding_response(self, assistant_message: MessageData):
         """Handle Koding mode response - equivalent to handleHashCommand"""
         
         content = assistant_message.message.content
@@ -870,7 +870,7 @@ Try typing something to get started!"""),
             self.abort_controller.cancel()
     
     # Callback methods for PromptInput component
-    def on_add_user_message_from_prompt(self, user_message: Message):
+    def on_add_user_message_from_prompt(self, user_message: MessageData):
         """Handle immediate user message display (synchronous)"""
         # 立即显示用户消息 - 同步操作，不等待任何异步处理
         self.messages = [*self.messages, user_message]
@@ -882,13 +882,13 @@ Try typing something to get started!"""),
         except Exception:
             self.refresh()  # Fallback to full refresh
     
-    async def on_query_from_prompt(self, messages: List[Message], abort_controller=None):
+    async def on_query_from_prompt(self, messages: List[MessageData], abort_controller=None):
         """Handle AI query processing (user message already displayed)"""
         # 用户消息已经通过 on_add_user_message_from_prompt 显示了
         # 这里只处理AI响应
         self.run_worker(self._process_ai_response(messages, abort_controller), exclusive=False)
     
-    async def _process_ai_response(self, user_messages: List[Message], abort_controller=None):
+    async def _process_ai_response(self, user_messages: List[MessageData], abort_controller=None):
         """Process AI response in background worker"""
         try:
             # Use passed AbortController or create new one
@@ -901,7 +901,7 @@ Try typing something to get started!"""),
             
         except Exception as e:
             # Handle errors in background processing
-            error_message = Message(
+            error_message = MessageData(
                 type=MessageType.ASSISTANT,
                 message=MessageContent(f"❌ Error processing request: {str(e)}"),
                 options={"error": True}
@@ -945,7 +945,7 @@ Try typing something to get started!"""),
         """Show message selector from PromptInput"""
         self.is_message_selector_visible = True
     
-    def set_fork_convo_messages(self, messages: List[Message]):
+    def set_fork_convo_messages(self, messages: List[MessageData]):
         """Set fork conversation messages from PromptInput"""
         self.fork_convo_with_messages_on_next_render = messages
     
@@ -976,12 +976,12 @@ Try typing something to get started!"""),
         self.have_shown_cost_dialog = True
         self.config.has_acknowledged_cost_threshold = True
     
-    def normalize_messages(self) -> List[Message]:
+    def normalize_messages(self) -> List[MessageData]:
         """Normalize messages - equivalent to normalizeMessages function"""
         # Filter out empty messages and normalize structure
         return [msg for msg in self.messages if self.is_not_empty_message(msg)]
     
-    def is_not_empty_message(self, message: Message) -> bool:
+    def is_not_empty_message(self, message: MessageData) -> bool:
         """Check if message is not empty - equivalent to isNotEmptyMessage"""
         if isinstance(message.message.content, str):
             return bool(message.message.content.strip())
@@ -1041,7 +1041,7 @@ Try typing something to get started!"""),
         # This will trigger recomposition when the property changes
         pass
     
-    def watch_messages(self, messages: List[Message]):
+    def watch_messages(self, messages: List[MessageData]):
         """Watch messages changes - equivalent to useEffect([messages], ...)"""
         pass
         
@@ -1083,7 +1083,7 @@ Try typing something to get started!"""),
             return
         
         # Add user message to display
-        user_message = Message(
+        user_message = MessageData(
             type=MessageType.USER,
             message=MessageContent(input_text),
             options={"mode": self.input_mode.value}
@@ -1092,7 +1092,7 @@ Try typing something to get started!"""),
         
         # Create simple response
         response_text = f"Received: {input_text} (mode: {self.input_mode.value})"
-        assistant_message = Message(
+        assistant_message = MessageData(
             type=MessageType.ASSISTANT,
             message=MessageContent(response_text)
         )
@@ -1191,8 +1191,8 @@ class REPLApp(App):
 
 # Utility functions equivalent to TypeScript utility functions
 def should_render_statically(
-    message: Message,
-    messages: List[Message],
+    message: MessageData,
+    messages: List[MessageData],
     unresolved_tool_use_ids: Set[str]
 ) -> bool:
     """
