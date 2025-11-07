@@ -160,6 +160,7 @@ class MinionCodeAgent(CodeAgent):
         cls,
         name: str = "Minion Code Assistant",
         llm: str = "sonnet",
+        llms: Optional[dict] = None,
         system_prompt: Optional[str] = None,
         workdir: Optional[Union[str, Path]] = None,
         additional_tools: Optional[List[Any]] = None,
@@ -170,7 +171,9 @@ class MinionCodeAgent(CodeAgent):
         
         Args:
             name: Agent name
-            llm: LLM model to use
+            llm: Main LLM model to use (default for all tasks)
+            llms: Optional dict with specialized LLMs: {'quick': 'haiku', 'task': 'sonnet', 'reasoning': 'o4-mini'}
+                  If not provided, uses smart defaults based on main llm
             system_prompt: Custom system prompt (uses default if None)
             workdir: Working directory (uses current if None)
             additional_tools: Extra tools to add beyond minion_code tools
@@ -183,6 +186,21 @@ class MinionCodeAgent(CodeAgent):
             workdir = Path.cwd()
         else:
             workdir = Path(workdir)
+        
+        # Set up specialized LLMs with fallback to main llm
+        if llms is None:
+            llms = {}
+        
+        llm_quick = llms.get('quick')
+        llm_task = llms.get('task')
+        llm_reasoning = llms.get('reasoning')
+        
+        if llm_quick is None:
+            llm_quick = "haiku" if llm == "sonnet" else llm
+        if llm_task is None:
+            llm_task = "sonnet" if llm != "sonnet" else llm
+        if llm_reasoning is None:
+            llm_reasoning = "o4-mini" if llm not in ["o4-mini", "o1-mini"] else llm
         
         # Use default system prompt if none provided
         if system_prompt is None:
@@ -217,6 +235,7 @@ class MinionCodeAgent(CodeAgent):
             all_tools.extend(additional_tools)
         
         logger.info(f"Creating MinionCodeAgent with {len(all_tools)} tools")
+        logger.info(f"LLM config - main: {llm}, quick: {llm_quick}, task: {llm_task}, reasoning: {llm_reasoning}")
         
         # Create the underlying CodeAgent
         agent = await super().create(
@@ -226,6 +245,14 @@ class MinionCodeAgent(CodeAgent):
             tools=all_tools,
             **kwargs
         )
+        
+        # Store specialized LLM configurations in a dict
+        agent.llms = {
+            'main': agent.llm,  # The actual provider object
+            'quick': llm_quick,
+            'task': llm_task,
+            'reasoning': llm_reasoning
+        }
         
         # Initialize todo tracking metadata
         if not hasattr(agent.state, 'metadata'):
@@ -407,6 +434,63 @@ class MinionCodeAgent(CodeAgent):
         """Update auto-compact configuration."""
         self.auto_compact.update_config(**kwargs)
         logger.info(f"Updated auto-compact config: {kwargs}")
+    
+    def get_llm_for_task(self, task_type: str = "main"):
+        """
+        Get the appropriate LLM for a specific task type.
+        
+        Args:
+            task_type: Type of task - "main", "quick", "task", or "reasoning"
+        
+        Returns:
+            LLM model name or provider for the specified task type
+        """
+        if not hasattr(self, 'llms'):
+            return self.llm
+        
+        return self.llms.get(task_type, self.llm)
+    
+    def get_llm_config(self) -> dict:
+        """
+        Get all LLM configurations.
+        
+        Returns:
+            Dictionary with all LLM configurations
+        """
+        if not hasattr(self, 'llms'):
+            return {
+                'main': self.llm,
+                'quick': self.llm,
+                'task': self.llm,
+                'reasoning': self.llm
+            }
+        
+        return self.llms.copy()
+    
+    def update_llm_config(self, **kwargs) -> None:
+        """
+        Update LLM configurations dynamically.
+        
+        Args:
+            **kwargs: LLM configurations to update (quick, task, reasoning)
+        
+        Example:
+            agent.update_llm_config(quick='haiku', reasoning='o1-mini')
+        """
+        if not hasattr(self, 'llms'):
+            self.llms = {
+                'main': self.llm,
+                'quick': self.llm,
+                'task': self.llm,
+                'reasoning': self.llm
+            }
+        
+        for key, value in kwargs.items():
+            if key in ['quick', 'task', 'reasoning']:
+                self.llms[key] = value
+                logger.info(f"Updated LLM config: {key} = {value}")
+            else:
+                logger.warning(f"Invalid LLM config key: {key}. Valid keys: quick, task, reasoning")
 
 
 # Convenience function for quick setup
