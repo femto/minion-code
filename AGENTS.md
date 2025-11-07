@@ -422,3 +422,108 @@ class MyComponent(Container):
 ```
 
 This pattern ensures clean architecture and proper separation between infrastructure (agent) and presentation (UI components).
+##
+ Hash Command - AI-Powered Note Taking
+
+### Overview
+
+The hash command (`#`) in PromptInput provides an AI-powered way to add well-structured notes to AGENTS.md. When you prefix your input with `#`, the system uses AI to transform your raw note into properly structured markdown.
+
+### How It Works
+
+1. **Input Detection**: Type `#` followed by your note
+2. **AI Interpretation**: Uses `query_quick` to format the note with proper markdown structure
+3. **Auto-Append**: Automatically adds formatted content to AGENTS.md
+4. **Timestamp**: Includes creation timestamp for reference
+
+### Implementation
+
+The `_interpret_hash_command` method in PromptInput.py:
+
+```python
+async def _interpret_hash_command(self, content: str) -> str:
+    """
+    Interpret hash command using AI.
+    
+    Uses query_quick for lightweight AI formatting without agent overhead.
+    Falls back to simple formatting if AI is unavailable.
+    """
+    try:
+        from ..agents.code_agent import query_quick
+        
+        # Get agent from parent REPL component
+        agent = self._get_agent_from_parent()
+        
+        if not agent:
+            return self._simple_format(content)
+        
+        # AI interpretation with structured system prompt
+        system_prompt = [
+            "You're helping the user structure notes for AGENTS.md.",
+            "Format the input into a well-structured note.",
+            "Add appropriate markdown formatting.",
+            "Keep the original meaning but make structure clear.",
+        ]
+        
+        result = await query_quick(
+            agent=agent,
+            user_prompt=f"Transform this note for AGENTS.md: {content}",
+            system_prompt=system_prompt,
+        )
+        
+        return self._add_timestamp(result)
+        
+    except Exception:
+        return self._simple_format(content)
+```
+
+### Usage Examples
+
+#### Simple Note
+```
+# remember to use query_quick for simple LLM queries
+```
+
+**Result**: AI formats into structured markdown with headings, bullet points, and examples.
+
+#### Technical Note
+```
+# file edit tool should be used for single string replacements
+```
+
+**Result**: AI adds context, use cases, and comparison with alternative tools.
+
+#### Best Practice
+```
+# always read files before editing to establish freshness tracking
+```
+
+**Result**: AI expands into comprehensive documentation with rationale and code examples.
+
+### Benefits
+
+- **Consistent Formatting**: AI ensures professional markdown structure
+- **Time Saving**: No manual formatting needed
+- **Better Organization**: Automatic headings and sections
+- **Context Enhancement**: AI adds relevant examples and explanations
+
+### Integration with query_quick
+
+The hash command uses `query_quick` because:
+- Fast and lightweight (no tool execution)
+- Uses quick LLM model for speed
+- Simple request/response pattern
+- Reliable fallback behavior
+
+### Fallback Behavior
+
+If AI interpretation fails, falls back to simple formatting:
+```markdown
+# [your note content]
+
+_Added on [timestamp]_
+```
+
+This ensures notes are never lost, even if AI processing fails.
+
+_Added on 11/07/2025, 6:20:00 PM GMT+8_

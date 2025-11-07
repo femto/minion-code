@@ -494,10 +494,72 @@ class PromptInput(Container):
             self._handle_hash_command(formatted_content)
     
     async def _interpret_hash_command(self, content: str) -> str:
-        """Interpret hash command using AI - equivalent to interpretHashCommand"""
-        # This would integrate with the AI system
-        # For now, return simple formatting
-        return f"# {content}\n\n_Added on {time.strftime('%Y-%m-%d %H:%M:%S')}_"
+        """
+        Interpret hash command using AI - equivalent to interpretHashCommand.
+        
+        Uses the AI to transform raw notes into well-structured content for AGENTS.md.
+        Adds appropriate markdown formatting, headings, bullet points, etc.
+        
+        Args:
+            content: Raw note content from user
+            
+        Returns:
+            Formatted markdown content ready for AGENTS.md
+        """
+        try:
+            # Import query_quick for AI interpretation
+            from ..agents.code_agent import query_quick
+            
+            # Get agent from parent REPL component if available
+            agent = None
+            try:
+                # Try to get agent from parent
+                parent = self.parent
+                while parent and not hasattr(parent, 'agent'):
+                    parent = parent.parent
+                if parent and hasattr(parent, 'agent'):
+                    agent = parent.agent
+            except:
+                pass
+            
+            # If no agent available, fall back to simple formatting
+            if not agent:
+                return f"# {content}\n\n_Added on {time.strftime('%m/%d/%Y, %I:%M:%S %p')}_"
+            
+            # Create system prompt for note interpretation
+            system_prompt = [
+                "You're helping the user structure notes that will be added to their AGENTS.md file.",
+                "Format the user's input into a well-structured note that will be useful for later reference.",
+                "Add appropriate markdown formatting, headings, bullet points, or other structural elements as needed.",
+                "The goal is to transform the raw note into something that will be more useful when reviewed later.",
+                "You should keep the original meaning but make the structure clear.",
+            ]
+            
+            # Send request to AI using query_quick
+            result = await query_quick(
+                agent=agent,
+                user_prompt=f"Transform this note for AGENTS.md: {content}",
+                system_prompt=system_prompt,
+            )
+            
+            # Extract content from response
+            if isinstance(result, str):
+                formatted_content = result
+            else:
+                # Handle other response formats
+                formatted_content = str(result)
+            
+            # Add timestamp
+            timestamp = time.strftime('%m/%d/%Y, %I:%M:%S %p')
+            if "_Added on" not in formatted_content:
+                formatted_content += f"\n\n_Added on {timestamp}_"
+            
+            return formatted_content
+            
+        except Exception as e:
+            # If interpretation fails, return input with minimal formatting
+            timestamp = time.strftime('%m/%d/%Y, %I:%M:%S %p')
+            return f"# {content}\n\n_Added on {timestamp}_"
     
     def _handle_hash_command(self, content: str):
         """Handle hash command - equivalent to handleHashCommand"""
