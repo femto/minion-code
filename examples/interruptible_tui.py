@@ -140,6 +140,10 @@ class InterruptibleCLI:
         help_table.add_row("> [text]", "Prompt mode - Chat with AI assistant")
         help_table.add_row("! [command]", "Bash mode - Execute shell commands")
         help_table.add_row("# [note]", "Koding mode - Add notes to AGENTS.md")
+        help_table.add_row("", "")  # Separator
+        help_table.add_row("[bold]Koding Mode Types:[/bold]", "")
+        help_table.add_row("# [simple note]", "Direct note (simple write)")
+        help_table.add_row("# put/create/generate...", "AI processing with query_quick")
 
         self.console.print(help_table)
         self.console.print("\n💡 [italic]Just type your message to chat with the AI agent![/italic]")
@@ -196,8 +200,272 @@ class InterruptibleCLI:
                 if self.verbose:
                     self.console.print(f"[dim]Error during MCP cleanup: {e}[/dim]")
 
+    def _detect_and_set_mode(self, user_input: str) -> tuple[InputMode, str]:
+        """Detect input mode and return mode and cleaned input."""
+        if user_input.startswith('!'):
+            self.current_mode = InputMode.BASH
+            return InputMode.BASH, user_input[1:].strip()
+        elif user_input.startswith('#'):
+            self.current_mode = InputMode.KODING
+            return InputMode.KODING, user_input[1:].strip()
+        else:
+            self.current_mode = InputMode.PROMPT
+            return InputMode.PROMPT, user_input
+
+    def _get_mode_indicator(self, mode: InputMode) -> str:
+        """Get colored mode indicator for display."""
+        if mode == InputMode.BASH:
+            return "[bold yellow]![/bold yellow]"
+        elif mode == InputMode.KODING:
+            return "[bold cyan]#[/bold cyan]"
+        else:
+            return "[bold green]>[/bold green]"
+
+    async def _handle_bash_mode(self, command: str):
+        """Handle bash mode input."""
+        if not command:
+            self.console.print("❌ [bold red]Empty bash command[/bold red]")
+            return
+
+        try:
+            import subprocess
+            
+            # Show what command is being executed
+            command_panel = Panel(
+                f"[bold white]{command}[/bold white]",
+                title=f"{self._get_mode_indicator(InputMode.BASH)} [bold yellow]Bash Command[/bold yellow]",
+                border_style="yellow"
+            )
+            self.console.print(command_panel)
+
+            # Execute command with timeout
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            # Format output
+            if result.returncode == 0:
+                output = result.stdout.strip() if result.stdout else "Command executed successfully"
+                if output:
+                    output_panel = Panel(
+                        output,
+                        title="✅ [bold green]Command Output[/bold green]",
+                        border_style="green"
+                    )
+                    self.console.print(output_panel)
+            else:
+                error_output = result.stderr.strip() if result.stderr else f"Command failed with exit code {result.returncode}"
+                error_panel = Panel(
+                    error_output,
+                    title="❌ [bold red]Command Error[/bold red]",
+                    border_style="red"
+                )
+                self.console.print(error_panel)
+
+        except subprocess.TimeoutExpired:
+            timeout_panel = Panel(
+                "⏰ [bold yellow]Command timed out after 30 seconds[/bold yellow]",
+                title="[bold yellow]Timeout[/bold yellow]",
+                border_style="yellow"
+            )
+            self.console.print(timeout_panel)
+        except Exception as e:
+            error_panel = Panel(
+                f"❌ [bold red]Error executing command: {e}[/bold red]",
+                title="[bold red]Execution Error[/bold red]",
+                border_style="red"
+            )
+            self.console.print(error_panel)
+
+    async def _handle_koding_mode(self, note_content: str):
+        """Handle koding mode input - consistent with REPL logic."""
+        if not note_content:
+            self.console.print("❌ [bold red]Empty note content[/bold red]")
+            return
+
+        try:
+            # Show what note is being processed
+            note_panel = Panel(
+                f"[bold white]{note_content}[/bold white]",
+                title=f"{self._get_mode_indicator(InputMode.KODING)} [bold cyan]Processing Koding Request[/bold cyan]",
+                border_style="cyan"
+            )
+            self.console.print(note_panel)
+
+            # Check if this is an action prompt (put, create, generate, etc.)
+            action_words = ['put', 'create', 'generate', 'write', 'give', 'provide']
+            is_action_request = any(word in note_content.lower() for word in action_words)
+
+            if is_action_request:
+                # Handle as AI request using query_quick for lightweight processing
+                await self._handle_koding_ai_request(note_content)
+            else:
+                # Handle as direct note to AGENTS.md (simple write)
+                await self._handle_koding_note(note_content)
+
+        except Exception as e:
+            error_panel = Panel(
+                f"❌ [bold red]Error processing koding request: {e}[/bold red]",
+                title="[bold red]Koding Error[/bold red]",
+                border_style="red"
+            )
+            self.console.print(error_panel)
+
+    async def _handle_koding_ai_request(self, content: str):
+        """Handle AI request for koding mode using query_quick for lightweight processing."""
+        if not self.agent:
+            self.console.print("❌ [bold red]Agent not available for AI requests[/bold red]")
+            return
+
+        try:
+            # Import query_quick for lightweight AI processing
+            from minion_code.agents.code_agent import query_quick
+
+            # Show processing indicator
+            processing_panel = Panel(
+                "🤖 [italic]Processing AI request with query_quick...[/italic]",
+                title="[bold cyan]Processing[/bold cyan]",
+                border_style="cyan"
+            )
+            self.console.print(processing_panel)
+
+            # Create system prompt for AI content generation
+            system_prompt = [
+                "The user is using Koding mode. Format your response as a comprehensive,",
+                "well-structured document suitable for adding to AGENTS.md. Use proper",
+                "markdown formatting with headings, lists, code blocks, etc."
+            ]
+
+            # Use query_quick for lightweight AI processing
+            result = await query_quick(
+                agent=self.agent,
+                user_prompt=content,
+                system_prompt=system_prompt,
+            )
+
+            # Extract formatted content
+            if isinstance(result, str):
+                formatted_content = result
+            else:
+                formatted_content = str(result)
+
+            # Add timestamp if not already present
+            import time
+            timestamp = time.strftime('%m/%d/%Y, %I:%M:%S %p')
+            if "_Added on" not in formatted_content:
+                formatted_content += f"\n\n_Added on {timestamp}_"
+
+            # Write to AGENTS.md
+            agents_md_path = Path("AGENTS.md")
+            
+            # Create file if it doesn't exist
+            if not agents_md_path.exists():
+                with open(agents_md_path, "w", encoding="utf-8") as f:
+                    f.write("# Agent Development Guidelines\n\n")
+
+            # Append the formatted content
+            with open(agents_md_path, "a", encoding="utf-8") as f:
+                f.write(f"\n\n{formatted_content}\n")
+
+            success_panel = Panel(
+                f"✅ [bold green]AI-generated content added to AGENTS.md[/bold green]\n"
+                f"📝 [italic]{len(formatted_content)} characters written[/italic]",
+                title="[bold green]Success[/bold green]",
+                border_style="green"
+            )
+            self.console.print(success_panel)
+
+        except Exception as e:
+            error_panel = Panel(
+                f"❌ [bold red]Error processing AI request: {e}[/bold red]",
+                title="[bold red]AI Error[/bold red]",
+                border_style="red"
+            )
+            self.console.print(error_panel)
+
+    async def _handle_koding_note(self, content: str):
+        """Handle direct note to AGENTS.md - simple write without AI processing."""
+        try:
+            # Show what note is being added
+            note_panel = Panel(
+                f"[bold white]{content}[/bold white]",
+                title=f"{self._get_mode_indicator(InputMode.KODING)} [bold cyan]Adding Direct Note[/bold cyan]",
+                border_style="cyan"
+            )
+            self.console.print(note_panel)
+
+            # Simple direct write to AGENTS.md
+            import time
+            timestamp = time.strftime('%m/%d/%Y, %I:%M:%S %p')
+            formatted_content = f"# {content}\n\n_Added on {timestamp}_"
+
+            agents_md_path = Path("AGENTS.md")
+            
+            # Create file if it doesn't exist
+            if not agents_md_path.exists():
+                with open(agents_md_path, "w", encoding="utf-8") as f:
+                    f.write("# Agent Development Guidelines\n\n")
+
+            # Append the content
+            with open(agents_md_path, "a", encoding="utf-8") as f:
+                f.write(f"\n\n{formatted_content}\n")
+
+            success_panel = Panel(
+                f"✅ [bold green]Direct note added to AGENTS.md[/bold green]\n"
+                f"📝 [italic]{len(formatted_content)} characters written[/italic]",
+                title="[bold green]Success[/bold green]",
+                border_style="green"
+            )
+            self.console.print(success_panel)
+
+        except Exception as e:
+            error_panel = Panel(
+                f"❌ [bold red]Error writing direct note: {e}[/bold red]",
+                title="[bold red]File Error[/bold red]",
+                border_style="red"
+            )
+            self.console.print(error_panel)
+
+    async def _write_simple_note(self, content: str):
+        """Write a simple formatted note to AGENTS.md as fallback."""
+        try:
+            import time
+            timestamp = time.strftime('%m/%d/%Y, %I:%M:%S %p')
+            formatted_content = f"# {content}\n\n_Added on {timestamp}_"
+
+            agents_md_path = Path("AGENTS.md")
+            
+            # Create file if it doesn't exist
+            if not agents_md_path.exists():
+                with open(agents_md_path, "w", encoding="utf-8") as f:
+                    f.write("# Agent Development Guidelines\n\n")
+
+            # Append the content
+            with open(agents_md_path, "a", encoding="utf-8") as f:
+                f.write(f"\n\n{formatted_content}\n")
+
+            success_panel = Panel(
+                f"✅ [bold green]Simple note added to AGENTS.md[/bold green]\n"
+                f"📝 [italic]{len(formatted_content)} characters written[/italic]",
+                title="[bold green]Success[/bold green]",
+                border_style="green"
+            )
+            self.console.print(success_panel)
+
+        except Exception as e:
+            error_panel = Panel(
+                f"❌ [bold red]Error writing simple note: {e}[/bold red]",
+                title="[bold red]File Error[/bold red]",
+                border_style="red"
+            )
+            self.console.print(error_panel)
+
     async def process_input(self, user_input: str):
-        """Process user input."""
+        """Process user input with mode detection."""
         user_input = user_input.strip()
 
         if self.verbose:
@@ -208,16 +476,27 @@ class InterruptibleCLI:
             await self.process_command(user_input)
             return
 
-        # Process with agent
+        # Detect mode and get cleaned input
+        mode, cleaned_input = self._detect_and_set_mode(user_input)
+
+        # Handle different modes
+        if mode == InputMode.BASH:
+            await self._handle_bash_mode(cleaned_input)
+            return
+        elif mode == InputMode.KODING:
+            await self._handle_koding_mode(cleaned_input)
+            return
+
+        # Handle prompt mode (regular AI chat)
         try:
             with Progress(
                     SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
+                    TextColumn("[progress.description]{task.description} (Ctrl+C to interrupt)"),
                     console=self.console,
             ) as progress:
                 task = progress.add_task("🤖 Processing...", total=None)
 
-                response = await self.process_input_with_interrupt(user_input)
+                response = await self.process_input_with_interrupt(cleaned_input)
 
                 progress.update(task, completed=True)
 
@@ -414,9 +693,13 @@ class InterruptibleCLI:
 
         while self.running:
             try:
+                # Show current mode in prompt
+                mode_indicator = self._get_mode_indicator(self.current_mode)
+                prompt_text = f"\n{mode_indicator} [bold cyan]You[/bold cyan]"
+                
                 # Use rich prompt for better input experience
                 user_input = Prompt.ask(
-                    "\n[bold cyan]👤 You[/bold cyan]",
+                    prompt_text,
                     console=self.console
                 ).strip()
 
