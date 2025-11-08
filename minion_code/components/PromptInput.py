@@ -56,7 +56,7 @@ class CustomTextArea(TextArea):
             event.prevent_default()
             event.stop()
             return True
-        if event.key in ["ctrl+enter", "tab", "ctrl+j"]:
+        if event.key in ["ctrl+enter", "ctrl+j"]:
             return True  # Prevent TextArea from handling, parent will add newline
         
         # Handle Enter - prevent default and let parent handle
@@ -302,7 +302,7 @@ class PromptInput(Container):
         if key == "enter":
             # Regular Enter - submit
             self.run_worker(self._handle_submit(), exclusive=True)
-        elif key in ["ctrl+enter", "tab", "ctrl+j"]:
+        elif key in ["ctrl+enter", "ctrl+j"]:
             # Ctrl+Enter, Tab, or Ctrl+J - manually add newline
             self._insert_newline()
         elif key in ["backspace", "delete"]:
