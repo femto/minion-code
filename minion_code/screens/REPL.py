@@ -845,7 +845,7 @@ Try typing something to get started!"""),
                 agents_md_path = Path("AGENTS.md")
                 if agents_md_path.exists():
                     with open(agents_md_path, "a") as f:
-                        f.write(f"\n\n## Koding Response - {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                        f.write(f"\n\n## Response - {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
                         f.write(content)
                         f.write("\n")
             except Exception:
@@ -1174,7 +1174,7 @@ class REPLApp(App):
             from minion_code import MinionCodeAgent
             self.agent = await MinionCodeAgent.create(
                 name="REPL Assistant",
-                llm="sonnet"
+                llm="haiku"
             )
             self.agent_ready = True
             

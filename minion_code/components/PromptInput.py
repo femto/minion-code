@@ -498,13 +498,9 @@ class PromptInput(Container):
         
         # Interpret and format the note using AI
         try:
-            interpreted_content = await self._interpret_hash_command(content)
-            self._handle_hash_command(interpreted_content)
+            self._handle_hash_command(content)
         except Exception as e:
-            # Fallback to simple formatting
-            timestamp = time.strftime('%m/%d/%Y, %I:%M:%S %p')
-            formatted_content = f"# {content}\n\n_Added on {timestamp}_"
-            self._handle_hash_command(formatted_content)
+            pass
     
     async def _interpret_hash_command(self, content: str) -> str:
         """
