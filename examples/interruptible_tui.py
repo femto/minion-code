@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from minion_code import MinionCodeAgent
 from minion_code.commands import command_registry
 from minion_code.utils.mcp_loader import MCPToolsLoader
+from minion_code.types import InputMode
 
 app = typer.Typer(
     name="minion-code",
@@ -50,6 +51,9 @@ class InterruptibleCLI:
         self.current_task = None
         self.task_cancelled = False
         self.interrupt_requested = False
+        
+        # Add mode support
+        self.current_mode = InputMode.PROMPT
 
     async def setup(self):
         """Setup the agent."""
@@ -129,10 +133,18 @@ class InterruptibleCLI:
         help_table.add_row("clear", "Clear history")
         help_table.add_row("quit", "Exit")
         help_table.add_row("Ctrl+C", "Interrupt current task or exit")
+        
+        # Add mode information
+        help_table.add_row("", "")  # Separator
+        help_table.add_row("[bold]Input Modes:[/bold]", "")
+        help_table.add_row("> [text]", "Prompt mode - Chat with AI assistant")
+        help_table.add_row("! [command]", "Bash mode - Execute shell commands")
+        help_table.add_row("# [note]", "Koding mode - Add notes to AGENTS.md")
 
         self.console.print(help_table)
         self.console.print("\n💡 [italic]Just type your message to chat with the AI agent![/italic]")
         self.console.print("⚠️  [italic]During task processing, press Ctrl+C to interrupt the current task[/italic]")
+        self.console.print("🔄 [italic]Use prefixes !, # to switch modes, or just type normally for prompt mode[/italic]")
 
     async def process_input_with_interrupt(self, user_input: str):
         """Process user input with interrupt support."""
@@ -200,7 +212,7 @@ class InterruptibleCLI:
         try:
             with Progress(
                     SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description} (Ctrl+C to interrupt)"),
+                    TextColumn("[progress.description]{task.description}"),
                     console=self.console,
             ) as progress:
                 task = progress.add_task("🤖 Processing...", total=None)
