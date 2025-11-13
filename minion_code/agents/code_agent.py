@@ -23,6 +23,8 @@ from typing import List, Optional, Union, Any
 import sys
 
 from minion.agents import CodeAgent
+from minion.types import AgentState
+from minion.types.history import History
 from ..utils.auto_compact_core import AutoCompactCore, CompactConfig
 
 # Import all minion_code tools
@@ -44,6 +46,102 @@ from ..tools import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def query_quick(
+    agent: "MinionCodeAgent",
+    user_prompt: str,
+    system_prompt: Optional[Union[str, List[str]]] = None,
+    assistant_prompt: Optional[str] = None,
+    enable_prompt_caching: bool = False,
+    llm: Optional[str] = None,
+) -> str:
+    """
+    Simplified query function for quick LLM interactions without agent overhead.
+    
+    This function bypasses the agent's complex routing and tool execution,
+    providing direct access to the LLM for simple queries. It uses brain.step
+    with route='raw' to avoid additional processing.
+    
+    Args:
+        agent: MinionCodeAgent instance to use for the query
+        user_prompt: The user's message/question
+        system_prompt: Optional system prompt(s) - can be a string or list of strings
+        assistant_prompt: Optional assistant prompt to prefill the response
+        enable_prompt_caching: Whether to enable prompt caching (default: False)
+        llm: Optional LLM model to use (defaults to agent's quick LLM)
+    
+    Returns:
+        The LLM's response as a string
+    
+    Example:
+        >>> agent = await MinionCodeAgent.create(name="Assistant", llm="sonnet")
+        >>> response = await query_quick(
+        ...     agent,
+        ...     user_prompt="What is 2+2?",
+        ...     system_prompt="You are a helpful math assistant."
+        ... )
+        >>> print(response)
+        "4"
+    """
+    # Use quick LLM by default
+    if llm is None:
+        llm = agent.get_llm_for_task("quick")
+    
+    # Build messages list
+    messages = [{"role": "user", "content": user_prompt}]
+    
+    # Add assistant prefill if provided
+    if assistant_prompt:
+        messages.append({
+            "role": "assistant",
+            "content": assistant_prompt
+        })
+    
+    # Build system prompt list
+    system_messages = []
+    if system_prompt:
+        if isinstance(system_prompt, list):
+            system_messages = system_prompt
+        else:
+            system_messages = [system_prompt]
+    
+    # Create a minimal state with empty history
+    state = AgentState(history=History())
+    
+    # Prepare kwargs for brain.step
+    step_kwargs = {
+        'messages': messages,
+        'route': 'raw',  # Use raw route to bypass agent processing and avoid extra overhead
+    }
+    
+    # Add system prompt if provided
+    if system_messages:
+        step_kwargs['system_prompt'] = system_messages
+    
+    # Add LLM if specified
+    if llm:
+        step_kwargs['llm'] = llm
+    
+    # Add prompt caching if enabled
+    if enable_prompt_caching:
+        step_kwargs['enable_prompt_caching'] = enable_prompt_caching
+    
+    # Call brain.step with route='raw' to bypass agent processing
+    try:
+        response = await agent.brain.step(state=state, **step_kwargs)
+        
+        # Extract the text response
+        if hasattr(response, 'answer'):
+            return response.answer
+        elif hasattr(response, 'content'):
+            return response.content
+        else:
+            return str(response)
+            
+    except Exception as e:
+        logger.error(f"Error in query_quick: {e}")
+        raise
 
 # Todo reminder constants
 INITIAL_REMINDER = (
@@ -160,6 +258,7 @@ class MinionCodeAgent(CodeAgent):
         cls,
         name: str = "Minion Code Assistant",
         llm: str = "sonnet",
+        llms: Optional[dict] = None,
         system_prompt: Optional[str] = None,
         workdir: Optional[Union[str, Path]] = None,
         additional_tools: Optional[List[Any]] = None,
@@ -170,7 +269,9 @@ class MinionCodeAgent(CodeAgent):
         
         Args:
             name: Agent name
-            llm: LLM model to use
+            llm: Main LLM model to use (default for all tasks)
+            llms: Optional dict with specialized LLMs: {'quick': 'haiku', 'task': 'sonnet', 'reasoning': 'o4-mini'}
+                  If not provided, uses smart defaults based on main llm
             system_prompt: Custom system prompt (uses default if None)
             workdir: Working directory (uses current if None)
             additional_tools: Extra tools to add beyond minion_code tools
@@ -183,6 +284,21 @@ class MinionCodeAgent(CodeAgent):
             workdir = Path.cwd()
         else:
             workdir = Path(workdir)
+        
+        # Set up specialized LLMs with fallback to main llm
+        if llms is None:
+            llms = {}
+        
+        llm_quick = llms.get('quick')
+        llm_task = llms.get('task')
+        llm_reasoning = llms.get('reasoning')
+        
+        if llm_quick is None:
+            llm_quick = "haiku" if llm == "sonnet" else llm
+        if llm_task is None:
+            llm_task = "sonnet" if llm != "sonnet" else llm
+        if llm_reasoning is None:
+            llm_reasoning = "o4-mini" if llm not in ["o4-mini", "o1-mini"] else llm
         
         # Use default system prompt if none provided
         if system_prompt is None:
@@ -217,6 +333,7 @@ class MinionCodeAgent(CodeAgent):
             all_tools.extend(additional_tools)
         
         logger.info(f"Creating MinionCodeAgent with {len(all_tools)} tools")
+        logger.info(f"LLM config - main: {llm}, quick: {llm_quick}, task: {llm_task}, reasoning: {llm_reasoning}")
         
         # Create the underlying CodeAgent
         agent = await super().create(
@@ -226,6 +343,14 @@ class MinionCodeAgent(CodeAgent):
             tools=all_tools,
             **kwargs
         )
+        
+        # Store specialized LLM configurations in a dict
+        agent.llms = {
+            'main': agent.llm,  # The actual provider object
+            'quick': llm_quick,
+            'task': llm_task,
+            'reasoning': llm_reasoning
+        }
         
         # Initialize todo tracking metadata
         if not hasattr(agent.state, 'metadata'):
@@ -407,6 +532,105 @@ class MinionCodeAgent(CodeAgent):
         """Update auto-compact configuration."""
         self.auto_compact.update_config(**kwargs)
         logger.info(f"Updated auto-compact config: {kwargs}")
+    
+    def get_llm_for_task(self, task_type: str = "main"):
+        """
+        Get the appropriate LLM for a specific task type.
+        
+        Args:
+            task_type: Type of task - "main", "quick", "task", or "reasoning"
+        
+        Returns:
+            LLM model name or provider for the specified task type
+        """
+        if not hasattr(self, 'llms'):
+            return self.llm
+        
+        return self.llms.get(task_type, self.llm)
+    
+    def get_llm_config(self) -> dict:
+        """
+        Get all LLM configurations.
+        
+        Returns:
+            Dictionary with all LLM configurations
+        """
+        if not hasattr(self, 'llms'):
+            return {
+                'main': self.llm,
+                'quick': self.llm,
+                'task': self.llm,
+                'reasoning': self.llm
+            }
+        
+        return self.llms.copy()
+    
+    def update_llm_config(self, **kwargs) -> None:
+        """
+        Update LLM configurations dynamically.
+        
+        Args:
+            **kwargs: LLM configurations to update (quick, task, reasoning)
+        
+        Example:
+            agent.update_llm_config(quick='haiku', reasoning='o1-mini')
+        """
+        if not hasattr(self, 'llms'):
+            self.llms = {
+                'main': self.llm,
+                'quick': self.llm,
+                'task': self.llm,
+                'reasoning': self.llm
+            }
+        
+        for key, value in kwargs.items():
+            if key in ['quick', 'task', 'reasoning']:
+                self.llms[key] = value
+                logger.info(f"Updated LLM config: {key} = {value}")
+            else:
+                logger.warning(f"Invalid LLM config key: {key}. Valid keys: quick, task, reasoning")
+    
+    async def query_quick(
+        self,
+        user_prompt: str,
+        system_prompt: Optional[Union[str, List[str]]] = None,
+        assistant_prompt: Optional[str] = None,
+        enable_prompt_caching: bool = False,
+        llm: Optional[str] = None,
+    ) -> str:
+        """
+        Quick query method for simple LLM interactions without agent overhead.
+        
+        This is a convenience wrapper around the query_quick function that uses
+        this agent instance. It bypasses tool execution and complex routing.
+        
+        Args:
+            user_prompt: The user's message/question
+            system_prompt: Optional system prompt(s) - can be a string or list of strings
+            assistant_prompt: Optional assistant prompt to prefill the response
+            enable_prompt_caching: Whether to enable prompt caching (default: False)
+            llm: Optional LLM model to use (defaults to agent's quick LLM)
+        
+        Returns:
+            The LLM's response as a string
+        
+        Example:
+            >>> agent = await MinionCodeAgent.create(name="Assistant", llm="sonnet")
+            >>> response = await agent.query_quick(
+            ...     user_prompt="What is 2+2?",
+            ...     system_prompt="You are a helpful math assistant."
+            ... )
+            >>> print(response)
+            "4"
+        """
+        return await query_quick(
+            agent=self,
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            assistant_prompt=assistant_prompt,
+            enable_prompt_caching=enable_prompt_caching,
+            llm=llm,
+        )
 
 
 # Convenience function for quick setup

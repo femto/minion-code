@@ -56,7 +56,7 @@ class CustomTextArea(TextArea):
             event.prevent_default()
             event.stop()
             return True
-        if event.key in ["ctrl+enter", "tab", "ctrl+j"]:
+        if event.key in ["ctrl+enter", "ctrl+j"]:
             return True  # Prevent TextArea from handling, parent will add newline
         
         # Handle Enter - prevent default and let parent handle
@@ -302,7 +302,7 @@ class PromptInput(Container):
         if key == "enter":
             # Regular Enter - submit
             self.run_worker(self._handle_submit(), exclusive=True)
-        elif key in ["ctrl+enter", "tab", "ctrl+j"]:
+        elif key in ["ctrl+enter", "ctrl+j"]:
             # Ctrl+Enter, Tab, or Ctrl+J - manually add newline
             self._insert_newline()
         elif key in ["backspace", "delete"]:
@@ -361,19 +361,28 @@ class PromptInput(Container):
         if self.on_mode_change:
             self.on_mode_change(InputMode.PROMPT)
         
-        # 2. 立即创建用户消息
-        user_message = self._create_user_message(input_text, original_mode)
+        # 2. 根据模式处理输入
+        if original_mode == InputMode.KODING:
+            # Koding 模式：直接处理笔记，不走 AI query
+            await self._handle_koding_input(input_text)
+        elif original_mode == InputMode.BASH:
+            # Bash 模式：执行命令
+            await self._handle_bash_input(input_text)
+        else:
+            # Prompt 模式：正常的 AI 对话
+            # 2a. 立即创建用户消息
+            user_message = self._create_user_message(input_text, original_mode)
+            
+            # 2b. 立即显示用户消息（同步操作，不等待网络）
+            if self.on_add_user_message:
+                self.on_add_user_message(user_message)
+            
+            # 2c. 启动后台AI处理 - 让父组件管理 worker
+            if self.on_query:
+                # 直接调用父组件的回调，让父组件管理 worker
+                await self.on_query([user_message])
         
-        # 3. 立即显示用户消息（同步操作，不等待网络）
-        if self.on_add_user_message:
-            self.on_add_user_message(user_message)
-        
-        # 4. 启动后台AI处理 - 让父组件管理 worker
-        if self.on_query:
-            # 直接调用父组件的回调，让父组件管理 worker
-            await self.on_query([user_message])
-        
-        # 5. 更新提交计数和历史记录
+        # 3. 更新提交计数和历史记录
         self.submit_count += 1
         if self.on_submit_count_change:
             self.on_submit_count_change(lambda x: x + 1)
@@ -484,20 +493,82 @@ class PromptInput(Container):
     async def _handle_koding_note(self, content: str):
         """Handle direct note to AGENTS.md"""
         
-        # Interpret and format the note using AI (simplified version)
+        # Show processing message
+        self._show_temporary_message("🤔 Formatting note with AI...", duration=30.0)
+        
+        # Interpret and format the note using AI
         try:
-            interpreted_content = await self._interpret_hash_command(content)
-            self._handle_hash_command(interpreted_content)
-        except Exception:
-            # Fallback to simple formatting
-            formatted_content = f"# {content}\n\n_Added on {time.strftime('%Y-%m-%d %H:%M:%S')}_"
-            self._handle_hash_command(formatted_content)
+            self._handle_hash_command(content)
+        except Exception as e:
+            pass
     
     async def _interpret_hash_command(self, content: str) -> str:
-        """Interpret hash command using AI - equivalent to interpretHashCommand"""
-        # This would integrate with the AI system
-        # For now, return simple formatting
-        return f"# {content}\n\n_Added on {time.strftime('%Y-%m-%d %H:%M:%S')}_"
+        """
+        Interpret hash command using AI - equivalent to interpretHashCommand.
+        
+        Uses the AI to transform raw notes into well-structured content for AGENTS.md.
+        Adds appropriate markdown formatting, headings, bullet points, etc.
+        
+        Args:
+            content: Raw note content from user
+            
+        Returns:
+            Formatted markdown content ready for AGENTS.md
+        """
+        try:
+            # Import query_quick for AI interpretation
+            from ..agents.code_agent import query_quick
+            
+            # Get agent from parent REPL component if available
+            agent = None
+            try:
+                # Try to get agent from parent
+                parent = self.parent
+                while parent and not hasattr(parent, 'agent'):
+                    parent = parent.parent
+                if parent and hasattr(parent, 'agent'):
+                    agent = parent.agent
+            except:
+                pass
+            
+            # If no agent available, fall back to simple formatting
+            if not agent:
+                return f"# {content}\n\n_Added on {time.strftime('%m/%d/%Y, %I:%M:%S %p')}_"
+            
+            # Create system prompt for note interpretation
+            system_prompt = [
+                "You're helping the user structure notes that will be added to their AGENTS.md file.",
+                "Format the user's input into a well-structured note that will be useful for later reference.",
+                "Add appropriate markdown formatting, headings, bullet points, or other structural elements as needed.",
+                "The goal is to transform the raw note into something that will be more useful when reviewed later.",
+                "You should keep the original meaning but make the structure clear.",
+            ]
+            
+            # Send request to AI using query_quick
+            result = await query_quick(
+                agent=agent,
+                user_prompt=f"Transform this note for AGENTS.md: {content}",
+                system_prompt=system_prompt,
+            )
+            
+            # Extract content from response
+            if isinstance(result, str):
+                formatted_content = result
+            else:
+                # Handle other response formats
+                formatted_content = str(result)
+            
+            # Add timestamp
+            timestamp = time.strftime('%m/%d/%Y, %I:%M:%S %p')
+            if "_Added on" not in formatted_content:
+                formatted_content += f"\n\n_Added on {timestamp}_"
+            
+            return formatted_content
+            
+        except Exception as e:
+            # If interpretation fails, return input with minimal formatting
+            timestamp = time.strftime('%m/%d/%Y, %I:%M:%S %p')
+            return f"# {content}\n\n_Added on {timestamp}_"
     
     def _handle_hash_command(self, content: str):
         """Handle hash command - equivalent to handleHashCommand"""
@@ -505,11 +576,26 @@ class PromptInput(Container):
             from pathlib import Path
             agents_md = Path("AGENTS.md")
             
-            if agents_md.exists():
-                with open(agents_md, "a", encoding="utf-8") as f:
-                    f.write(f"\n\n{content}\n")
-        except Exception:
-            pass  # Silently handle file write errors
+            # Create file if it doesn't exist
+            if not agents_md.exists():
+                with open(agents_md, "w", encoding="utf-8") as f:
+                    f.write("# Agent Development Guidelines\n\n")
+            
+            # Append the formatted content
+            with open(agents_md, "a", encoding="utf-8") as f:
+                f.write(f"\n\n{content}\n")
+            
+            # Show success message to user
+            self._show_temporary_message(f"✅ Note added to AGENTS.md", duration=3.0)
+            
+        except Exception as e:
+            # Show error message to user
+            self._show_temporary_message(f"❌ Failed to write to AGENTS.md: {e}", duration=5.0)
+    
+    def _show_temporary_message(self, text: str, duration: float = 3.0):
+        """Show a temporary message to the user"""
+        self.message = {"show": True, "text": text}
+        self.set_timer(duration, lambda: setattr(self, 'message', {"show": False, "text": ""}))
     
     async def _process_user_input(self, input_text: str, mode: InputMode) -> List[MinionMessage]:
         """Process user input - equivalent to processUserInput"""

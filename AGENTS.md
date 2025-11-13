@@ -422,3 +422,199 @@ class MyComponent(Container):
 ```
 
 This pattern ensures clean architecture and proper separation between infrastructure (agent) and presentation (UI components).
+##
+ Hash Command - AI-Powered Note Taking
+
+### Overview
+
+The hash command (`#`) in PromptInput provides an AI-powered way to add well-structured notes to AGENTS.md. When you prefix your input with `#`, the system uses AI to transform your raw note into properly structured markdown.
+
+### How It Works
+
+1. **Input Detection**: Type `#` followed by your note
+2. **AI Interpretation**: Uses `query_quick` to format the note with proper markdown structure
+3. **Auto-Append**: Automatically adds formatted content to AGENTS.md
+4. **Timestamp**: Includes creation timestamp for reference
+
+### Implementation
+
+The `_interpret_hash_command` method in PromptInput.py:
+
+```python
+async def _interpret_hash_command(self, content: str) -> str:
+    """
+    Interpret hash command using AI.
+    
+    Uses query_quick for lightweight AI formatting without agent overhead.
+    Falls back to simple formatting if AI is unavailable.
+    """
+    try:
+        from ..agents.code_agent import query_quick
+        
+        # Get agent from parent REPL component
+        agent = self._get_agent_from_parent()
+        
+        if not agent:
+            return self._simple_format(content)
+        
+        # AI interpretation with structured system prompt
+        system_prompt = [
+            "You're helping the user structure notes for AGENTS.md.",
+            "Format the input into a well-structured note.",
+            "Add appropriate markdown formatting.",
+            "Keep the original meaning but make structure clear.",
+        ]
+        
+        result = await query_quick(
+            agent=agent,
+            user_prompt=f"Transform this note for AGENTS.md: {content}",
+            system_prompt=system_prompt,
+        )
+        
+        return self._add_timestamp(result)
+        
+    except Exception:
+        return self._simple_format(content)
+```
+
+### Usage Examples
+
+#### Simple Note
+```
+# remember to use query_quick for simple LLM queries
+```
+
+**Result**: AI formats into structured markdown with headings, bullet points, and examples.
+
+#### Technical Note
+```
+# file edit tool should be used for single string replacements
+```
+
+**Result**: AI adds context, use cases, and comparison with alternative tools.
+
+#### Best Practice
+```
+# always read files before editing to establish freshness tracking
+```
+
+**Result**: AI expands into comprehensive documentation with rationale and code examples.
+
+### Benefits
+
+- **Consistent Formatting**: AI ensures professional markdown structure
+- **Time Saving**: No manual formatting needed
+- **Better Organization**: Automatic headings and sections
+- **Context Enhancement**: AI adds relevant examples and explanations
+
+### Integration with query_quick
+
+The hash command uses `query_quick` because:
+- Fast and lightweight (no tool execution)
+- Uses quick LLM model for speed
+- Simple request/response pattern
+- Reliable fallback behavior
+
+### Fallback Behavior
+
+If AI interpretation fails, falls back to simple formatting:
+```markdown
+# [your note content]
+
+_Added on [timestamp]_
+```
+
+This ensures notes are never lost, even if AI processing fails.
+
+_Added on 11/07/2025, 6:20:00 PM GMT+8_
+
+## Koding Mode Flow Fix
+
+### Problem Identified
+
+The original implementation of `_handle_submit` in PromptInput.py did not properly route koding mode inputs to the appropriate handler functions. All inputs, regardless of mode, were sent through `on_query` to the REPL, bypassing the special koding mode processing logic.
+
+### Root Cause
+
+```python
+# Original implementation (incorrect)
+async def _handle_submit(self):
+    # Always created user message and called on_query
+    user_message = self._create_user_message(input_text, original_mode)
+    if self.on_query:
+        await self.on_query([user_message])  # ❌ All modes go here
+```
+
+### Solution
+
+Modified `_handle_submit` to route based on `original_mode`:
+
+```python
+# Fixed implementation
+async def _handle_submit(self):
+    if original_mode == InputMode.KODING:
+        # ✅ Koding mode: process note directly
+        await self._handle_koding_input(input_text)
+    elif original_mode == InputMode.BASH:
+        # ✅ Bash mode: execute command
+        await self._handle_bash_input(input_text)
+    else:
+        # ✅ Prompt mode: normal AI conversation
+        user_message = self._create_user_message(input_text, original_mode)
+        if self.on_add_user_message:
+            self.on_add_user_message(user_message)
+        if self.on_query:
+            await self.on_query([user_message])
+```
+
+### Complete Flow
+
+```
+User: # remember to use query_quick
+  ↓
+Detects KODING mode (# prefix)
+  ↓
+_handle_submit checks original_mode
+  ↓
+Calls _handle_koding_input
+  ↓
+Strips # prefix
+  ↓
+Checks if action prompt
+  ├─ Yes → _handle_koding_ai_request → on_query
+  └─ No  → _handle_koding_note
+            ↓
+       Shows "🤔 Formatting note with AI..."
+            ↓
+       _interpret_hash_command (uses query_quick)
+            ↓
+       AI formats into structured markdown
+            ↓
+       _handle_hash_command
+            ↓
+       Writes to AGENTS.md
+            ↓
+       Shows "✅ Note added to AGENTS.md"
+```
+
+### Key Improvements
+
+1. **Mode-based Routing**: Each input mode has its own handler
+2. **User Feedback**: Shows processing and success messages
+3. **Error Handling**: Fallback to simple formatting if AI fails
+4. **File Management**: Creates AGENTS.md if it doesn't exist
+
+### Testing
+
+Test the complete flow:
+```bash
+python3 examples/test_koding_mode_flow.py
+```
+
+### Documentation
+
+- Complete flow: `docs/KODING_MODE_FLOW.md`
+- Fix summary: `docs/KODING_MODE_FIX_SUMMARY.md`
+- Hash command: `docs/HASH_COMMAND.md`
+
+_Added on 11/07/2025, 7:00:00 PM GMT+8_
