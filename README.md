@@ -55,6 +55,11 @@ pip install -e .
 2025-11-13 12:21:48.042 | INFO     | minion.const:get_minion_root:44 - MINION_ROOT set to: <some_path>
 ```
 
+# LLM Congiguration
+please refer
+https://github.com/femto/minion?tab=readme-ov-file#get-started
+make sure config file is in
+MINION_ROOT/config/config.yaml or ~/.minion/config.yaml
 ## 快速开始
 
 ### CLI使用
