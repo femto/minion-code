@@ -13,11 +13,46 @@
 
 ## 安装
 
+### 方式一：从源码安装（推荐开发使用）
+
 ```bash
-# 克隆仓库
-git clone <repository-url>
+# 克隆依赖仓库
+git clone https://github.com/femto/minion
+
+# 克隆本仓库
+git clone https://github.com/femto/minion-code
+
+# 进入目录
 cd minion-code
+
+# 安装 minion 依赖
+pip install -e ../minion
+
+# 安装 minion-code
 pip install -e .
+```
+
+此时 `MINION_ROOT` 位于 `../minion`
+
+### 方式二：直接安装（推荐一般使用）
+
+```bash
+# 克隆本仓库
+git clone https://github.com/femto/minion-code
+cd minion-code
+
+# 安装依赖
+pip install minionx
+
+# 安装 minion-code
+pip install -e .
+```
+
+此时 `MINION_ROOT` 位于当前启动的位置
+
+启动时会显示 `MINION_ROOT` 的实际路径：
+```
+2025-11-13 12:21:48.042 | INFO     | minion.const:get_minion_root:44 - MINION_ROOT set to: <some_path>
 ```
 
 ## 快速开始
@@ -317,7 +352,8 @@ python examples/demo_mcp_cli.py
 
 ## 文档
 
-- [MCP工具集成指南](docs/MCP_GUIDE.md) - 详细的MCP配置和使用指南
+- [LLM 配置指南](LLM_CONFIG.md) - 如何配置大语言模型（LLM）
+- [MCP 工具集成指南](docs/MCP_GUIDE.md) - 详细的MCP配置和使用指南
 
 ## 贡献
 
