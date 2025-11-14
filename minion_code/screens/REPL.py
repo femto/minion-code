@@ -1174,7 +1174,7 @@ class REPLApp(App):
             from minion_code import MinionCodeAgent
             self.agent = await MinionCodeAgent.create(
                 name="REPL Assistant",
-                llm="haiku"
+                llm="sonnet"
             )
             self.agent_ready = True
             
