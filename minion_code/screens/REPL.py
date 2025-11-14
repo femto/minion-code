@@ -310,7 +310,7 @@ class REPL(Container):
     
     #messages_container {
         height: 1fr;
-        margin: 1;
+        margin: 0;
         scrollbar-background: gray 50%;
         scrollbar-color: white;
     }
