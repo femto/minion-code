@@ -1172,20 +1172,32 @@ class REPLApp(App):
         """Initialize the MinionCodeAgent at app level"""
         try:
             from minion_code import MinionCodeAgent
+            from minion_code.utils.logs import logger
+            
+            # Use gpt-4o-mini as default (doesn't require bedrock)
+            # Users can override by setting environment variable or config
+            default_llm = "sonnet"
+            
+            logger.info(f"Initializing agent with LLM: {default_llm}")
             self.agent = await MinionCodeAgent.create(
                 name="REPL Assistant",
-                llm="sonnet"
+                llm=default_llm
             )
             self.agent_ready = True
+            
+            logger.info(f"Agent initialized with {len(self.agent.tools)} tools")
             
             # Update REPL component with agent
             try:
                 repl_component = self.query_one(REPL)
                 repl_component.set_agent(self.agent)
-            except:
-                pass  # REPL might not be mounted yet
+                logger.info("Agent set on REPL component")
+            except Exception as e:
+                logger.warning(f"Could not set agent on REPL: {e}")
                 
-        except Exception:
+        except Exception as e:
+            from minion_code.utils.logs import logger
+            logger.error(f"Failed to initialize agent: {e}")
             self.agent_ready = False
 
 
