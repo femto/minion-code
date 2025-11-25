@@ -35,6 +35,7 @@ agent = [
 mc = "examples.repl_tui:run"
 mcode = "examples.repl_tui:run"
 minion-code = "examples.repl_tui:run"
+mcode-simple = "minion_code.cli_simple:run"
 
 [tool.setuptools.packages.find]
 where = ["."]
