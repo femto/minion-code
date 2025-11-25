@@ -28,6 +28,7 @@ from minion_code import MinionCodeAgent
 from minion_code.commands import command_registry
 from minion_code.utils.mcp_loader import MCPToolsLoader
 from minion_code.types import InputMode
+from minion_code.adapters.rich_adapter import RichOutputAdapter
 
 app = typer.Typer(
     name="minion-code",
@@ -297,8 +298,10 @@ class InterruptibleCLI:
             self.console.print(note_panel)
 
             # Check if this is an action prompt (put, create, generate, etc.)
+            # Add safety check to prevent NoneType iteration error
             action_words = ['put', 'create', 'generate', 'write', 'give', 'provide']
-            is_action_request = any(word in note_content.lower() for word in action_words)
+            note_lower = note_content.lower() if note_content else ""
+            is_action_request = any(word in note_lower for word in action_words)
 
             if is_action_request:
                 # Handle as AI request using query_quick for lightweight processing
@@ -574,7 +577,9 @@ class InterruptibleCLI:
 
         # Create and execute command
         try:
-            command_instance = command_class(self.console, self.agent)
+            # Wrap console in RichOutputAdapter for commands
+            output_adapter = RichOutputAdapter(self.console)
+            command_instance = command_class(output_adapter, self.agent)
 
             # Special handling for quit command
             if command_name in ["quit", "exit", "q", "bye"]:

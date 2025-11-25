@@ -80,7 +80,7 @@ class PromptInput(Container):
         dock: bottom;
         height: auto;
         max-height: 15;
-        margin: 1;
+        margin: 0 1 1 1;
         padding: 1;
     }
     

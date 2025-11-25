@@ -6,8 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from loguru import logger as _logger
-
-from ..const import MINION_ROOT
+from minion.const import MINION_ROOT
 
 _print_level = "INFO"
 

@@ -7,26 +7,30 @@ from .PromptInput import PromptInput
 from .Message import Message, UserMessage, AssistantMessage, ToolUseMessage
 from .Messages import Messages, MessagesWithStatus
 from .MessageResponse import (
-    MessageResponse, 
-    MessageResponseText, 
-    MessageResponseStatus, 
-    MessageResponseProgress, 
+    MessageResponse,
+    MessageResponseText,
+    MessageResponseStatus,
+    MessageResponseProgress,
     MessageResponseTyping,
     MessageResponseWithChildren
 )
+from .ConfirmDialog import ConfirmDialog, ChoiceDialog, InputDialog
 
 __all__ = [
     'PromptInput',
     'Message',
-    'UserMessage', 
+    'UserMessage',
     'AssistantMessage',
     'ToolUseMessage',
     'Messages',
     'MessagesWithStatus',
     'MessageResponse',
     'MessageResponseText',
-    'MessageResponseStatus', 
+    'MessageResponseStatus',
     'MessageResponseProgress',
     'MessageResponseTyping',
-    'MessageResponseWithChildren'
+    'MessageResponseWithChildren',
+    'ConfirmDialog',
+    'ChoiceDialog',
+    'InputDialog',
 ]

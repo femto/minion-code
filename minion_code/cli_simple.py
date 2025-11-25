@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from minion_code import MinionCodeAgent
 from minion_code.commands import command_registry
 from minion_code.utils.mcp_loader import MCPToolsLoader
+from minion_code.adapters import RichOutputAdapter
 
 app = typer.Typer(
     name="minion-code-simple",
@@ -51,6 +52,9 @@ class InterruptibleCLI:
         self.current_task = None
         self.task_cancelled = False
         self.interrupt_requested = False
+
+        # Create output adapter for commands
+        self.output_adapter = RichOutputAdapter(self.console)
         
     async def setup(self):
         """Setup the agent."""
@@ -267,12 +271,12 @@ class InterruptibleCLI:
         
         # Create and execute command
         try:
-            command_instance = command_class(self.console, self.agent)
-            
+            command_instance = command_class(self.output_adapter, self.agent)
+
             # Special handling for quit command
             if command_name in ["quit", "exit", "q", "bye"]:
                 command_instance._tui_instance = self
-            
+
             await command_instance.execute(args)
             
         except Exception as e:
