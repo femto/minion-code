@@ -11,6 +11,7 @@ import json
 import logging
 import subprocess
 import asyncio
+import os
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
@@ -24,6 +25,84 @@ except ImportError:
     StdioServerParameters = None
 
 logger = logging.getLogger(__name__)
+
+
+def find_mcp_config(project_dir: Optional[Path] = None) -> Optional[Path]:
+    """
+    Auto-discover MCP configuration file.
+
+    Searches in the following order (first found wins):
+
+    Project scope (current working directory or specified project_dir):
+    1. .mcp.json
+    2. .claude/mcp.json
+    3. .minion/mcp.json
+
+    User scope (home directory):
+    4. ~/.claude-code/mcp.json
+    5. ~/.minion-code/mcp.json
+    6. ~/.config/minion-code/mcp.json (XDG standard)
+
+    Args:
+        project_dir: Project directory to search in (defaults to cwd)
+
+    Returns:
+        Path to config file if found, None otherwise
+    """
+    # Project scope locations
+    project_root = project_dir or Path.cwd()
+    project_locations = [
+        project_root / ".mcp.json",
+        project_root / ".claude" / "mcp.json",
+        project_root / ".minion" / "mcp.json",
+    ]
+
+    # User scope locations
+    home = Path.home()
+    user_locations = [
+        home / ".claude-code" / "mcp.json",
+        home / ".minion-code" / "mcp.json",
+        home / ".config" / "minion-code" / "mcp.json",
+    ]
+
+    # Search project scope first
+    for config_path in project_locations:
+        if config_path.exists():
+            logger.info(f"Found MCP config at project scope: {config_path}")
+            return config_path
+
+    # Then search user scope
+    for config_path in user_locations:
+        if config_path.exists():
+            logger.info(f"Found MCP config at user scope: {config_path}")
+            return config_path
+
+    logger.debug("No MCP config file found in any standard location")
+    return None
+
+
+def get_mcp_config_locations() -> Dict[str, List[Path]]:
+    """
+    Get all standard MCP config file locations.
+
+    Returns:
+        Dictionary with 'project' and 'user' scope locations
+    """
+    project_root = Path.cwd()
+    home = Path.home()
+
+    return {
+        'project': [
+            project_root / ".mcp.json",
+            project_root / ".claude" / "mcp.json",
+            project_root / ".minion" / "mcp.json",
+        ],
+        'user': [
+            home / ".claude-code" / "mcp.json",
+            home / ".minion-code" / "mcp.json",
+            home / ".config" / "minion-code" / "mcp.json",
+        ]
+    }
 
 
 @dataclass
@@ -43,15 +122,24 @@ class MCPServerConfig:
 
 class MCPToolsLoader:
     """Loader for MCP tools from configuration files."""
-    
-    def __init__(self, config_path: Optional[Path] = None):
+
+    def __init__(self, config_path: Optional[Path] = None, auto_discover: bool = True):
         """
         Initialize MCP tools loader.
-        
+
         Args:
-            config_path: Path to MCP configuration file
+            config_path: Path to MCP configuration file. If None and auto_discover=True,
+                        will search standard locations.
+            auto_discover: If True and config_path is None, automatically search for
+                          config in standard locations (.mcp.json, .claude/, .minion/, etc.)
         """
-        self.config_path = config_path
+        if config_path:
+            self.config_path = config_path
+        elif auto_discover:
+            self.config_path = find_mcp_config()
+        else:
+            self.config_path = None
+
         self.servers: Dict[str, MCPServerConfig] = {}
         self.loaded_tools = []
         self.toolsets: List[Any] = []  # Store MCPToolset instances for cleanup

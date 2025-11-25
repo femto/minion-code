@@ -63,17 +63,21 @@ class InterruptibleCLI:
                 TextColumn("[progress.description]{task.description}"),
                 console=self.console,
         ) as progress:
-            # Load MCP tools if config provided
-            mcp_task = None
-            if self.mcp_config:
-                mcp_task = progress.add_task("🔌 Loading MCP tools...", total=None)
-                try:
-                    self.mcp_loader = MCPToolsLoader(self.mcp_config)
+            # Load MCP tools - auto-discover if not explicitly provided
+            mcp_task = progress.add_task("🔌 Loading MCP tools...", total=None)
+            try:
+                # MCPToolsLoader will auto-discover config if mcp_config is None
+                self.mcp_loader = MCPToolsLoader(self.mcp_config, auto_discover=True)
+
+                if self.mcp_loader.config_path:
+                    if self.verbose:
+                        self.console.print(f"[dim]Using MCP config: {self.mcp_loader.config_path}[/dim]")
+
                     self.mcp_loader.load_config()
                     self.mcp_tools = await self.mcp_loader.load_all_tools()
 
                     if self.mcp_tools:
-                        self.console.print(f"✅ Loaded {len(self.mcp_tools)} MCP tools")
+                        self.console.print(f"✅ Loaded {len(self.mcp_tools)} MCP tools from {self.mcp_loader.config_path}")
                     else:
                         server_info = self.mcp_loader.get_server_info()
                         if server_info:
@@ -83,13 +87,17 @@ class InterruptibleCLI:
                                 self.console.print(f"  - {name}: {info['command']} ({status})")
                         else:
                             self.console.print("⚠️  No MCP servers found in config")
-
-                    progress.update(mcp_task, completed=True)
-                except Exception as e:
-                    self.console.print(f"❌ Failed to load MCP tools: {e}")
+                else:
                     if self.verbose:
-                        import traceback
-                        self.console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                        self.console.print("[dim]No MCP config found in standard locations[/dim]")
+
+                progress.update(mcp_task, completed=True)
+            except Exception as e:
+                self.console.print(f"❌ Failed to load MCP tools: {e}")
+                if self.verbose:
+                    import traceback
+                    self.console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                progress.update(mcp_task, completed=True)
 
             agent_task = progress.add_task("🔧 Setting up MinionCodeAgent...", total=None)
 
