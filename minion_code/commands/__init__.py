@@ -5,12 +5,25 @@ Command system for MinionCode TUI
 
 This module provides a command system similar to Claude Code or Gemini CLI,
 where commands are prefixed with '/' and each command is implemented in a separate file.
+
+Command Types:
+- LOCAL: Direct execution, returns result immediately (e.g., /clear, /help)
+- LOCAL_JSX: Requires UI interaction, returns a component (e.g., /config, /model)
+- PROMPT: Replaces user input and sends to LLM (e.g., /bug, custom .md commands)
 """
 
 import importlib
 import pkgutil
 from typing import Dict, Type, Optional, Union
 from abc import ABC, abstractmethod
+from enum import Enum
+
+
+class CommandType(Enum):
+    """Types of commands based on execution flow."""
+    LOCAL = "local"          # Direct execution, returns result
+    LOCAL_JSX = "local_jsx"  # Requires UI interaction
+    PROMPT = "prompt"        # Replaces user input, sends to LLM
 
 
 class BaseCommand(ABC):
@@ -20,6 +33,8 @@ class BaseCommand(ABC):
     description: str = ""
     usage: str = ""
     aliases: list = []
+    command_type: CommandType = CommandType.LOCAL  # Default to LOCAL
+    is_skill: bool = False  # Whether this is a skill (affects display)
 
     def __init__(self, output, agent=None):
         """
@@ -41,6 +56,20 @@ class BaseCommand(ABC):
     async def execute(self, args: str) -> None:
         """Execute the command with given arguments."""
         pass
+
+    async def get_prompt(self, args: str) -> str:
+        """
+        Get the expanded prompt for PROMPT type commands.
+        Override this method for PROMPT type commands.
+
+        Args:
+            args: Command arguments from user input
+
+        Returns:
+            Expanded prompt string to send to LLM
+        """
+        # Default implementation just returns the args
+        return args
 
     def get_help(self) -> str:
         """Get help text for this command."""

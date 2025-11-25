@@ -1102,18 +1102,12 @@ Try typing something to get started!"""),
     async def on_execute_command_from_prompt(self, command_name: str, args: str):
         """
         Execute a slash command (e.g., /clear, /help, /tools).
-        Commands are executed directly without AI processing - no "Thinking..." message.
+        Handles different command types:
+        - LOCAL: Direct execution, returns result immediately
+        - LOCAL_JSX: Requires UI interaction (dialogs, confirmations)
+        - PROMPT: Replaces user input and sends to LLM for processing
         """
-        from minion_code.commands import command_registry
-
-        # Show "Running command" status message (not "Thinking...")
-        status_message = MessageData(
-            type=MessageType.PROGRESS,
-            message=MessageContent(f"⚙️ Running /{command_name}..."),
-            options={"command": True}
-        )
-        self.messages = [*self.messages, status_message]
-        self._refresh_messages()
+        from minion_code.commands import command_registry, CommandType
 
         # Get command class from registry
         command_class = command_registry.get_command(command_name)
@@ -1125,10 +1119,57 @@ Try typing something to get started!"""),
                 message=MessageContent(f"❌ Unknown command: /{command_name}\n💡 Use '/help' to see available commands"),
                 options={"error": True}
             )
-            # Replace status message with error
-            self.messages = [*self.messages[:-1], error_message]
+            self.messages = [*self.messages, error_message]
             self._refresh_messages()
             return
+
+        # Handle different command types
+        command_type = getattr(command_class, 'command_type', CommandType.LOCAL)
+        is_skill = getattr(command_class, 'is_skill', False)
+
+        if command_type == CommandType.PROMPT:
+            # PROMPT type: Replace user input and send to LLM
+            # Create command instance to get the expanded prompt
+            command_instance = command_class(self.output_adapter, self.agent)
+            try:
+                expanded_prompt = await command_instance.get_prompt(args)
+
+                # Add as user message and send to LLM
+                user_message = MessageData(
+                    type=MessageType.USER,
+                    message=MessageContent(expanded_prompt),
+                    options={"from_command": command_name}
+                )
+                self.messages = [*self.messages, user_message]
+                self._refresh_messages()
+
+                # Process through AI (this will show "Thinking..." as expected)
+                await self.query_api([user_message])
+
+            except Exception as e:
+                error_message = MessageData(
+                    type=MessageType.ASSISTANT,
+                    message=MessageContent(f"❌ Error expanding /{command_name}: {str(e)}"),
+                    options={"error": True}
+                )
+                self.messages = [*self.messages, error_message]
+                self._refresh_messages()
+            return
+
+        # LOCAL and LOCAL_JSX types: Direct execution
+        # Determine status message based on is_skill
+        if is_skill:
+            status_text = f"⚙️ /{command_name} skill is executing..."
+        else:
+            status_text = f"⚙️ /{command_name} is executing..."
+
+        status_message = MessageData(
+            type=MessageType.PROGRESS,
+            message=MessageContent(status_text),
+            options={"command": True}
+        )
+        self.messages = [*self.messages, status_message]
+        self._refresh_messages()
 
         try:
             # Create command instance with TextualOutputAdapter

@@ -4,7 +4,7 @@
 Tools command - Show available tools
 """
 
-from minion_code.commands import BaseCommand
+from minion_code.commands import BaseCommand, CommandType
 
 
 class ToolsCommand(BaseCommand):
@@ -14,6 +14,7 @@ class ToolsCommand(BaseCommand):
     description = "List all available tools and their descriptions"
     usage = "/tools [filter]"
     aliases = ["t"]
+    command_type = CommandType.LOCAL
 
     async def execute(self, args: str) -> None:
         """Execute the tools command."""

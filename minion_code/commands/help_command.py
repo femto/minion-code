@@ -4,7 +4,7 @@
 Help command - Show available commands and their usage
 """
 
-from minion_code.commands import BaseCommand
+from minion_code.commands import BaseCommand, CommandType
 
 
 class HelpCommand(BaseCommand):
@@ -14,6 +14,7 @@ class HelpCommand(BaseCommand):
     description = "Show available commands and their usage"
     usage = "/help [command_name]"
     aliases = ["h", "?"]
+    command_type = CommandType.LOCAL
 
     async def execute(self, args: str) -> None:
         """Execute the help command."""

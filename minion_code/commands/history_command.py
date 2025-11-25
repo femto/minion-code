@@ -4,7 +4,7 @@
 History command - Show conversation history
 """
 
-from minion_code.commands import BaseCommand
+from minion_code.commands import BaseCommand, CommandType
 
 
 class HistoryCommand(BaseCommand):
@@ -14,6 +14,7 @@ class HistoryCommand(BaseCommand):
     description = "Show conversation history with the agent"
     usage = "/history [count]"
     aliases = ["hist", "h"]
+    command_type = CommandType.LOCAL
 
     async def execute(self, args: str) -> None:
         """Execute the history command."""

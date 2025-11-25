@@ -4,7 +4,7 @@
 Clear command - Clear conversation history
 """
 
-from minion_code.commands import BaseCommand
+from minion_code.commands import BaseCommand, CommandType
 
 
 class ClearCommand(BaseCommand):
@@ -14,6 +14,7 @@ class ClearCommand(BaseCommand):
     description = "Clear the conversation history"
     usage = "/clear [--force]"
     aliases = ["c", "reset"]
+    command_type = CommandType.LOCAL
 
     async def execute(self, args: str) -> None:
         """Execute the clear command."""
