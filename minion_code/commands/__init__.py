@@ -9,27 +9,39 @@ where commands are prefixed with '/' and each command is implemented in a separa
 
 import importlib
 import pkgutil
-from typing import Dict, Type, Optional
+from typing import Dict, Type, Optional, Union
 from abc import ABC, abstractmethod
 
 
 class BaseCommand(ABC):
     """Base class for all commands."""
-    
+
     name: str = ""
     description: str = ""
     usage: str = ""
     aliases: list = []
-    
-    def __init__(self, console, agent=None):
-        self.console = console
+
+    def __init__(self, output, agent=None):
+        """
+        Initialize command.
+
+        Args:
+            output: OutputAdapter instance for UI output (RichAdapter or TextualAdapter)
+            agent: Optional agent instance
+        """
+        self.output = output
         self.agent = agent
-    
+
+        # Backward compatibility: expose console attribute for Rich adapter
+        # This allows old code using self.console to still work
+        if hasattr(output, 'console'):
+            self.console = output.console
+
     @abstractmethod
     async def execute(self, args: str) -> None:
         """Execute the command with given arguments."""
         pass
-    
+
     def get_help(self) -> str:
         """Get help text for this command."""
         return f"**/{self.name}** - {self.description}\n\nUsage: {self.usage}"

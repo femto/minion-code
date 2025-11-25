@@ -4,101 +4,60 @@
 Version command - Show version information
 """
 
-from rich.panel import Panel
-from rich.table import Table
+import sys
 from minion_code.commands import BaseCommand
 
 
 class VersionCommand(BaseCommand):
     """Show version information."""
-    
+
     name = "version"
     description = "Show version information for MinionCode and dependencies"
     usage = "/version"
     aliases = ["v", "ver"]
-    
+
     async def execute(self, args: str) -> None:
         """Execute the version command."""
-        # Create version table
-        version_table = Table(
-            title="📦 Version Information", 
-            show_header=True, 
-            header_style="bold blue"
-        )
-        version_table.add_column("Component", style="cyan", no_wrap=True)
-        version_table.add_column("Version", style="white")
-        version_table.add_column("Status", style="green")
-        
+        # Prepare version data
+        headers = ["Component", "Version", "Status"]
+        rows = []
+
         # MinionCode version
-        version_table.add_row(
-            "MinionCode",
-            "0.1.0",
-            "✅ Active"
-        )
-        
+        rows.append(["MinionCode", "0.1.0", "✅ Active"])
+
         # Python version
-        import sys
-        version_table.add_row(
-            "Python",
-            f"{sys.version.split()[0]}",
-            "✅ Compatible"
-        )
-        
+        rows.append(["Python", sys.version.split()[0], "✅ Compatible"])
+
         # Rich version
         try:
             import rich
             version = getattr(rich, '__version__', 'Unknown')
-            version_table.add_row(
-                "Rich",
-                version,
-                "✅ Loaded"
-            )
+            rows.append(["Rich", version, "✅ Loaded"])
         except ImportError:
-            version_table.add_row(
-                "Rich",
-                "Not installed",
-                "❌ Missing"
-            )
-        
+            rows.append(["Rich", "Not installed", "❌ Missing"])
+
         # Textual version
         try:
             import textual
             version = getattr(textual, '__version__', 'Unknown')
-            version_table.add_row(
-                "Textual",
-                version,
-                "✅ Available"
-            )
+            rows.append(["Textual", version, "✅ Available"])
         except ImportError:
-            version_table.add_row(
-                "Textual",
-                "Not installed",
-                "⚠️ Optional"
-            )
-        
+            rows.append(["Textual", "Not installed", "⚠️ Optional"])
+
         # Minion version
         try:
             import minion
-            version_table.add_row(
-                "Minion",
-                getattr(minion, '__version__', 'Unknown'),
-                "✅ Core"
-            )
+            rows.append(["Minion", getattr(minion, '__version__', 'Unknown'), "✅ Core"])
         except ImportError:
-            version_table.add_row(
-                "Minion",
-                "Not found",
-                "❌ Required"
-            )
-        
-        self.console.print(version_table)
-        
+            rows.append(["Minion", "Not found", "❌ Required"])
+
+        self.output.table(headers, rows, title="📦 Version Information")
+
         # Additional info
-        info_panel = Panel(
-            "🚀 [bold blue]MinionCode TUI[/bold blue] - Advanced AI-powered development assistant\n"
+        self.output.panel(
+            "🚀 MinionCode TUI - Advanced AI-powered development assistant\n"
             "🔗 Built with Rich for beautiful terminal interfaces\n"
             "🤖 Powered by Minion framework for AI agent capabilities",
-            title="[bold green]About[/bold green]",
+            title="About",
             border_style="green"
         )
-        self.console.print(info_panel)

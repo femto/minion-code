@@ -165,6 +165,10 @@ class MessageWidget(Container):
 # Import components
 from ..components.PromptInput import PromptInput
 from ..components.Messages import Messages
+from ..components.ConfirmDialog import ConfirmDialog, ChoiceDialog, InputDialog
+
+# Import adapters
+from ..adapters.textual_adapter import TextualOutputAdapter
 
 class CostThresholdDialog(Container):
     """Cost threshold warning dialog"""
@@ -444,7 +448,7 @@ class REPL(Container):
         
         # Agent from app level
         self.agent = agent
-        
+
         # Internal state
         self.config = REPLConfig()
         self.abort_controller: Optional[asyncio.Task] = None
@@ -453,6 +457,10 @@ class REPL(Container):
         self.binary_feedback_context: Optional[BinaryFeedbackContext] = None
         self.read_file_timestamps: Dict[str, float] = {}
         self.fork_convo_with_messages_on_next_render: Optional[List[MessageData]] = None
+
+        # Output adapter for command execution
+        self.output_adapter = TextualOutputAdapter(on_output=self.handle_command_output)
+        self.active_dialog: Optional[Container] = None
 
     def _create_test_messages(self) -> List[MessageData]:
         """Create some test messages for development/testing"""
@@ -689,8 +697,141 @@ Try typing something to get started!"""),
             return f"Error executing command: {str(e)}"
     
     def set_agent(self, agent):
-        """Set agent from app level"""
+        """Set agent from app level and bind output adapter"""
         self.agent = agent
+        # Bind output adapter to agent if it supports confirmation
+        if hasattr(agent, 'set_output_adapter'):
+            agent.set_output_adapter(self.output_adapter)
+
+    def handle_command_output(self, output_type: str, data: dict):
+        """Handle output from command execution via adapter"""
+        if output_type == "panel":
+            self.display_panel_output(data)
+        elif output_type == "table":
+            self.display_table_output(data)
+        elif output_type == "text":
+            self.display_text_output(data)
+        elif output_type == "confirm":
+            self.show_confirm_dialog(data)
+        elif output_type == "choice":
+            self.show_choice_dialog(data)
+        elif output_type == "input":
+            self.show_input_dialog(data)
+
+    def display_panel_output(self, data: dict):
+        """Display panel output as a message"""
+        content = f"{data.get('title', '')}\n\n{data['content']}" if data.get('title') else data['content']
+        message = MessageData(
+            type=MessageType.ASSISTANT,
+            message=MessageContent(content),
+            options={"border_style": data.get('border_style', 'blue')}
+        )
+        self.messages = [*self.messages, message]
+        self._refresh_messages()
+
+    def display_table_output(self, data: dict):
+        """Display table output as formatted text"""
+        # Format table as text
+        headers = data.get('headers', [])
+        rows = data.get('rows', [])
+        title = data.get('title', '')
+
+        lines = []
+        if title:
+            lines.append(f"=== {title} ===\n")
+
+        if headers:
+            lines.append(" | ".join(headers))
+            lines.append("-" * (len(" | ".join(headers))))
+
+        for row in rows:
+            lines.append(" | ".join(str(cell) for cell in row))
+
+        content = "\n".join(lines)
+        message = MessageData(
+            type=MessageType.ASSISTANT,
+            message=MessageContent(content),
+            options={}
+        )
+        self.messages = [*self.messages, message]
+        self._refresh_messages()
+
+    def display_text_output(self, data: dict):
+        """Display plain text output"""
+        message = MessageData(
+            type=MessageType.ASSISTANT,
+            message=MessageContent(data['content']),
+            options={"style": data.get('style', '')}
+        )
+        self.messages = [*self.messages, message]
+        self._refresh_messages()
+
+    def show_confirm_dialog(self, data: dict):
+        """Show confirmation dialog"""
+        if self.active_dialog:
+            self.active_dialog.remove()
+
+        self.active_dialog = ConfirmDialog(
+            interaction_id=data["interaction_id"],
+            message=data["message"],
+            title=data.get("title", "Confirm"),
+            ok_text=data.get("ok_text", "Yes"),
+            cancel_text=data.get("cancel_text", "No"),
+            on_result=self.handle_confirm_result
+        )
+        self.mount(self.active_dialog)
+
+    def show_choice_dialog(self, data: dict):
+        """Show choice selection dialog"""
+        if self.active_dialog:
+            self.active_dialog.remove()
+
+        self.active_dialog = ChoiceDialog(
+            interaction_id=data["interaction_id"],
+            message=data["message"],
+            choices=data["choices"],
+            title=data.get("title", "Select"),
+            on_result=self.handle_choice_result
+        )
+        self.mount(self.active_dialog)
+
+    def show_input_dialog(self, data: dict):
+        """Show text input dialog"""
+        if self.active_dialog:
+            self.active_dialog.remove()
+
+        self.active_dialog = InputDialog(
+            interaction_id=data["interaction_id"],
+            message=data["message"],
+            title=data.get("title", "Input"),
+            default=data.get("default", ""),
+            placeholder=data.get("placeholder", ""),
+            on_result=self.handle_input_result
+        )
+        self.mount(self.active_dialog)
+
+    def handle_confirm_result(self, interaction_id: str, result: bool):
+        """Handle confirmation dialog result"""
+        self.output_adapter.resolve_interaction(interaction_id, result)
+        self.active_dialog = None
+
+    def handle_choice_result(self, interaction_id: str, result: int):
+        """Handle choice dialog result"""
+        self.output_adapter.resolve_interaction(interaction_id, result)
+        self.active_dialog = None
+
+    def handle_input_result(self, interaction_id: str, result: Optional[str]):
+        """Handle input dialog result"""
+        self.output_adapter.resolve_interaction(interaction_id, result)
+        self.active_dialog = None
+
+    def _refresh_messages(self):
+        """Helper to refresh messages component"""
+        try:
+            messages_component = self.query_one("#messages_container", Messages)
+            messages_component.update_messages(self.messages)
+        except Exception:
+            self.refresh()
     
     async def query_api(self, new_messages: List[MessageData]):
         """Query the AI API with streaming support - equivalent to query function"""
