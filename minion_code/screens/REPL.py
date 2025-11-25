@@ -595,6 +595,7 @@ Try typing something to get started!"""),
                 prompt_input.set_fork_convo_with_messages = self.set_fork_convo_messages
                 prompt_input.on_model_change = self.on_model_change_from_prompt
                 prompt_input.set_tool_jsx = self.set_tool_jsx_from_prompt
+                prompt_input.on_execute_command = self.on_execute_command_from_prompt  # Command execution callback
 
                 yield prompt_input
     
@@ -1097,7 +1098,66 @@ Try typing something to get started!"""),
     def set_tool_jsx_from_prompt(self, tool_jsx):
         """Set tool JSX from PromptInput"""
         self.tool_jsx = tool_jsx
-    
+
+    async def on_execute_command_from_prompt(self, command_name: str, args: str):
+        """
+        Execute a slash command (e.g., /clear, /help, /tools).
+        Commands are executed directly without AI processing - no "Thinking..." message.
+        """
+        from minion_code.commands import command_registry
+
+        # Show "Running command" status message (not "Thinking...")
+        status_message = MessageData(
+            type=MessageType.PROGRESS,
+            message=MessageContent(f"⚙️ Running /{command_name}..."),
+            options={"command": True}
+        )
+        self.messages = [*self.messages, status_message]
+        self._refresh_messages()
+
+        # Get command class from registry
+        command_class = command_registry.get_command(command_name)
+
+        if not command_class:
+            # Unknown command - show error
+            error_message = MessageData(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(f"❌ Unknown command: /{command_name}\n💡 Use '/help' to see available commands"),
+                options={"error": True}
+            )
+            # Replace status message with error
+            self.messages = [*self.messages[:-1], error_message]
+            self._refresh_messages()
+            return
+
+        try:
+            # Create command instance with TextualOutputAdapter
+            command_instance = command_class(self.output_adapter, self.agent)
+
+            # Special handling for quit command
+            if command_name in ["quit", "exit", "q", "bye"]:
+                command_instance._tui_instance = self
+
+            # Execute the command
+            await command_instance.execute(args)
+
+            # Remove the status message after successful execution
+            # (command output is handled by output_adapter callbacks)
+            if self.messages and self.messages[-1].options.get("command"):
+                self.messages = self.messages[:-1]
+                self._refresh_messages()
+
+        except Exception as e:
+            # Show error message
+            error_message = MessageData(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(f"❌ Error executing /{command_name}: {str(e)}"),
+                options={"error": True}
+            )
+            # Replace status message with error
+            self.messages = [*self.messages[:-1], error_message]
+            self._refresh_messages()
+
     def show_prompt_input(self):
         """Show the prompt input component"""
         self.should_show_prompt_input = True
