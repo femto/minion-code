@@ -551,7 +551,9 @@ class InterruptibleCLI:
                 self.console.print(f"[dim]Full traceback:\n{traceback.format_exc()}[/dim]")
 
     async def process_command(self, command_input: str):
-        """Process a command input."""
+        """Process a command input with support for different command types."""
+        from minion_code.commands import CommandType
+
         # Remove the leading /
         command_input = command_input[1:] if command_input.startswith('/') else command_input
 
@@ -575,8 +577,40 @@ class InterruptibleCLI:
             self.console.print(error_panel)
             return
 
-        # Create and execute command
+        # Get command type and is_skill
+        command_type = getattr(command_class, 'command_type', CommandType.LOCAL)
+        is_skill = getattr(command_class, 'is_skill', False)
+
+        # Handle PROMPT type commands - expand and send to LLM
+        if command_type == CommandType.PROMPT:
+            try:
+                output_adapter = RichOutputAdapter(self.console)
+                command_instance = command_class(output_adapter, self.agent)
+                expanded_prompt = await command_instance.get_prompt(args)
+
+                # Process expanded prompt through AI
+                self.console.print(f"[dim]Expanded prompt: {expanded_prompt[:100]}...[/dim]" if self.verbose else "")
+                await self.process_input(expanded_prompt)
+
+            except Exception as e:
+                error_panel = Panel(
+                    f"❌ [bold red]Error expanding command /{command_name}: {e}[/bold red]",
+                    title="[bold red]Command Error[/bold red]",
+                    border_style="red"
+                )
+                self.console.print(error_panel)
+            return
+
+        # Handle LOCAL and LOCAL_JSX type commands - direct execution
         try:
+            # Show status message based on is_skill
+            if is_skill:
+                status_text = f"⚙️ /{command_name} skill is executing..."
+            else:
+                status_text = f"⚙️ /{command_name} is executing..."
+
+            self.console.print(f"[dim]{status_text}[/dim]")
+
             # Wrap console in RichOutputAdapter for commands
             output_adapter = RichOutputAdapter(self.console)
             command_instance = command_class(output_adapter, self.agent)
