@@ -289,5 +289,10 @@ def console(
     run_console_cli(verbose=verbose, mcp_config=mcp_config_path)
 
 
+def run():
+    """Entry point for pyproject.toml scripts."""
+    app()
+
+
 if __name__ == "__main__":
     app()
