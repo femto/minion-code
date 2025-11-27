@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from minion_code import MinionCodeAgent
 from minion_code.commands import command_registry
 from minion_code.utils.mcp_loader import MCPToolsLoader
-from minion_code.types import InputMode
+from minion_code.type_defs import InputMode
 from minion_code.adapters.rich_adapter import RichOutputAdapter
 
 app = typer.Typer(

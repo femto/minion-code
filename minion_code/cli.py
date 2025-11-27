@@ -24,7 +24,7 @@ app = typer.Typer(
     name="minion-code",
     help="🤖 MinionCodeAgent CLI - Modern AI-powered code assistant",
     add_completion=False,
-    rich_markup_mode="rich"
+    rich_markup_mode="rich",
 )
 
 
@@ -291,8 +291,25 @@ def console(
 
 def run():
     """Entry point for pyproject.toml scripts."""
+    # If no command is provided, default to 'main' (REPL mode)
+    # Check if any known command is in argv
+    known_commands = {'main', 'repl', 'console', '--help', '-h'}
+    args = sys.argv[1:]
+
+    # If no args or first arg is an option (starts with -), insert 'main' command
+    if not args or (args[0].startswith('-') and args[0] not in ('--help', '-h')):
+        sys.argv.insert(1, 'main')
+
     app()
 
 
 if __name__ == "__main__":
+    # If no command is provided, default to 'main' (REPL mode)
+    known_commands = {'main', 'repl', 'console', '--help', '-h'}
+    args = sys.argv[1:]
+
+    # If no args or first arg is an option (starts with -), insert 'main' command
+    if not args or (args[0].startswith('-') and args[0] not in ('--help', '-h')):
+        sys.argv.insert(1, 'main')
+
     app()

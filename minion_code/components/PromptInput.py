@@ -19,7 +19,7 @@ import time
 # No logging in UI components to reduce noise
 
 # Import shared types
-from ..types import (
+from ..type_defs import (
     InputMode, Message as MinionMessage, MessageType, MessageContent, ModelInfo
 )
 
@@ -475,7 +475,7 @@ class PromptInput(Container):
 
     def _create_user_message(self, input_text: str, mode: InputMode):
         """Create user message for immediate display"""
-        from ..types import Message as MinionMessage, MessageType, MessageContent
+        from ..type_defs import Message as MinionMessage, MessageType, MessageContent
 
         return MinionMessage(
             type=MessageType.USER,

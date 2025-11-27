@@ -16,7 +16,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from minion_code.components import Message, MessageResponse
-from minion_code.types import Message as MessageType, MessageContent, MessageType as MsgType
+from minion_code.type_defs import Message as MessageType, MessageContent, MessageType as MsgType
 
 
 class MessageResponseChildrenDemo(App):

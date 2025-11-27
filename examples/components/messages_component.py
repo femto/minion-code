@@ -11,7 +11,7 @@ from textual import on
 
 # Import the components we want to test
 from minion_code.components.Messages import Messages
-from minion_code.types import Message, MessageType, MessageContent
+from minion_code.type_defs import Message, MessageType, MessageContent
 
 
 class TestMessagesApp(App):

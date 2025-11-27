@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional, Set
 import json
 
 # Import shared types
-from ..types import Message as MessageType, MessageContent, InputMode
+from ..type_defs import Message as MessageType, MessageContent, InputMode
 
 
 class Message(Container):

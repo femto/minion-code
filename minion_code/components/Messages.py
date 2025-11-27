@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional, Set
 from dataclasses import dataclass
 
 # Import shared types and components
-from ..types import Message as MessageType, MessageContent, InputMode
+from ..type_defs import Message as MessageType, MessageContent, InputMode
 from .Message import Message, UserMessage, AssistantMessage, ToolUseMessage
 
 

@@ -25,9 +25,9 @@ from pathlib import Path
 
 
 # Import shared types
-from ..types import (
-    MessageType, InputMode, MessageContent, Message as MessageData, 
-    ToolUseConfirm, BinaryFeedbackContext, ToolJSXContext, 
+from ..type_defs import (
+    MessageType, InputMode, MessageContent, Message as MessageData,
+    ToolUseConfirm, BinaryFeedbackContext, ToolJSXContext,
     REPLConfig, ModelInfo
 )
 
