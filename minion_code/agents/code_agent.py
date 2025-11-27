@@ -42,6 +42,7 @@ from ..tools import (
 
     TodoWriteTool,
     TodoReadTool,
+    SkillTool,
     TOOL_MAPPING,
 )
 
@@ -386,6 +387,7 @@ class MinionCodeAgent(CodeAgent):
             UserInputTool(),
             TodoWriteTool(),
             TodoReadTool(),
+            SkillTool(),
         ]
         
         # Add TaskTool if available (avoid circular import)
