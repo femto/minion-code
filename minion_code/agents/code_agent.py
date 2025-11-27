@@ -372,7 +372,13 @@ class MinionCodeAgent(CodeAgent):
         # Use default system prompt if none provided
         if system_prompt is None:
             system_prompt = cls.DEFAULT_SYSTEM_PROMPT.format(workdir=workdir)
-        
+
+            # Append skills prompt if skills are available
+            from ..tools.skill_tool import generate_skill_tool_prompt
+            skills_prompt = generate_skill_tool_prompt()
+            if skills_prompt and "<available_skills>" in skills_prompt:
+                system_prompt += "\n\n# Skills\n" + skills_prompt
+
         # Get all minion_code tools
         minion_tools = [
             FileReadTool(),
