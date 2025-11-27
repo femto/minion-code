@@ -25,9 +25,9 @@ from pathlib import Path
 
 
 # Import shared types
-from ..types import (
-    MessageType, InputMode, MessageContent, Message as MessageData, 
-    ToolUseConfirm, BinaryFeedbackContext, ToolJSXContext, 
+from ..type_defs import (
+    MessageType, InputMode, MessageContent, Message as MessageData,
+    ToolUseConfirm, BinaryFeedbackContext, ToolJSXContext,
     REPLConfig, ModelInfo
 )
 
@@ -595,6 +595,7 @@ Try typing something to get started!"""),
                 prompt_input.set_fork_convo_with_messages = self.set_fork_convo_messages
                 prompt_input.on_model_change = self.on_model_change_from_prompt
                 prompt_input.set_tool_jsx = self.set_tool_jsx_from_prompt
+                prompt_input.on_execute_command = self.on_execute_command_from_prompt  # Command execution callback
 
                 yield prompt_input
     
@@ -1097,7 +1098,107 @@ Try typing something to get started!"""),
     def set_tool_jsx_from_prompt(self, tool_jsx):
         """Set tool JSX from PromptInput"""
         self.tool_jsx = tool_jsx
-    
+
+    async def on_execute_command_from_prompt(self, command_name: str, args: str):
+        """
+        Execute a slash command (e.g., /clear, /help, /tools).
+        Handles different command types:
+        - LOCAL: Direct execution, returns result immediately
+        - LOCAL_JSX: Requires UI interaction (dialogs, confirmations)
+        - PROMPT: Replaces user input and sends to LLM for processing
+        """
+        from minion_code.commands import command_registry, CommandType
+
+        # Get command class from registry
+        command_class = command_registry.get_command(command_name)
+
+        if not command_class:
+            # Unknown command - show error
+            error_message = MessageData(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(f"❌ Unknown command: /{command_name}\n💡 Use '/help' to see available commands"),
+                options={"error": True}
+            )
+            self.messages = [*self.messages, error_message]
+            self._refresh_messages()
+            return
+
+        # Handle different command types
+        command_type = getattr(command_class, 'command_type', CommandType.LOCAL)
+        is_skill = getattr(command_class, 'is_skill', False)
+
+        if command_type == CommandType.PROMPT:
+            # PROMPT type: Replace user input and send to LLM
+            # Create command instance to get the expanded prompt
+            command_instance = command_class(self.output_adapter, self.agent)
+            try:
+                expanded_prompt = await command_instance.get_prompt(args)
+
+                # Add as user message and send to LLM
+                user_message = MessageData(
+                    type=MessageType.USER,
+                    message=MessageContent(expanded_prompt),
+                    options={"from_command": command_name}
+                )
+                self.messages = [*self.messages, user_message]
+                self._refresh_messages()
+
+                # Process through AI (this will show "Thinking..." as expected)
+                await self.query_api([user_message])
+
+            except Exception as e:
+                error_message = MessageData(
+                    type=MessageType.ASSISTANT,
+                    message=MessageContent(f"❌ Error expanding /{command_name}: {str(e)}"),
+                    options={"error": True}
+                )
+                self.messages = [*self.messages, error_message]
+                self._refresh_messages()
+            return
+
+        # LOCAL and LOCAL_JSX types: Direct execution
+        # Determine status message based on is_skill
+        if is_skill:
+            status_text = f"⚙️ /{command_name} skill is executing..."
+        else:
+            status_text = f"⚙️ /{command_name} is executing..."
+
+        status_message = MessageData(
+            type=MessageType.PROGRESS,
+            message=MessageContent(status_text),
+            options={"command": True}
+        )
+        self.messages = [*self.messages, status_message]
+        self._refresh_messages()
+
+        try:
+            # Create command instance with TextualOutputAdapter
+            command_instance = command_class(self.output_adapter, self.agent)
+
+            # Special handling for quit command
+            if command_name in ["quit", "exit", "q", "bye"]:
+                command_instance._tui_instance = self
+
+            # Execute the command
+            await command_instance.execute(args)
+
+            # Remove the status message after successful execution
+            # (command output is handled by output_adapter callbacks)
+            if self.messages and self.messages[-1].options.get("command"):
+                self.messages = self.messages[:-1]
+                self._refresh_messages()
+
+        except Exception as e:
+            # Show error message
+            error_message = MessageData(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(f"❌ Error executing /{command_name}: {str(e)}"),
+                options={"error": True}
+            )
+            # Replace status message with error
+            self.messages = [*self.messages[:-1], error_message]
+            self._refresh_messages()
+
     def show_prompt_input(self):
         """Show the prompt input component"""
         self.should_show_prompt_input = True

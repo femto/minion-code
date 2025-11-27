@@ -5,7 +5,7 @@ Version command - Show version information
 """
 
 import sys
-from minion_code.commands import BaseCommand
+from minion_code.commands import BaseCommand, CommandType
 
 
 class VersionCommand(BaseCommand):
@@ -15,6 +15,7 @@ class VersionCommand(BaseCommand):
     description = "Show version information for MinionCode and dependencies"
     usage = "/version"
     aliases = ["v", "ver"]
+    command_type = CommandType.LOCAL
 
     async def execute(self, args: str) -> None:
         """Execute the version command."""

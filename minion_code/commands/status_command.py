@@ -7,7 +7,7 @@ Status command - Show system status and information
 import sys
 import platform
 from datetime import datetime
-from minion_code.commands import BaseCommand
+from minion_code.commands import BaseCommand, CommandType
 
 
 class StatusCommand(BaseCommand):
@@ -17,6 +17,7 @@ class StatusCommand(BaseCommand):
     description = "Show system status, agent info, and statistics"
     usage = "/status"
     aliases = ["info", "stat"]
+    command_type = CommandType.LOCAL
 
     async def execute(self, args: str) -> None:
         """Execute the status command."""

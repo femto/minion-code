@@ -4,7 +4,7 @@
 Quit command - Exit the application
 """
 
-from minion_code.commands import BaseCommand
+from minion_code.commands import BaseCommand, CommandType
 
 
 class QuitCommand(BaseCommand):
@@ -14,6 +14,7 @@ class QuitCommand(BaseCommand):
     description = "Exit the application"
     usage = "/quit"
     aliases = ["exit", "q", "bye"]
+    command_type = CommandType.LOCAL
 
     async def execute(self, args: str) -> None:
         """Execute the quit command."""

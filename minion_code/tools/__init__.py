@@ -23,6 +23,7 @@ from .task_tool import TaskTool
 
 from .todo_write_tool import TodoWriteTool
 from .todo_read_tool import TodoReadTool
+from .skill_tool import SkillTool
 
 # Tool mapping
 TOOL_MAPPING = {
@@ -42,6 +43,7 @@ TOOL_MAPPING = {
 
         TodoWriteTool,
         TodoReadTool,
+        SkillTool,
     ]
 }
 
@@ -68,6 +70,8 @@ __all__ = [
     # Todo tools
     "TodoWriteTool",
     "TodoReadTool",
+    # Skill tools
+    "SkillTool",
     # Utilities
     "TOOL_MAPPING",
 ]

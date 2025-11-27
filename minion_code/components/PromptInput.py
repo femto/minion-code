@@ -19,7 +19,7 @@ import time
 # No logging in UI components to reduce noise
 
 # Import shared types
-from ..types import (
+from ..type_defs import (
     InputMode, Message as MinionMessage, MessageType, MessageContent, ModelInfo
 )
 
@@ -200,6 +200,7 @@ class PromptInput(Container):
         self.set_fork_convo_with_messages: Optional[Callable] = None
         self.on_model_change: Optional[Callable] = None
         self.set_tool_jsx: Optional[Callable] = None
+        self.on_execute_command: Optional[Callable] = None  # Callback for executing / commands
     
     def on_mount(self):
         """Set focus to input when component mounts"""
@@ -338,21 +339,35 @@ class PromptInput(Container):
             input_text = text_area.text.strip()
         except:
             return
-        
+
         if not input_text:
             return
-        
+
         if self.is_disabled or self.is_loading:
             return
-        
+
         # Handle exit commands
         if input_text.lower() in ['exit', 'quit', ':q', ':q!', ':wq', ':wq!']:
             self._handle_exit()
             return
-        
+
+        # Handle slash commands (e.g., /clear, /help, /tools)
+        if input_text.startswith('/'):
+            # Clear input immediately
+            with text_area.prevent(TextArea.Changed):
+                text_area.text = ""
+            self.input_value = ""
+
+            # Execute command (no AI processing, no "Thinking..." message)
+            await self._handle_command_input(input_text)
+
+            # Update history
+            self._add_to_history(input_text)
+            return
+
         # 1. 立即清空输入框并重置模式 - 提供即时反馈
         original_mode = self.mode
-        
+
         with text_area.prevent(TextArea.Changed):
             text_area.text = ""
         self.input_value = ""
@@ -360,7 +375,7 @@ class PromptInput(Container):
 
         if self.on_mode_change:
             self.on_mode_change(InputMode.PROMPT)
-        
+
         # 2. 根据模式处理输入
         if original_mode == InputMode.KODING:
             # Koding 模式：直接处理笔记，不走 AI query
@@ -372,22 +387,40 @@ class PromptInput(Container):
             # Prompt 模式：正常的 AI 对话
             # 2a. 立即创建用户消息
             user_message = self._create_user_message(input_text, original_mode)
-            
+
             # 2b. 立即显示用户消息（同步操作，不等待网络）
             if self.on_add_user_message:
                 self.on_add_user_message(user_message)
-            
+
             # 2c. 启动后台AI处理 - 让父组件管理 worker
             if self.on_query:
                 # 直接调用父组件的回调，让父组件管理 worker
                 await self.on_query([user_message])
-        
+
         # 3. 更新提交计数和历史记录
         self.submit_count += 1
         if self.on_submit_count_change:
             self.on_submit_count_change(lambda x: x + 1)
-        
+
         self._add_to_history(input_text)
+
+    async def _handle_command_input(self, input_text: str):
+        """
+        Handle slash command input (e.g., /clear, /help, /tools).
+        Commands are executed directly without AI processing.
+        """
+        # Parse command: /command_name args
+        command_input = input_text[1:] if input_text.startswith('/') else input_text
+        parts = command_input.split(' ', 1)
+        command_name = parts[0].lower()
+        args = parts[1] if len(parts) > 1 else ""
+
+        # Delegate to REPL for command execution
+        if self.on_execute_command:
+            await self.on_execute_command(command_name, args)
+        else:
+            # Fallback: show error if no handler is set
+            self._show_temporary_message(f"❌ Command handler not available for /{command_name}", duration=3.0)
     
 
 
@@ -442,7 +475,7 @@ class PromptInput(Container):
 
     def _create_user_message(self, input_text: str, mode: InputMode):
         """Create user message for immediate display"""
-        from ..types import Message as MinionMessage, MessageType, MessageContent
+        from ..type_defs import Message as MinionMessage, MessageType, MessageContent
 
         return MinionMessage(
             type=MessageType.USER,

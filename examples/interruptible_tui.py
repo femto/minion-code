@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from minion_code import MinionCodeAgent
 from minion_code.commands import command_registry
 from minion_code.utils.mcp_loader import MCPToolsLoader
-from minion_code.types import InputMode
+from minion_code.type_defs import InputMode
 from minion_code.adapters.rich_adapter import RichOutputAdapter
 
 app = typer.Typer(
@@ -63,17 +63,21 @@ class InterruptibleCLI:
                 TextColumn("[progress.description]{task.description}"),
                 console=self.console,
         ) as progress:
-            # Load MCP tools if config provided
-            mcp_task = None
-            if self.mcp_config:
-                mcp_task = progress.add_task("🔌 Loading MCP tools...", total=None)
-                try:
-                    self.mcp_loader = MCPToolsLoader(self.mcp_config)
+            # Load MCP tools - auto-discover if not explicitly provided
+            mcp_task = progress.add_task("🔌 Loading MCP tools...", total=None)
+            try:
+                # MCPToolsLoader will auto-discover config if mcp_config is None
+                self.mcp_loader = MCPToolsLoader(self.mcp_config, auto_discover=True)
+
+                if self.mcp_loader.config_path:
+                    if self.verbose:
+                        self.console.print(f"[dim]Using MCP config: {self.mcp_loader.config_path}[/dim]")
+
                     self.mcp_loader.load_config()
                     self.mcp_tools = await self.mcp_loader.load_all_tools()
 
                     if self.mcp_tools:
-                        self.console.print(f"✅ Loaded {len(self.mcp_tools)} MCP tools")
+                        self.console.print(f"✅ Loaded {len(self.mcp_tools)} MCP tools from {self.mcp_loader.config_path}")
                     else:
                         server_info = self.mcp_loader.get_server_info()
                         if server_info:
@@ -83,13 +87,17 @@ class InterruptibleCLI:
                                 self.console.print(f"  - {name}: {info['command']} ({status})")
                         else:
                             self.console.print("⚠️  No MCP servers found in config")
-
-                    progress.update(mcp_task, completed=True)
-                except Exception as e:
-                    self.console.print(f"❌ Failed to load MCP tools: {e}")
+                else:
                     if self.verbose:
-                        import traceback
-                        self.console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                        self.console.print("[dim]No MCP config found in standard locations[/dim]")
+
+                progress.update(mcp_task, completed=True)
+            except Exception as e:
+                self.console.print(f"❌ Failed to load MCP tools: {e}")
+                if self.verbose:
+                    import traceback
+                    self.console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                progress.update(mcp_task, completed=True)
 
             agent_task = progress.add_task("🔧 Setting up MinionCodeAgent...", total=None)
 
@@ -551,7 +559,9 @@ class InterruptibleCLI:
                 self.console.print(f"[dim]Full traceback:\n{traceback.format_exc()}[/dim]")
 
     async def process_command(self, command_input: str):
-        """Process a command input."""
+        """Process a command input with support for different command types."""
+        from minion_code.commands import CommandType
+
         # Remove the leading /
         command_input = command_input[1:] if command_input.startswith('/') else command_input
 
@@ -575,8 +585,40 @@ class InterruptibleCLI:
             self.console.print(error_panel)
             return
 
-        # Create and execute command
+        # Get command type and is_skill
+        command_type = getattr(command_class, 'command_type', CommandType.LOCAL)
+        is_skill = getattr(command_class, 'is_skill', False)
+
+        # Handle PROMPT type commands - expand and send to LLM
+        if command_type == CommandType.PROMPT:
+            try:
+                output_adapter = RichOutputAdapter(self.console)
+                command_instance = command_class(output_adapter, self.agent)
+                expanded_prompt = await command_instance.get_prompt(args)
+
+                # Process expanded prompt through AI
+                self.console.print(f"[dim]Expanded prompt: {expanded_prompt[:100]}...[/dim]" if self.verbose else "")
+                await self.process_input(expanded_prompt)
+
+            except Exception as e:
+                error_panel = Panel(
+                    f"❌ [bold red]Error expanding command /{command_name}: {e}[/bold red]",
+                    title="[bold red]Command Error[/bold red]",
+                    border_style="red"
+                )
+                self.console.print(error_panel)
+            return
+
+        # Handle LOCAL and LOCAL_JSX type commands - direct execution
         try:
+            # Show status message based on is_skill
+            if is_skill:
+                status_text = f"⚙️ /{command_name} skill is executing..."
+            else:
+                status_text = f"⚙️ /{command_name} is executing..."
+
+            self.console.print(f"[dim]{status_text}[/dim]")
+
             # Wrap console in RichOutputAdapter for commands
             output_adapter = RichOutputAdapter(self.console)
             command_instance = command_class(output_adapter, self.agent)

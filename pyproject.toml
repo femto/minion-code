@@ -31,10 +31,12 @@ agent = [
 ]
 
 [project.scripts]
-# Specific interface entry points
-mc = "examples.repl_tui:run"
-mcode = "examples.repl_tui:run"
-minion-code = "examples.repl_tui:run"
+# TUI interface (default, with Textual)
+mc = "minion_code.cli:run"
+mcode = "minion_code.cli:run"
+minion-code = "minion_code.cli:run"
+# Simple console interface (no TUI dependencies)
+mcode-simple = "minion_code.cli_simple:run"
 
 [tool.setuptools.packages.find]
 where = ["."]
