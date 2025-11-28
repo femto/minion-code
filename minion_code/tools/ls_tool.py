@@ -67,7 +67,7 @@ class LsTool(BaseTool):
             return f"Error listing directory: {str(e)}"
 
     def format_for_observation(self, output: Any) -> str:
-        """格式化输出，自动截断过大内容"""
+        """Format output, auto-truncate if too large"""
         if isinstance(output, str):
             return truncate_output(output, tool_name=self.name)
         return str(output)

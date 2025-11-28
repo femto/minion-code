@@ -72,7 +72,7 @@ class FileReadTool(BaseTool):
             if path.suffix.lower() in image_extensions:
                 return self._read_image(path)
 
-            # 执行前检查文件大小（仅对非分页读取）
+            # Check file size before read (only for non-paginated reads)
             if offset is None and limit is None:
                 try:
                     check_file_size_before_read(file_path)
@@ -202,5 +202,5 @@ class FileReadTool(BaseTool):
         result += "\n"
         result += "".join(numbered_lines)
 
-        # 应用输出截断
+        # Apply output truncation
         return truncate_output(result, tool_name=self.name)
