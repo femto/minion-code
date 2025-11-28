@@ -8,6 +8,11 @@ import base64
 from pathlib import Path
 from typing import Optional, Union, Any
 from minion.tools import BaseTool
+from ..utils.output_truncator import (
+    check_file_size_before_read,
+    FileTooLargeError,
+    truncate_output,
+)
 
 try:
     from PIL import Image
@@ -66,6 +71,13 @@ class FileReadTool(BaseTool):
             image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".svg"}
             if path.suffix.lower() in image_extensions:
                 return self._read_image(path)
+
+            # 执行前检查文件大小（仅对非分页读取）
+            if offset is None and limit is None:
+                try:
+                    check_file_size_before_read(file_path)
+                except FileTooLargeError as e:
+                    return f"Error: {str(e)}"
 
             # Read text file
             return self._read_text(path, offset, limit)
@@ -190,4 +202,5 @@ class FileReadTool(BaseTool):
         result += "\n"
         result += "".join(numbered_lines)
 
-        return result
+        # 应用输出截断
+        return truncate_output(result, tool_name=self.name)

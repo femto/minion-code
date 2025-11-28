@@ -6,8 +6,9 @@ Text search tool
 
 import re
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Any
 from minion.tools import BaseTool
+from ..utils.output_truncator import truncate_output
 
 
 class GrepTool(BaseTool):
@@ -82,11 +83,13 @@ class GrepTool(BaseTool):
 
             # Format output based on mode
             if output_mode == "files_with_matches":
-                return self._format_files_with_matches(matches, pattern, head_limit)
+                result = self._format_files_with_matches(matches, pattern, head_limit)
             elif output_mode == "count":
-                return self._format_count(matches, pattern, head_limit)
+                result = self._format_count(matches, pattern, head_limit)
             else:  # content mode
-                return self._format_content(matches, pattern, head_limit)
+                result = self._format_content(matches, pattern, head_limit)
+
+            return self.format_for_observation(result)
 
         except Exception as e:
             return f"Error during search: {str(e)}"
@@ -182,3 +185,9 @@ class GrepTool(BaseTool):
             ".conf",
         }
         return file_path.suffix.lower() in text_extensions
+
+    def format_for_observation(self, output: Any) -> str:
+        """格式化输出，自动截断过大内容"""
+        if isinstance(output, str):
+            return truncate_output(output, tool_name=self.name)
+        return str(output)
