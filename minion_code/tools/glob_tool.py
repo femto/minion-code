@@ -6,7 +6,9 @@ File pattern matching tool
 
 import glob
 from pathlib import Path
+from typing import Any
 from minion.tools import BaseTool
+from ..utils.output_truncator import truncate_output
 
 
 class GlobTool(BaseTool):
@@ -52,7 +54,13 @@ class GlobTool(BaseTool):
                     result += f"  Other: {match}\n"
 
             result += f"\nTotal {len(matches)} matches found"
-            return result
+            return self.format_for_observation(result)
 
         except Exception as e:
             return f"Error during glob matching: {str(e)}"
+
+    def format_for_observation(self, output: Any) -> str:
+        """格式化输出，自动截断过大内容"""
+        if isinstance(output, str):
+            return truncate_output(output, tool_name=self.name)
+        return str(output)

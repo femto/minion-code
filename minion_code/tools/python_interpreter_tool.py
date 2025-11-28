@@ -7,7 +7,9 @@ Python code execution tool
 import io
 import sys
 from contextlib import redirect_stdout, redirect_stderr
+from typing import Any
 from minion.tools import BaseTool
+from ..utils.output_truncator import truncate_output
 
 
 class PythonInterpreterTool(BaseTool):
@@ -99,7 +101,13 @@ class PythonInterpreterTool(BaseTool):
             if not output_parts:
                 output_parts.append("Code executed successfully, no output.")
 
-            return "\n".join(output_parts)
+            return self.format_for_observation("\n".join(output_parts))
 
         except Exception as e:
             return f"Error executing code: {str(e)}"
+
+    def format_for_observation(self, output: Any) -> str:
+        """格式化输出，自动截断过大内容"""
+        if isinstance(output, str):
+            return truncate_output(output, tool_name=self.name)
+        return str(output)
