@@ -203,3 +203,4 @@ uploads/
 .minion_todos
 .minion_workspace
 minion_example_project
+.mcp.json
