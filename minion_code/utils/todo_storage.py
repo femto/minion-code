@@ -6,6 +6,8 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
 
+from .todo_file_utils import get_todo_file_path, get_default_storage_dir
+
 
 class TodoStatus(Enum):
     PENDING = "pending"
@@ -45,13 +47,14 @@ class TodoItem:
 
 
 class TodoStorage:
-    def __init__(self, storage_dir: str = ".minion_workspace"):
+    def __init__(self, storage_dir: Optional[str] = None):
+        if storage_dir is None:
+            storage_dir = get_default_storage_dir()
         self.storage_dir = storage_dir
         os.makedirs(storage_dir, exist_ok=True)
     
     def _get_file_path(self, agent_id: Optional[str] = None) -> str:
-        filename = f"todos_{agent_id}.json" if agent_id else "todos_default.json"
-        return os.path.join(self.storage_dir, filename)
+        return get_todo_file_path(agent_id, self.storage_dir)
     
     def get_todos(self, agent_id: Optional[str] = None) -> List[TodoItem]:
         """Get all todos for a specific agent or default."""

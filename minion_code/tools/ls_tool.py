@@ -5,7 +5,9 @@ Directory listing tool
 """
 
 from pathlib import Path
+from typing import Any
 from minion.tools import BaseTool
+from ..utils.output_truncator import truncate_output
 
 
 class LsTool(BaseTool):
@@ -59,7 +61,13 @@ class LsTool(BaseTool):
                     else:
                         result += f"  Other: {item.name}\n"
 
-            return result
+            return self.format_for_observation(result)
 
         except Exception as e:
             return f"Error listing directory: {str(e)}"
+
+    def format_for_observation(self, output: Any) -> str:
+        """格式化输出，自动截断过大内容"""
+        if isinstance(output, str):
+            return truncate_output(output, tool_name=self.name)
+        return str(output)

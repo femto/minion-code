@@ -6,8 +6,9 @@ Bash command execution tool
 
 import os
 import subprocess
-from typing import Optional
+from typing import Optional, Any
 from minion.tools import BaseTool
+from ..utils.output_truncator import truncate_output
 
 
 class BashTool(BaseTool):
@@ -50,9 +51,15 @@ class BashTool(BaseTool):
                 output += f"Standard error:\n{result.stderr}\n"
             output += f"Exit code: {result.returncode}"
 
-            return output
+            return self.format_for_observation(output)
 
         except subprocess.TimeoutExpired:
             return f"Command execution timeout ({timeout} seconds)"
         except Exception as e:
             return f"Error executing command: {str(e)}"
+
+    def format_for_observation(self, output: Any) -> str:
+        """格式化输出，自动截断过大内容"""
+        if isinstance(output, str):
+            return truncate_output(output, tool_name=self.name)
+        return str(output)

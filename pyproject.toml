@@ -11,7 +11,8 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "minionx",
-    "typer>=0.9.0"
+    "typer>=0.9.0",
+    "Pillow>=10.0.0"
 ]
 
 [project.optional-dependencies]
@@ -30,9 +31,12 @@ agent = [
 ]
 
 [project.scripts]
-mc = "examples.interruptible_tui:run"
-mcode = "examples.interruptible_tui:run"
-minion-code = "examples.interruptible_tui:run"
+# TUI interface (default, with Textual)
+mc = "minion_code.cli:run"
+mcode = "minion_code.cli:run"
+minion-code = "minion_code.cli:run"
+# Simple console interface (no TUI dependencies)
+mcode-simple = "minion_code.cli_simple:run"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -200,7 +200,7 @@ ehthumbs_vista.db
 logs/
 uploads/
 *.log
-.minion_todos
-.minion_workspace
+.minion
+
 minion_example_project
 .mcp.json
