@@ -26,7 +26,7 @@ async def main():
     print("Creating MinionCodeAgent...")
     agent = await MinionCodeAgent.create(
         name="Skill Demo Agent",
-        llm="gpt-4o-mini"
+        llm="sonnet"
     )
     print("✓ Agent created with SkillTool\n")
 
@@ -45,8 +45,7 @@ async def main():
     print("-" * 40)
 
     response = await agent.run_async(
-        "Please use the skill tool to list all available skills. "
-        "Show me the skill names and their descriptions."
+        "Please read Titans.pdf and give a summary"
     )
 
     print(f"\nAgent response:\n{response.answer if hasattr(response, 'answer') else response}")
