@@ -876,28 +876,90 @@ Try typing something to get started!"""),
                 if hasattr(self.agent, 'run_async'):
                     # Try to use streaming if supported
                     try:
-                        # Attempt streaming response
+                        # Attempt streaming response with granular event handling
                         response_content = ""
+                        current_status = ""
+
                         async for chunk in (await self.agent.run_async(user_content, stream=True)):
-                            if hasattr(chunk, 'content'):
-                                response_content += chunk.content
-                                
-                                # Update the thinking message with streaming content
+                            chunk_type = getattr(chunk, 'chunk_type', 'text')
+                            chunk_content = getattr(chunk, 'content', str(chunk))
+                            chunk_metadata = getattr(chunk, 'metadata', {})
+
+                            # Handle different chunk types
+                            if chunk_type == "step_start":
+                                # Show step indicator
+                                current_status = f"🔄 {chunk_content}"
+                                status_message = MessageData(
+                                    type=MessageType.PROGRESS,
+                                    message=MessageContent(current_status),
+                                    options={"streaming": True, "step_start": True}
+                                )
+                                self.messages = [*self.messages[:-1], status_message]
+
+                            elif chunk_type == "thinking":
+                                # Accumulate thinking content (LLM response)
+                                response_content += chunk_content
+                                streaming_message = MessageData(
+                                    type=MessageType.ASSISTANT,
+                                    message=MessageContent(f"{current_status}\n\n{response_content}" if current_status else response_content),
+                                    options={"streaming": True}
+                                )
+                                self.messages = [*self.messages[:-1], streaming_message]
+
+                            elif chunk_type == "code_start":
+                                # Show code execution indicator
+                                code_preview = chunk_metadata.get('code_preview', chunk_content[:100])
+                                exec_status = f"⚙️ Executing code...\n```python\n{code_preview}\n```"
+                                code_message = MessageData(
+                                    type=MessageType.PROGRESS,
+                                    message=MessageContent(f"{response_content}\n\n{exec_status}"),
+                                    options={"streaming": True, "code_executing": True}
+                                )
+                                self.messages = [*self.messages[:-1], code_message]
+
+                            elif chunk_type == "code_result":
+                                # Show code execution result
+                                success = chunk_metadata.get('success', True)
+                                if success:
+                                    result_status = f"✅ Code executed:\n{chunk_content}"
+                                else:
+                                    result_status = f"❌ Execution error:\n{chunk_content}"
+
+                                result_message = MessageData(
+                                    type=MessageType.ASSISTANT,
+                                    message=MessageContent(f"{response_content}\n\n{result_status}"),
+                                    options={"streaming": True, "code_result": True}
+                                )
+                                self.messages = [*self.messages[:-1], result_message]
+
+                            elif chunk_type in ("agent_response", "final_answer", "completion"):
+                                # Final response - extract answer
+                                final_content = getattr(chunk, 'answer', chunk_content) or chunk_content
+                                response_content = str(final_content)
+                                final_message = MessageData(
+                                    type=MessageType.ASSISTANT,
+                                    message=MessageContent(response_content),
+                                    options={"streaming": True}
+                                )
+                                self.messages = [*self.messages[:-1], final_message]
+
+                            else:
+                                # Default: accumulate as text
+                                response_content += chunk_content
                                 streaming_message = MessageData(
                                     type=MessageType.ASSISTANT,
                                     message=MessageContent(response_content),
                                     options={"streaming": True}
                                 )
-                                
-                                # Replace the thinking message
                                 self.messages = [*self.messages[:-1], streaming_message]
-                                
-                                try:
-                                    messages_component = self.query_one("#messages_container", expect_type=Messages)
-                                    messages_component.update_messages(self.messages)
-                                except Exception:
-                                    self.refresh()  # Fallback to full refresh
-                        
+
+                            # Update UI
+                            try:
+                                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                                messages_component.update_messages(self.messages)
+                            except Exception:
+                                self.refresh()  # Fallback to full refresh
+
                         # Finalize the streaming message
                         final_message = MessageData(
                             type=MessageType.ASSISTANT,

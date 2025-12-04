@@ -30,6 +30,10 @@ class MessageContent:
     content: Union[str, List[Dict[str, Any]]]
     type: str = "text"
 
+    def __init__(self, content: Union[str, List[Dict[str, Any]]] = "", type: str = "text"):
+        self.content = content
+        self.type = type
+
 
 @dataclass
 class Message:

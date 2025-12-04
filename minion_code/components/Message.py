@@ -10,11 +10,108 @@ from rich.text import Text
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
-from typing import List, Dict, Any, Optional, Set
+from rich.panel import Panel
+from typing import List, Dict, Any, Optional, Set, Tuple
 import json
+import re
 
 # Import shared types
 from ..type_defs import Message as MessageType, MessageContent, InputMode
+
+
+def parse_agent_response(text: str) -> List[Tuple[str, str]]:
+    """
+    Parse agent response to extract different sections.
+    Returns a list of (section_type, content) tuples.
+
+    Section types: 'thought', 'code', 'output', 'text'
+    """
+    sections = []
+
+    # Pattern to match **Thought:** or **Code:** sections
+    thought_pattern = r'\*\*Thought:\*\*\s*(.*?)(?=\*\*Code:\*\*|\*\*Output:\*\*|```|$)'
+    code_block_pattern = r'```(\w*)\n(.*?)```'
+
+    remaining = text
+    last_end = 0
+
+    # First, find all **Thought:** sections
+    thought_match = re.search(r'\*\*Thought:\*\*\s*', text)
+    code_marker_match = re.search(r'\*\*Code:\*\*\s*', text)
+
+    if thought_match or code_marker_match:
+        # This looks like a structured agent response
+
+        # Extract thought section
+        if thought_match:
+            thought_start = thought_match.end()
+            # Find where thought ends (at **Code:** or code block)
+            thought_end = len(text)
+            if code_marker_match and code_marker_match.start() > thought_match.start():
+                thought_end = code_marker_match.start()
+            else:
+                # Look for code block
+                code_block = re.search(r'```', text[thought_start:])
+                if code_block:
+                    thought_end = thought_start + code_block.start()
+
+            thought_content = text[thought_start:thought_end].strip()
+            if thought_content:
+                sections.append(('thought', thought_content))
+            last_end = thought_end
+
+        # Extract code section
+        if code_marker_match:
+            code_start = code_marker_match.end()
+            # Find the code block after **Code:**
+            code_block_match = re.search(r'```(\w*)\n(.*?)```', text[code_start:], re.DOTALL)
+            if code_block_match:
+                lang = code_block_match.group(1) or 'python'
+                code_content = code_block_match.group(2).strip()
+                sections.append(('code', f'{lang}:{code_content}'))
+                last_end = code_start + code_block_match.end()
+        elif not code_marker_match and thought_match:
+            # No **Code:** marker, look for code block directly
+            code_block_match = re.search(r'```(\w*)\n(.*?)```', text[last_end:], re.DOTALL)
+            if code_block_match:
+                lang = code_block_match.group(1) or 'python'
+                code_content = code_block_match.group(2).strip()
+                sections.append(('code', f'{lang}:{code_content}'))
+                last_end = last_end + code_block_match.end()
+
+        # Everything after the code block is output
+        output_content = text[last_end:].strip()
+        if output_content:
+            sections.append(('output', output_content))
+
+    else:
+        # Not a structured response, check for just code blocks
+        code_blocks = list(re.finditer(r'```(\w*)\n(.*?)```', text, re.DOTALL))
+
+        if code_blocks:
+            current_pos = 0
+            for match in code_blocks:
+                # Text before code block
+                before_text = text[current_pos:match.start()].strip()
+                if before_text:
+                    sections.append(('text', before_text))
+
+                # Code block
+                lang = match.group(1) or 'python'
+                code_content = match.group(2).strip()
+                sections.append(('code', f'{lang}:{code_content}'))
+
+                current_pos = match.end()
+
+            # Text after last code block
+            after_text = text[current_pos:].strip()
+            if after_text:
+                sections.append(('output', after_text))
+        else:
+            # Plain text
+            sections.append(('text', text))
+
+    return sections if sections else [('text', text)]
 
 
 class Message(Container):
@@ -29,49 +126,95 @@ class Message(Container):
         height: auto;
         margin-bottom: 1;
     }
-    
+
     .user-message {
         border-left: thick blue;
         padding-left: 1;
         height: auto;
     }
-    
+
     .assistant-message {
         border-left: thick green;
         padding-left: 1;
         height: auto;
     }
-    
+
     .tool-use-message {
         border-left: thick yellow;
         padding-left: 1;
         background: $surface-lighten-1;
         height: auto;
     }
-    
+
     .error-message {
         border-left: thick red;
         padding-left: 1;
         background: $error 10%;
         height: auto;
     }
-    
+
     .message-content {
         width: 100%;
         height: auto;
         padding: 1;
     }
-    
+
     .message-meta {
         color: $text-muted;
         text-style: dim;
         height: 1;
     }
-    
+
     .streaming-message {
         color: $primary;
         text-style: italic;
         background: $primary 10%;
+    }
+
+    /* Section-specific styles */
+    .thought-section {
+        background: $primary 15%;
+        border-left: thick $primary;
+        padding: 1;
+        margin-bottom: 1;
+    }
+
+    .thought-label {
+        color: $primary;
+        text-style: bold;
+        margin-bottom: 0;
+    }
+
+    .code-section {
+        background: $surface-darken-1;
+        border-left: thick yellow;
+        padding: 1;
+        margin-bottom: 1;
+    }
+
+    .code-label {
+        color: yellow;
+        text-style: bold;
+        margin-bottom: 0;
+    }
+
+    .output-section {
+        background: green 20%;
+        border-left: thick green;
+        padding: 1;
+        margin-top: 1;
+    }
+
+    .output-label {
+        color: green;
+        text-style: bold;
+        margin-bottom: 0;
+    }
+
+    .section-divider {
+        color: $text-muted;
+        text-style: dim;
+        margin: 1 0;
     }
     """
     
@@ -172,32 +315,73 @@ class Message(Container):
         """Render text content with markdown support and streaming indicators"""
         if not text.strip():
             return
-        
+
         # Check if this is a streaming or temporary message
         is_streaming = self.message.options.get("streaming", False) if self.message.options else False
         is_temporary = self.message.options.get("temporary", False) if self.message.options else False
         is_error = self.message.options.get("error", False) if self.message.options else False
-        
-        # Add visual indicators for different states
-        if is_streaming:
-            text = f"⠋ {text}"
-        elif is_temporary:
-            text = f"🤔 {text}"
-        elif is_error:
-            text = f"❌ {text}"
-        
-        try:
-            # For now, just render as plain text to avoid compose-time issues
-            # TODO: Implement proper markdown rendering with RichLog after mount
+
+        # For streaming/temporary/error messages, render simply
+        if is_streaming or is_temporary or is_error:
+            prefix = ""
+            if is_streaming:
+                prefix = "⠋ "
+            elif is_temporary:
+                prefix = "🤔 "
+            elif is_error:
+                prefix = "❌ "
+
             classes = "message-content"
             if is_error:
                 classes += " error-message"
             elif is_streaming or is_temporary:
                 classes += " streaming-message"
-                
-            yield Static(text, classes=classes)
-        except Exception:
+
+            yield Static(f"{prefix}{text}", classes=classes)
+            return
+
+        # Parse the response into sections for non-streaming messages
+        sections = parse_agent_response(text)
+
+        # If only one plain text section, render normally
+        if len(sections) == 1 and sections[0][0] == 'text':
             yield Static(text, classes="message-content")
+            return
+
+        # Render each section with appropriate styling
+        for section_type, content in sections:
+            yield from self._render_section(section_type, content)
+
+    def _render_section(self, section_type: str, content: str):
+        """Render a specific section with appropriate styling"""
+        if section_type == 'thought':
+            with Vertical(classes="thought-section"):
+                yield Static("💭 Thought:", classes="thought-label")
+                yield Static(content, classes="message-content")
+
+        elif section_type == 'code':
+            # Parse language and code content
+            if ':' in content:
+                lang, code_content = content.split(':', 1)
+            else:
+                lang, code_content = 'python', content
+
+            with Vertical(classes="code-section"):
+                yield Static(f"📝 Code ({lang}):", classes="code-label")
+                # Try to use syntax highlighting
+                try:
+                    syntax = Syntax(code_content, lang, theme="monokai", line_numbers=True)
+                    yield Static(syntax, classes="message-content")
+                except Exception:
+                    yield Static(f"```{lang}\n{code_content}\n```", classes="message-content")
+
+        elif section_type == 'output':
+            with Vertical(classes="output-section"):
+                yield Static("📤 Output:", classes="output-label")
+                yield Static(content, classes="message-content")
+
+        else:  # 'text' or unknown
+            yield Static(content, classes="message-content")
     
     def _render_tool_use_block(self, block: Dict[str, Any]):
         """Render tool use block - equivalent to AssistantToolUseMessage"""
