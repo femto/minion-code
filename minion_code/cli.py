@@ -32,7 +32,9 @@ def run_console_cli(
     verbose: bool = False,
     mcp_config: Optional[Path] = None,
     resume_session_id: Optional[str] = None,
-    continue_last: bool = False
+    continue_last: bool = False,
+    initial_prompt: Optional[str] = None,
+    print_output: bool = False
 ):
     """Run the traditional console CLI interface"""
     from minion_code.cli_simple import InterruptibleCLI
@@ -40,7 +42,9 @@ def run_console_cli(
         verbose=verbose,
         mcp_config=mcp_config,
         resume_session_id=resume_session_id,
-        continue_last=continue_last
+        continue_last=continue_last,
+        initial_prompt=initial_prompt,
+        print_output=print_output
     )
     return asyncio.run(cli.run())
 
@@ -86,6 +90,10 @@ def run_tui_repl(
 
 @app.command()
 def main(
+    prompt_arg: Optional[str] = typer.Argument(
+        None,
+        help="Initial prompt to send to the agent (like 'claude \"prompt\"')"
+    ),
     dir: Optional[str] = typer.Option(
         None,
         "--dir",
@@ -107,7 +115,7 @@ def main(
         None,
         "--prompt",
         "-p",
-        help="Initial prompt to send to the agent"
+        help="Initial prompt to send to the agent (alternative to positional arg)"
     ),
     console: bool = typer.Option(
         False,
@@ -130,6 +138,11 @@ def main(
         "--resume",
         "-r",
         help="Resume a specific session by ID"
+    ),
+    print_output: bool = typer.Option(
+        False,
+        "--print",
+        help="Print output and exit (non-interactive mode, console only)"
     )
 ):
     """
@@ -177,6 +190,9 @@ def main(
             console_obj = Console()
             console_obj.print(f"🔌 [bold green]Using MCP config: {mcp_config_path}[/bold green]")
     
+    # Combine prompt sources (positional arg takes precedence)
+    initial_prompt = prompt_arg or prompt
+
     # Choose interface based on flags
     if console:
         # Use console interface
@@ -184,14 +200,16 @@ def main(
             verbose=verbose,
             mcp_config=mcp_config_path,
             resume_session_id=resume,
-            continue_last=continue_session
+            continue_last=continue_session,
+            initial_prompt=initial_prompt,
+            print_output=print_output
         )
     else:
         # Use TUI interface (default)
         run_tui_repl(
             debug=debug,
             verbose=verbose,
-            initial_prompt=prompt,
+            initial_prompt=initial_prompt,
             dir=dir,
             resume_session_id=resume,
             continue_last=continue_session
@@ -347,25 +365,27 @@ def console(
 
 def run():
     """Entry point for pyproject.toml scripts."""
-    # If no command is provided, default to 'main' (REPL mode)
-    # Check if any known command is in argv
-    known_commands = {'main', 'repl', 'console', '--help', '-h'}
-    args = sys.argv[1:]
-
-    # If no args or first arg is an option (starts with -), insert 'main' command
-    if not args or (args[0].startswith('-') and args[0] not in ('--help', '-h')):
-        sys.argv.insert(1, 'main')
-
+    _maybe_insert_main_command()
     app()
 
 
-if __name__ == "__main__":
-    # If no command is provided, default to 'main' (REPL mode)
+def _maybe_insert_main_command():
+    """Insert 'main' command if not provided, to enable 'mcode "prompt"' usage."""
     known_commands = {'main', 'repl', 'console', '--help', '-h'}
     args = sys.argv[1:]
 
-    # If no args or first arg is an option (starts with -), insert 'main' command
-    if not args or (args[0].startswith('-') and args[0] not in ('--help', '-h')):
+    if not args:
+        # No args, insert 'main'
+        sys.argv.insert(1, 'main')
+    elif args[0] in ('--help', '-h'):
+        # Help requested, don't modify
+        pass
+    elif args[0] not in known_commands:
+        # First arg is not a known command - could be a prompt or option
+        # Insert 'main' to treat it as: mcode main "prompt" or mcode main --option
         sys.argv.insert(1, 'main')
 
+
+if __name__ == "__main__":
+    _maybe_insert_main_command()
     app()

@@ -50,7 +50,9 @@ class InterruptibleCLI:
         verbose: bool = False,
         mcp_config: Optional[Path] = None,
         resume_session_id: Optional[str] = None,
-        continue_last: bool = False
+        continue_last: bool = False,
+        initial_prompt: Optional[str] = None,
+        print_output: bool = False
     ):
         self.agent = None
         self.running = True
@@ -62,6 +64,10 @@ class InterruptibleCLI:
         self.current_task = None
         self.task_cancelled = False
         self.interrupt_requested = False
+
+        # Initial prompt support (like claude "prompt")
+        self.initial_prompt = initial_prompt
+        self.print_output = print_output  # Print output and exit (non-interactive)
 
         # Session management
         self.session: Optional[Session] = None
@@ -414,19 +420,29 @@ class InterruptibleCLI:
     
     async def run(self):
         """Run the CLI."""
-        # Welcome banner
-        welcome_panel = Panel(
-            "🚀 [bold blue]MinionCodeAgent Simple CLI[/bold blue]\n"
-            "💡 [italic]Use '/help' for commands or just chat with the agent![/italic]\n"
-            "⚠️  [italic]Press Ctrl+C during processing to interrupt tasks[/italic]\n"
-            "🛑 [italic]Type '/quit' to exit[/italic]",
-            title="[bold magenta]Welcome[/bold magenta]",
-            border_style="magenta"
-        )
-        self.console.print(welcome_panel)
-        
+        # Welcome banner (skip in print mode for cleaner output)
+        if not self.print_output:
+            welcome_panel = Panel(
+                "🚀 [bold blue]MinionCodeAgent Simple CLI[/bold blue]\n"
+                "💡 [italic]Use '/help' for commands or just chat with the agent![/italic]\n"
+                "⚠️  [italic]Press Ctrl+C during processing to interrupt tasks[/italic]\n"
+                "🛑 [italic]Type '/quit' to exit[/italic]",
+                title="[bold magenta]Welcome[/bold magenta]",
+                border_style="magenta"
+            )
+            self.console.print(welcome_panel)
+
         await self.setup()
-        
+
+        # Process initial prompt if provided (like claude "prompt")
+        if self.initial_prompt:
+            await self.process_input(self.initial_prompt)
+
+            # If print mode, exit after getting the response
+            if self.print_output:
+                await self.cleanup()
+                return
+
         while self.running:
             try:
                 # Use rich prompt for better input experience
@@ -434,10 +450,10 @@ class InterruptibleCLI:
                     "\n[bold cyan]👤 You[/bold cyan]",
                     console=self.console
                 ).strip()
-                
+
                 if user_input:
                     await self.process_input(user_input)
-                    
+
             except (EOFError, KeyboardInterrupt):
                 # Handle Ctrl+C at input prompt
                 if self.current_task and not self.current_task.done():
@@ -452,13 +468,17 @@ class InterruptibleCLI:
                     )
                     self.console.print(goodbye_panel)
                     break
-        
+
         # Cleanup resources
         await self.cleanup()
 
 
 @app.command()
 def main(
+    prompt: Optional[str] = typer.Argument(
+        None,
+        help="Initial prompt to send to the agent (like 'claude \"prompt\"')"
+    ),
     dir: Optional[str] = typer.Option(
         None,
         "--dir",
@@ -487,6 +507,12 @@ def main(
         "--resume",
         "-r",
         help="Resume a specific session by ID"
+    ),
+    print_output: bool = typer.Option(
+        False,
+        "--print",
+        "-p",
+        help="Print output and exit (non-interactive mode)"
     )
 ):
     """
@@ -533,7 +559,9 @@ def main(
         verbose=verbose,
         mcp_config=mcp_config_path,
         resume_session_id=resume,
-        continue_last=continue_session
+        continue_last=continue_session,
+        initial_prompt=prompt,
+        print_output=print_output
     )
 
     try:
