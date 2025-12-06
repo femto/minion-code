@@ -29,6 +29,10 @@ from minion_code import MinionCodeAgent
 from minion_code.commands import command_registry
 from minion_code.utils.mcp_loader import MCPToolsLoader
 from minion_code.adapters import RichOutputAdapter
+from minion_code.utils.session_storage import (
+    Session, create_session, save_session, load_session,
+    get_latest_session_id, add_message
+)
 
 app = typer.Typer(
     name="minion-code-simple",
@@ -40,8 +44,14 @@ app = typer.Typer(
 
 class InterruptibleCLI:
     """CLI with task interruption support using standard input."""
-    
-    def __init__(self, verbose: bool = False, mcp_config: Optional[Path] = None):
+
+    def __init__(
+        self,
+        verbose: bool = False,
+        mcp_config: Optional[Path] = None,
+        resume_session_id: Optional[str] = None,
+        continue_last: bool = False
+    ):
         self.agent = None
         self.running = True
         self.console = Console()
@@ -52,6 +62,11 @@ class InterruptibleCLI:
         self.current_task = None
         self.task_cancelled = False
         self.interrupt_requested = False
+
+        # Session management
+        self.session: Optional[Session] = None
+        self.resume_session_id = resume_session_id
+        self.continue_last = continue_last
 
         # Create output adapter for commands
         self.output_adapter = RichOutputAdapter(self.console)
@@ -129,7 +144,60 @@ class InterruptibleCLI:
         
         if self.verbose:
             self.console.print(f"[dim]Working directory: {os.getcwd()}[/dim]")
-    
+
+        # Handle session restoration
+        await self._init_session()
+
+    async def _init_session(self):
+        """Initialize or restore session."""
+        current_project = os.getcwd()
+
+        # Try to restore session if requested
+        if self.resume_session_id:
+            self.session = load_session(self.resume_session_id)
+            if self.session:
+                self.console.print(Panel(
+                    f"Restored session `{self.resume_session_id}` "
+                    f"({len(self.session.messages)} messages)\n"
+                    f"Title: {self.session.metadata.title or '(none)'}",
+                    title="[bold green]Session Restored[/bold green]",
+                    border_style="green"
+                ))
+            else:
+                self.console.print(Panel(
+                    f"Session `{self.resume_session_id}` not found. Starting new session.",
+                    title="[bold yellow]Warning[/bold yellow]",
+                    border_style="yellow"
+                ))
+                self.session = create_session(current_project)
+        elif self.continue_last:
+            latest_id = get_latest_session_id(project_path=current_project)
+            if latest_id:
+                self.session = load_session(latest_id)
+                if self.session:
+                    self.console.print(Panel(
+                        f"Continuing session `{latest_id}` "
+                        f"({len(self.session.messages)} messages)\n"
+                        f"Title: {self.session.metadata.title or '(none)'}",
+                        title="[bold green]Session Continued[/bold green]",
+                        border_style="green"
+                    ))
+                else:
+                    self.session = create_session(current_project)
+            else:
+                self.console.print(Panel(
+                    "No previous session found. Starting new session.",
+                    title="[bold yellow]Note[/bold yellow]",
+                    border_style="yellow"
+                ))
+                self.session = create_session(current_project)
+        else:
+            # Create new session
+            self.session = create_session(current_project)
+
+        if self.verbose and self.session:
+            self.console.print(f"[dim]Session ID: {self.session.metadata.session_id}[/dim]")
+
     async def process_input_with_interrupt(self, user_input: str):
         """Process user input with interrupt support."""
         self.task_cancelled = False
@@ -215,21 +283,28 @@ class InterruptibleCLI:
                 self.console.print(cancelled_panel)
                 return
             
+            # Save to session
+            if self.session:
+                add_message(self.session, "user", user_input)
+                add_message(self.session, "assistant", response.answer)
+
             # Display agent response with rich formatting
             if "```" in response.answer:
                 agent_content = Markdown(response.answer)
             else:
                 agent_content = response.answer
-            
+
             response_panel = Panel(
                 agent_content,
                 title="🤖 [bold green]Agent Response[/bold green]",
                 border_style="green"
             )
             self.console.print(response_panel)
-            
+
             if self.verbose:
                 self.console.print(f"[dim]Response length: {len(response.answer)} characters[/dim]")
+                if self.session:
+                    self.console.print(f"[dim]Session: {self.session.metadata.session_id} ({len(self.session.messages)} msgs)[/dim]")
             
         except KeyboardInterrupt:
             # Handle Ctrl+C during processing
@@ -384,19 +459,30 @@ def main(
         None,
         "--dir",
         "-d",
-        help="🗂️  Change to specified directory before starting"
+        help="Change to specified directory before starting"
     ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
         "-v",
-        help="🔍 Enable verbose output with additional debugging information"
+        help="Enable verbose output with additional debugging information"
     ),
     config: Optional[str] = typer.Option(
         None,
         "--config",
         "-c",
-        help="🔌 Path to MCP configuration file (JSON format)"
+        help="Path to MCP configuration file (JSON format)"
+    ),
+    continue_session: bool = typer.Option(
+        False,
+        "--continue",
+        help="Continue the most recent session for this project"
+    ),
+    resume: Optional[str] = typer.Option(
+        None,
+        "--resume",
+        "-r",
+        help="Resume a specific session by ID"
     )
 ):
     """
@@ -439,8 +525,13 @@ def main(
             console.print(f"🔌 [bold green]Using MCP config: {mcp_config_path}[/bold green]")
     
     # Create and run CLI
-    cli = InterruptibleCLI(verbose=verbose, mcp_config=mcp_config_path)
-    
+    cli = InterruptibleCLI(
+        verbose=verbose,
+        mcp_config=mcp_config_path,
+        resume_session_id=resume,
+        continue_last=continue_session
+    )
+
     try:
         asyncio.run(cli.run())
     except KeyboardInterrupt:

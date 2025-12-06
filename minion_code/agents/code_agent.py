@@ -46,6 +46,9 @@ from ..tools import (
     TOOL_MAPPING,
 )
 
+# Import web tools from minion
+from minion.tools import WebFetchTool, WebSearchTool
+
 logger = logging.getLogger(__name__)
 
 
@@ -394,6 +397,9 @@ class MinionCodeAgent(CodeAgent):
             TodoWriteTool(),
             TodoReadTool(),
             SkillTool(),
+            # Web tools from minion
+            WebFetchTool(),
+            WebSearchTool(),
         ]
         
         # Add TaskTool if available (avoid circular import)

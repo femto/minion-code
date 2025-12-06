@@ -28,10 +28,20 @@ app = typer.Typer(
 )
 
 
-def run_console_cli(verbose: bool = False, mcp_config: Optional[Path] = None):
+def run_console_cli(
+    verbose: bool = False,
+    mcp_config: Optional[Path] = None,
+    resume_session_id: Optional[str] = None,
+    continue_last: bool = False
+):
     """Run the traditional console CLI interface"""
     from minion_code.cli_simple import InterruptibleCLI
-    cli = InterruptibleCLI(verbose=verbose, mcp_config=mcp_config)
+    cli = InterruptibleCLI(
+        verbose=verbose,
+        mcp_config=mcp_config,
+        resume_session_id=resume_session_id,
+        continue_last=continue_last
+    )
     return asyncio.run(cli.run())
 
 
@@ -39,19 +49,31 @@ def run_tui_repl(
     debug: bool = False,
     verbose: bool = False,
     initial_prompt: Optional[str] = None,
-    dir: Optional[str] = None
+    dir: Optional[str] = None,
+    resume_session_id: Optional[str] = None,
+    continue_last: bool = False
 ):
     """Run the modern TUI REPL interface"""
     try:
         from minion_code.screens.REPL import run
-        run(initial_prompt=initial_prompt, debug=debug, verbose=verbose)
+        run(
+            initial_prompt=initial_prompt,
+            debug=debug,
+            verbose=verbose,
+            resume_session_id=resume_session_id,
+            continue_last=continue_last
+        )
     except ImportError as e:
         console = Console()
         console.print(f"❌ [bold red]TUI dependencies not available: {e}[/bold red]")
         console.print("💡 [italic]Install TUI dependencies with: pip install textual rich[/italic]")
         console.print("🔄 [italic]Falling back to console interface...[/italic]")
         # Fallback to console CLI
-        run_console_cli(verbose=verbose)
+        run_console_cli(
+            verbose=verbose,
+            resume_session_id=resume_session_id,
+            continue_last=continue_last
+        )
     except Exception as e:
         console = Console()
         console.print(f"❌ [bold red]TUI error: {e}[/bold red]")
@@ -68,35 +90,46 @@ def main(
         None,
         "--dir",
         "-d",
-        help="🗂️  Change to specified directory before starting"
+        help="Change to specified directory before starting"
     ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
         "-v",
-        help="🔍 Enable verbose output with additional debugging information"
+        help="Enable verbose output with additional debugging information"
     ),
     debug: bool = typer.Option(
         False,
         "--debug",
-        help="🐛 Enable debug mode for development"
+        help="Enable debug mode for development"
     ),
     prompt: Optional[str] = typer.Option(
         None,
         "--prompt",
         "-p",
-        help="💬 Initial prompt to send to the agent"
+        help="Initial prompt to send to the agent"
     ),
     console: bool = typer.Option(
         False,
         "--console",
-        help="🖥️  Use console interface instead of TUI"
+        help="Use console interface instead of TUI"
     ),
     config: Optional[str] = typer.Option(
         None,
         "--config",
         "-c",
-        help="🔌 Path to MCP configuration file (JSON format)"
+        help="Path to MCP configuration file (JSON format)"
+    ),
+    continue_session: bool = typer.Option(
+        False,
+        "--continue",
+        help="Continue the most recent session for this project"
+    ),
+    resume: Optional[str] = typer.Option(
+        None,
+        "--resume",
+        "-r",
+        help="Resume a specific session by ID"
     )
 ):
     """
@@ -147,14 +180,21 @@ def main(
     # Choose interface based on flags
     if console:
         # Use console interface
-        run_console_cli(verbose=verbose, mcp_config=mcp_config_path)
+        run_console_cli(
+            verbose=verbose,
+            mcp_config=mcp_config_path,
+            resume_session_id=resume,
+            continue_last=continue_session
+        )
     else:
         # Use TUI interface (default)
         run_tui_repl(
             debug=debug,
             verbose=verbose,
             initial_prompt=prompt,
-            dir=dir
+            dir=dir,
+            resume_session_id=resume,
+            continue_last=continue_session
         )
 
 
@@ -226,19 +266,30 @@ def console(
         None,
         "--dir",
         "-d",
-        help="🗂️  Change to specified directory before starting"
+        help="Change to specified directory before starting"
     ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
         "-v",
-        help="🔍 Enable verbose output with additional debugging information"
+        help="Enable verbose output with additional debugging information"
     ),
     config: Optional[str] = typer.Option(
         None,
         "--config",
         "-c",
-        help="🔌 Path to MCP configuration file (JSON format)"
+        help="Path to MCP configuration file (JSON format)"
+    ),
+    continue_session: bool = typer.Option(
+        False,
+        "--continue",
+        help="Continue the most recent session for this project"
+    ),
+    resume: Optional[str] = typer.Option(
+        None,
+        "--resume",
+        "-r",
+        help="Resume a specific session by ID"
     )
 ):
     """
@@ -284,9 +335,14 @@ def console(
         if verbose:
             console_obj = Console()
             console_obj.print(f"🔌 [bold green]Using MCP config: {mcp_config_path}[/bold green]")
-    
+
     # Run console CLI
-    run_console_cli(verbose=verbose, mcp_config=mcp_config_path)
+    run_console_cli(
+        verbose=verbose,
+        mcp_config=mcp_config_path,
+        resume_session_id=resume,
+        continue_last=continue_session
+    )
 
 
 def run():
