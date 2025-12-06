@@ -31,7 +31,7 @@ from minion_code.utils.mcp_loader import MCPToolsLoader
 from minion_code.adapters import RichOutputAdapter
 from minion_code.utils.session_storage import (
     Session, create_session, save_session, load_session,
-    get_latest_session_id, add_message
+    get_latest_session_id, add_message, restore_agent_history
 )
 
 app = typer.Typer(
@@ -163,6 +163,8 @@ class InterruptibleCLI:
                     title="[bold green]Session Restored[/bold green]",
                     border_style="green"
                 ))
+                # Restore agent history
+                restore_agent_history(self.agent, self.session, self.verbose)
             else:
                 self.console.print(Panel(
                     f"Session `{self.resume_session_id}` not found. Starting new session.",
@@ -182,6 +184,8 @@ class InterruptibleCLI:
                         title="[bold green]Session Continued[/bold green]",
                         border_style="green"
                     ))
+                    # Restore agent history
+                    restore_agent_history(self.agent, self.session, self.verbose)
                 else:
                     self.session = create_session(current_project)
             else:

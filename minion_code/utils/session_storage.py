@@ -291,3 +291,37 @@ def list_sessions(project_path: Optional[str] = None, limit: int = 20) -> List[S
 def add_message(session: Session, role: str, content: str, auto_save: bool = True) -> None:
     """Add a message to a session."""
     session_storage.add_message(session, role, content, auto_save)
+
+
+def restore_agent_history(agent, session: Session, verbose: bool = False) -> int:
+    """Restore agent's conversation history from session.
+
+    Args:
+        agent: The agent instance with state.history
+        session: Session to restore from
+        verbose: Print debug info
+
+    Returns:
+        Number of messages restored
+    """
+    if not agent or not session or not session.messages:
+        return 0
+
+    # Check if agent has history
+    if not hasattr(agent, 'state') or not hasattr(agent.state, 'history'):
+        return 0
+
+    # Clear existing history first
+    agent.state.history.clear()
+
+    # Restore messages from session
+    for msg in session.messages:
+        agent.state.history.append({
+            'role': msg.role,
+            'content': msg.content
+        })
+
+    if verbose:
+        print(f"Restored {len(session.messages)} messages to agent history")
+
+    return len(session.messages)

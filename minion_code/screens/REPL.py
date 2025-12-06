@@ -25,7 +25,8 @@ from pathlib import Path
 # Session storage imports
 from ..utils.session_storage import (
     Session, create_session, save_session, load_session,
-    get_latest_session_id, add_message as session_add_message
+    get_latest_session_id, add_message as session_add_message,
+    restore_agent_history
 )
 
 # No logging in UI components to reduce noise
@@ -630,7 +631,8 @@ Try typing something to get started!"""),
             self.session = load_session(self.resume_session_id)
             if self.session:
                 print(f"DEBUG: Restored session {self.resume_session_id} with {len(self.session.messages)} messages")
-                # Could restore messages to UI here if needed
+                # Restore messages to UI
+                self._restore_ui_messages_from_session()
             else:
                 print(f"DEBUG: Session {self.resume_session_id} not found, creating new")
                 self.session = create_session(current_project)
@@ -640,6 +642,8 @@ Try typing something to get started!"""),
                 self.session = load_session(latest_id)
                 if self.session:
                     print(f"DEBUG: Continuing session {latest_id} with {len(self.session.messages)} messages")
+                    # Restore messages to UI
+                    self._restore_ui_messages_from_session()
                 else:
                     self.session = create_session(current_project)
             else:
@@ -648,6 +652,26 @@ Try typing something to get started!"""),
             # Create new session
             self.session = create_session(current_project)
             print(f"DEBUG: Created new session {self.session.metadata.session_id}")
+
+    def _restore_ui_messages_from_session(self):
+        """Restore UI messages from session."""
+        if not self.session or not self.session.messages:
+            return
+
+        # Clear existing UI messages first
+        self.messages.clear()
+
+        # Convert session messages to MessageData for UI display
+        for msg in self.session.messages:
+            msg_type = MessageType.USER if msg.role == "user" else MessageType.ASSISTANT
+            ui_message = MessageData(
+                type=msg_type,
+                message=MessageContent(msg.content),
+                options={}
+            )
+            self.messages.append(ui_message)
+
+        print(f"DEBUG: Restored {len(self.session.messages)} messages to UI")
 
     def _save_message_to_session(self, role: str, content: str):
         """Save a message to the current session."""
@@ -754,6 +778,10 @@ Try typing something to get started!"""),
         # Bind output adapter to agent if it supports confirmation
         if hasattr(agent, 'set_output_adapter'):
             agent.set_output_adapter(self.output_adapter)
+
+        # Restore agent history from session if resuming
+        if self.session and self.session.messages:
+            restore_agent_history(agent, self.session, self.verbose)
 
     def handle_command_output(self, output_type: str, data: dict):
         """Handle output from command execution via adapter"""
