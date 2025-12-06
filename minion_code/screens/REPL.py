@@ -14,12 +14,19 @@ from rich.text import Text
 from rich.syntax import Syntax
 from rich.console import Console
 import asyncio
+import os
 from typing import List, Dict, Any, Optional, Callable, Union, Set
 from dataclasses import dataclass, field
 from enum import Enum
 import uuid
 import time
 from pathlib import Path
+
+# Session storage imports
+from ..utils.session_storage import (
+    Session, create_session, save_session, load_session,
+    get_latest_session_id, add_message as session_add_message
+)
 
 # No logging in UI components to reduce noise
 
@@ -423,9 +430,11 @@ class REPL(Container):
                  initial_update_version=None,
                  initial_update_commands=None,
                  agent=None,  # Agent passed from app level
+                 resume_session_id=None,  # Session ID to resume
+                 continue_last=False,  # Continue most recent session
                  **kwargs):
         super().__init__(**kwargs)
-        
+
         # Props equivalent to TypeScript Props interface
         self.commands = commands or []
         self.safe_mode = safe_mode
@@ -439,13 +448,18 @@ class REPL(Container):
         self.is_default_model = is_default_model
         self.initial_update_version = initial_update_version
         self.initial_update_commands = initial_update_commands
-        
+
+        # Session management
+        self.resume_session_id = resume_session_id
+        self.continue_last = continue_last
+        self.session: Optional[Session] = None
+
         # Initialize state
         self.messages = initial_messages or []
         print(f"DEBUG: REPL initialized with {len(self.messages)} messages")
         self.fork_number = initial_fork_number
         self.should_show_prompt_input = should_show_prompt_input
-        
+
         # Agent from app level
         self.agent = agent
 
@@ -601,9 +615,46 @@ Try typing something to get started!"""),
     
     def on_mount(self):
         """Component lifecycle - equivalent to React useEffect(() => { onInit() }, [])"""
+        # Initialize session
+        self._init_session()
         self.call_later(self.on_init)
         # Set focus to the input after a short delay to ensure it's mounted
         self.set_timer(0.1, self._set_focus_to_input)
+
+    def _init_session(self):
+        """Initialize or restore session."""
+        current_project = os.getcwd()
+
+        # Try to restore session if requested
+        if self.resume_session_id:
+            self.session = load_session(self.resume_session_id)
+            if self.session:
+                print(f"DEBUG: Restored session {self.resume_session_id} with {len(self.session.messages)} messages")
+                # Could restore messages to UI here if needed
+            else:
+                print(f"DEBUG: Session {self.resume_session_id} not found, creating new")
+                self.session = create_session(current_project)
+        elif self.continue_last:
+            latest_id = get_latest_session_id(project_path=current_project)
+            if latest_id:
+                self.session = load_session(latest_id)
+                if self.session:
+                    print(f"DEBUG: Continuing session {latest_id} with {len(self.session.messages)} messages")
+                else:
+                    self.session = create_session(current_project)
+            else:
+                self.session = create_session(current_project)
+        else:
+            # Create new session
+            self.session = create_session(current_project)
+            print(f"DEBUG: Created new session {self.session.metadata.session_id}")
+
+    def _save_message_to_session(self, role: str, content: str):
+        """Save a message to the current session."""
+        if self.session:
+            session_add_message(self.session, role, content, auto_save=True)
+            if self.verbose:
+                print(f"DEBUG: Saved {role} message to session {self.session.metadata.session_id}")
     
     def _set_focus_to_input(self):
         """Set focus to the main input widget"""
@@ -970,6 +1021,10 @@ Try typing something to get started!"""),
                         messages_component = self.query_one("#messages_container", expect_type=Messages)
                         messages_component.update_messages(self.messages)
 
+                        # Save assistant response to session
+                        if response_content:
+                            self._save_message_to_session("assistant", response_content)
+
                     except Exception as e:
                         raise
                 else:
@@ -1078,7 +1133,12 @@ Try typing something to get started!"""),
         """Handle immediate user message display (synchronous)"""
         # 立即显示用户消息 - 同步操作，不等待任何异步处理
         self.messages = [*self.messages, user_message]
-        
+
+        # Save user message to session
+        user_content = user_message.message.content
+        if isinstance(user_content, str):
+            self._save_message_to_session("user", user_content)
+
         # 立即更新UI显示用户消息
         try:
             messages_component = self.query_one("#messages_container", expect_type=Messages)
@@ -1451,7 +1511,9 @@ class REPLApp(App):
             "mcp_clients": [],
             "is_default_model": True,
             "initial_update_version": None,
-            "initial_update_commands": None
+            "initial_update_commands": None,
+            "resume_session_id": None,
+            "continue_last": False
         }
         
         # App-level agent management
@@ -1535,6 +1597,8 @@ def create_repl(
     debug=False,
     initial_prompt=None,
     verbose=False,
+    resume_session_id=None,
+    continue_last=False,
     **kwargs
 ) -> REPLApp:
     """
@@ -1548,17 +1612,21 @@ def create_repl(
         "debug": debug,
         "initial_prompt": initial_prompt,
         "verbose": verbose,
+        "resume_session_id": resume_session_id,
+        "continue_last": continue_last,
         **kwargs
     })
     return app
 
 
-def run(initial_prompt=None, debug=False, verbose=False):
+def run(initial_prompt=None, debug=False, verbose=False, resume_session_id=None, continue_last=False):
     """Run the REPL application with optional configuration"""
     app = create_repl(
         initial_prompt=initial_prompt,
         debug=debug,
-        verbose=verbose
+        verbose=verbose,
+        resume_session_id=resume_session_id,
+        continue_last=continue_last
     )
     app.run()
 
