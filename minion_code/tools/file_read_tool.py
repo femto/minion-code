@@ -42,13 +42,23 @@ class FileReadTool(BaseTool):
     }
     output_type = "any"  # Can return string or PIL.Image
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, workdir: Optional[str] = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.workdir = Path(workdir) if workdir else None
         # State tracking for last execution
         self._last_file_path = None
         self._last_offset = None
         self._last_limit = None
         self._last_total_lines = None
+
+    def _resolve_path(self, file_path: str) -> Path:
+        """Resolve path using workdir if path is relative."""
+        path = Path(file_path)
+        if path.is_absolute():
+            return path
+        if self.workdir:
+            return self.workdir / path
+        return path  # Relative to cwd (backward compatible)
 
     def forward(
         self, file_path: str, offset: Optional[int] = None, limit: Optional[int] = None
@@ -60,7 +70,7 @@ class FileReadTool(BaseTool):
             - For image files: returns PIL.Image object (or error string if PIL not available)
         """
         try:
-            path = Path(file_path)
+            path = self._resolve_path(file_path)
             if not path.exists():
                 return f"Error: File does not exist - {file_path}"
 

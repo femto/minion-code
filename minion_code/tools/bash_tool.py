@@ -27,6 +27,10 @@ class BashTool(BaseTool):
     }
     output_type = "string"
 
+    def __init__(self, workdir: Optional[str] = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.workdir = workdir
+
     def forward(self, command: str, timeout: Optional[int] = 30) -> str:
         """Execute bash command"""
         try:
@@ -35,13 +39,15 @@ class BashTool(BaseTool):
             if any(dangerous in command.lower() for dangerous in dangerous_commands):
                 return f"Error: Dangerous command prohibited - {command}"
 
+            # Use injected workdir if available, otherwise fallback to cwd
+            cwd = self.workdir if self.workdir else os.getcwd()
             result = subprocess.run(
                 command,
                 shell=True,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                cwd=os.getcwd(),
+                cwd=cwd,
             )
 
             output = ""

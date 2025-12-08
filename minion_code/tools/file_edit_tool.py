@@ -16,18 +16,18 @@ class FileEditTool(BaseTool):
     A tool for editing files with string replacement.
     Based on the TypeScript FileEditTool implementation.
     """
-    
+
     name = "file_edit"
     description = "A tool for editing files by replacing old_string with new_string with freshness tracking. For large strings (>2000 chars), consider using MultiEditTool or breaking into smaller edits."
     readonly = False
-    
+
     inputs = {
         "file_path": {
             "type": "string",
             "description": "The absolute path to the file to modify"
         },
         "old_string": {
-            "type": "string", 
+            "type": "string",
             "description": "The text to replace (must be unique within the file)"
         },
         "new_string": {
@@ -36,7 +36,19 @@ class FileEditTool(BaseTool):
         }
     }
     output_type = "string"
-    
+
+    def __init__(self, workdir: Optional[str] = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.workdir = Path(workdir) if workdir else None
+
+    def _resolve_path(self, file_path: str) -> str:
+        """Resolve path using workdir if path is relative."""
+        if os.path.isabs(file_path):
+            return file_path
+        if self.workdir:
+            return str(self.workdir / file_path)
+        return os.path.abspath(file_path)  # Fallback to cwd (backward compatible)
+
     def forward(self, file_path: str, old_string: str, new_string: str) -> str:
         """Execute file edit operation."""
         try:
@@ -103,31 +115,30 @@ class FileEditTool(BaseTool):
                 "warning": warning_msg
             }
         
-        # Resolve absolute path
-        if not os.path.isabs(file_path):
-            file_path = os.path.abspath(file_path)
-        
+        # Resolve path using workdir if relative
+        resolved_path = self._resolve_path(file_path)
+
         # Handle new file creation
-        if not os.path.exists(file_path) and old_string == "":
+        if not os.path.exists(resolved_path) and old_string == "":
             return {"valid": True}
         
         # Check if file exists for existing file edits
-        if not os.path.exists(file_path):
+        if not os.path.exists(resolved_path):
             return {
                 "valid": False,
                 "message": "File does not exist."
             }
-        
+
         # Check if it's a Jupyter notebook
-        if file_path.endswith('.ipynb'):
+        if resolved_path.endswith('.ipynb'):
             return {
                 "valid": False,
                 "message": "File is a Jupyter Notebook. Use NotebookEdit tool instead."
             }
-        
+
         # Check file freshness (if we have tracking)
         try:
-            freshness_result = check_file_freshness(file_path)
+            freshness_result = check_file_freshness(resolved_path)
             if freshness_result.conflict:
                 return {
                     "valid": False,
@@ -136,18 +147,18 @@ class FileEditTool(BaseTool):
         except Exception:
             # If freshness checking fails, continue with basic validation
             pass
-        
+
         # Check if file is binary
-        if self._is_binary_file(file_path):
+        if self._is_binary_file(resolved_path):
             return {
                 "valid": False,
                 "message": "Cannot edit binary files."
             }
-        
+
         # For existing files, validate old_string exists and is unique
         if old_string != "":
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(resolved_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
                 if old_string not in content:
@@ -176,60 +187,59 @@ class FileEditTool(BaseTool):
     
     def _apply_edit(self, file_path: str, old_string: str, new_string: str) -> str:
         """Apply the edit to the file."""
-        
-        # Resolve absolute path
-        if not os.path.isabs(file_path):
-            file_path = os.path.abspath(file_path)
-        
+
+        # Resolve path using workdir if relative
+        resolved_path = self._resolve_path(file_path)
+
         # Handle new file creation
         if old_string == "":
             # Create new file
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            
-            with open(file_path, 'w', encoding='utf-8') as f:
+            os.makedirs(os.path.dirname(resolved_path), exist_ok=True)
+
+            with open(resolved_path, 'w', encoding='utf-8') as f:
                 f.write(new_string)
-            
+
             # Record the file edit
-            record_file_edit(file_path, new_string)
-            
-            return f"Successfully created new file: {file_path}"
+            record_file_edit(resolved_path, new_string)
+
+            return f"Successfully created new file: {resolved_path}"
         
         # Edit existing file
         try:
             # Read current content
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(resolved_path, 'r', encoding='utf-8') as f:
                 original_content = f.read()
-            
+
             # Apply replacement
             if new_string == "":
                 # Handle deletion - check if we need to remove trailing newline
-                if (not old_string.endswith('\n') and 
+                if (not old_string.endswith('\n') and
                     original_content.find(old_string + '\n') != -1):
                     updated_content = original_content.replace(old_string + '\n', new_string)
                 else:
                     updated_content = original_content.replace(old_string, new_string)
             else:
                 updated_content = original_content.replace(old_string, new_string)
-            
+
             # Verify the replacement worked
             if updated_content == original_content:
                 return "Error: Original and edited file match exactly. Failed to apply edit."
-            
+
             # Write updated content
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(resolved_path, 'w', encoding='utf-8') as f:
                 f.write(updated_content)
-            
+
             # Record the file edit
-            record_file_edit(file_path, updated_content)
-            
+            record_file_edit(resolved_path, updated_content)
+
             # Generate result message with snippet
             snippet_info = self._get_snippet(original_content, old_string, new_string)
-            
-            result = f"The file {file_path} has been updated. Here's the result of the edit:\n"
+
+            result = f"The file {resolved_path} has been updated. Here's the result of the edit:\n"
             result += self._add_line_numbers(snippet_info['snippet'], snippet_info['start_line'])
-            
+
             return result
-            
+
         except Exception as e:
             return f"Error applying edit: {str(e)}"
     

@@ -53,6 +53,19 @@ class GrepTool(BaseTool):
     }
     output_type = "string"
 
+    def __init__(self, workdir: Optional[str] = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.workdir = Path(workdir) if workdir else None
+
+    def _resolve_path(self, path: str) -> Path:
+        """Resolve path using workdir if path is relative."""
+        p = Path(path)
+        if p.is_absolute():
+            return p
+        if self.workdir:
+            return self.workdir / p
+        return p  # Relative to cwd (backward compatible)
+
     def forward(
         self,
         pattern: str,
@@ -79,7 +92,7 @@ class GrepTool(BaseTool):
                 after_context = context
                 before_context = context
 
-            search_path = Path(path)
+            search_path = self._resolve_path(path)
             if not search_path.exists():
                 return f"Error: Path does not exist - {path}"
 

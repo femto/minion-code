@@ -12,7 +12,8 @@ requires-python = ">=3.8"
 dependencies = [
     "minionx",
     "typer>=0.9.0",
-    "Pillow>=10.0.0"
+    "Pillow>=10.0.0",
+    "nest-asyncio>=1.5.0"
 ]
 
 [project.optional-dependencies]

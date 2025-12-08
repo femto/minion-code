@@ -23,6 +23,11 @@ from minion_code.utils.session_storage import (
     create_session, load_session, save_session, add_message,
     restore_agent_history
 )
+from minion_code.agents.hooks import (
+    HookConfig, HookMatcher,
+    create_confirm_writes_hook,
+    create_dangerous_command_check_hook
+)
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +214,29 @@ class SessionManager:
                 return session
         return None
 
+    def _create_hooks_for_session(self, session: WebSession) -> HookConfig:
+        """
+        Create hook configuration for a session.
+
+        Configures:
+        - Dangerous command blocking for bash
+        - User confirmation for write operations via adapter.confirm()
+
+        Args:
+            session: WebSession with adapter for confirmations
+
+        Returns:
+            HookConfig for the session
+        """
+        return HookConfig(
+            pre_tool_use=[
+                # Block dangerous bash commands
+                HookMatcher("bash", create_dangerous_command_check_hook()),
+                # Confirm non-readonly tools via WebOutputAdapter
+                HookMatcher("*", create_confirm_writes_hook(session.adapter)),
+            ]
+        )
+
     async def get_or_create_agent(self, session: WebSession):
         """
         Get or create agent for session based on history mode.
@@ -224,12 +252,16 @@ class SessionManager:
         """
         from minion_code.agents import MinionCodeAgent
 
+        # Create hooks for permission control
+        hooks = self._create_hooks_for_session(session)
+
         if session.history_mode == "full":
             # Full mode: Always create new agent and restore history
             agent = await MinionCodeAgent.create(
                 name=f"WebAgent-{session.session_id}",
                 llm="sonnet",
-                workdir=session.project_path
+                workdir=session.project_path,
+                hooks=hooks
             )
 
             # Restore history from storage
@@ -244,7 +276,8 @@ class SessionManager:
                 session._agent = await MinionCodeAgent.create(
                     name=f"WebAgent-{session.session_id}",
                     llm="sonnet",
-                    workdir=session.project_path
+                    workdir=session.project_path,
+                    hooks=hooks
                 )
 
                 # Restore history on first creation

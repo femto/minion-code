@@ -334,11 +334,12 @@ class MinionCodeAgent(CodeAgent):
         system_prompt: Optional[str] = None,
         workdir: Optional[Union[str, Path]] = None,
         additional_tools: Optional[List[Any]] = None,
+        hooks: Optional["HookConfig"] = None,
         **kwargs
     ) -> "MinionCodeAgent":
         """
         Create a new MinionCodeAgent with all minion_code tools.
-        
+
         Args:
             name: Agent name
             llm: Main LLM model to use (default for all tasks)
@@ -347,8 +348,9 @@ class MinionCodeAgent(CodeAgent):
             system_prompt: Custom system prompt (uses default if None)
             workdir: Working directory (uses current if None)
             additional_tools: Extra tools to add beyond minion_code tools
+            hooks: Optional HookConfig for pre-tool-use hooks (permission control)
             **kwargs: Additional arguments passed to CodeAgent.create()
-        
+
         Returns:
             Configured MinionCodeAgent instance
         """
@@ -382,16 +384,17 @@ class MinionCodeAgent(CodeAgent):
         if skills_prompt and "<available_skills>" in skills_prompt:
             system_prompt += "\n\n# Skills\n" + skills_prompt
 
-        # Get all minion_code tools
+        # Get all minion_code tools (inject workdir for path-aware tools)
+        workdir_str = str(workdir)
         minion_tools = [
-            FileReadTool(),
-            FileWriteTool(),
-            FileEditTool(),
-            MultiEditTool(),
-            BashTool(),
-            GrepTool(),
-            GlobTool(),
-            LsTool(),
+            FileReadTool(workdir=workdir_str),
+            FileWriteTool(workdir=workdir_str),
+            FileEditTool(workdir=workdir_str),
+            MultiEditTool(),  # TODO: Add workdir support if needed
+            BashTool(workdir=workdir_str),
+            GrepTool(workdir=workdir_str),
+            GlobTool(workdir=workdir_str),
+            LsTool(workdir=workdir_str),
             PythonInterpreterTool(),
             UserInputTool(),
             TodoWriteTool(),
@@ -413,7 +416,13 @@ class MinionCodeAgent(CodeAgent):
         all_tools = minion_tools[:]
         if additional_tools:
             all_tools.extend(additional_tools)
-        
+
+        # Wrap tools with hooks if configured
+        if hooks is not None and hooks.pre_tool_use:
+            from .hooks import wrap_tools_with_hooks
+            logger.info(f"Wrapping {len(all_tools)} tools with {len(hooks.pre_tool_use)} pre-tool-use hooks")
+            all_tools = wrap_tools_with_hooks(all_tools, hooks)
+
         logger.info(f"Creating MinionCodeAgent with {len(all_tools)} tools")
         logger.info(f"LLM config - main: {llm}, quick: {llm_quick}, task: {llm_task}, reasoning: {llm_reasoning}")
         

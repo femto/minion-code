@@ -5,7 +5,7 @@ Directory listing tool
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from minion.tools import BaseTool
 from ..utils.output_truncator import truncate_output
 
@@ -26,10 +26,23 @@ class LsTool(BaseTool):
     }
     output_type = "string"
 
+    def __init__(self, workdir: Optional[str] = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.workdir = Path(workdir) if workdir else None
+
+    def _resolve_path(self, path: str) -> Path:
+        """Resolve path using workdir if path is relative."""
+        p = Path(path)
+        if p.is_absolute():
+            return p
+        if self.workdir:
+            return self.workdir / p
+        return p  # Relative to cwd (backward compatible)
+
     def forward(self, path: str = ".", recursive: bool = False) -> str:
         """List directory contents"""
         try:
-            dir_path = Path(path)
+            dir_path = self._resolve_path(path)
             if not dir_path.exists():
                 return f"Error: Path does not exist - {path}"
 
