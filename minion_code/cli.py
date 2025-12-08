@@ -363,6 +363,66 @@ def console(
     )
 
 
+@app.command()
+def serve(
+    host: str = typer.Option(
+        "0.0.0.0",
+        "--host",
+        "-H",
+        help="Host to bind the server to"
+    ),
+    port: int = typer.Option(
+        8000,
+        "--port",
+        "-p",
+        help="Port to listen on"
+    ),
+    reload: bool = typer.Option(
+        False,
+        "--reload",
+        "-r",
+        help="Enable auto-reload for development"
+    ),
+    log_level: str = typer.Option(
+        "info",
+        "--log-level",
+        "-l",
+        help="Logging level (debug, info, warning, error)"
+    ),
+):
+    """
+    🌐 Start the Web API server.
+
+    Provides HTTP/SSE API for cross-process frontend communication.
+    Similar to claude.ai, uses Server-Sent Events for streaming responses.
+
+    Examples:
+        # Start server on default port (8000)
+        mcode serve
+
+        # Start on custom port with auto-reload
+        mcode serve --port 3001 --reload
+
+        # Production mode with specific host
+        mcode serve --host 127.0.0.1 --port 8080
+    """
+    from rich.console import Console
+    console_obj = Console()
+
+    console_obj.print(f"🌐 [bold green]Starting Minion Code Web API[/bold green]")
+    console_obj.print(f"📡 Server: http://{host}:{port}")
+    console_obj.print(f"📚 API Docs: http://{host}:{port}/docs")
+    console_obj.print()
+
+    from minion_code.web.server import run_server
+    run_server(
+        host=host,
+        port=port,
+        reload=reload,
+        log_level=log_level
+    )
+
+
 def run():
     """Entry point for pyproject.toml scripts."""
     _maybe_insert_main_command()
@@ -371,7 +431,7 @@ def run():
 
 def _maybe_insert_main_command():
     """Insert 'main' command if not provided, to enable 'mcode "prompt"' usage."""
-    known_commands = {'main', 'repl', 'console', '--help', '-h'}
+    known_commands = {'main', 'repl', 'console', 'serve', '--help', '-h'}
     args = sys.argv[1:]
 
     if not args:

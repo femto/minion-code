@@ -29,6 +29,11 @@ tui = [
 agent = [
     "openai>=1.0.0"
 ]
+web = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "pydantic>=2.0.0"
+]
 
 [project.scripts]
 # TUI interface (default, with Textual)

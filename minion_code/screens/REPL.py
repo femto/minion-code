@@ -442,6 +442,7 @@ class REPL(Container):
         self.debug = debug
         self.initial_fork_number = initial_fork_number
         self.initial_prompt = initial_prompt
+        print(f"DEBUG REPL.__init__: initial_prompt={initial_prompt}")
         self.message_log_name = message_log_name
         self.tools = tools or []
         self.verbose = verbose
@@ -701,30 +702,59 @@ Try typing something to get started!"""),
     
     async def on_init(self):
         """Initialize REPL - equivalent to React onInit function"""
-        if not self.initial_prompt:
+        # Initial prompt processing moved to set_agent to ensure agent is ready
+        pass
+
+    @work(exclusive=False)
+    async def _start_initial_prompt_worker(self):
+        """Worker to process initial prompt."""
+        print("DEBUG: _start_initial_prompt_worker started")
+        await self._process_initial_prompt()
+
+    async def _process_initial_prompt(self):
+        """Process the initial prompt after agent is ready."""
+        print(f"DEBUG _process_initial_prompt called: prompt={self.initial_prompt}, agent={self.agent}")
+        if not self.initial_prompt or not self.agent:
+            print("DEBUG: Skipping - no prompt or no agent")
             return
-        
+
         self.is_loading = True
-        
+        prompt_to_process = self.initial_prompt
+        # Clear immediately to prevent re-processing
+        self.initial_prompt = None
+
         try:
+            print(f"DEBUG: Processing prompt: {prompt_to_process}")
             # Process initial prompt (equivalent to processUserInput)
             new_messages = await self.process_user_input(
-                self.initial_prompt,
+                prompt_to_process,
                 self.input_mode
             )
-            
+            print(f"DEBUG: Got {len(new_messages) if new_messages else 0} new messages")
+
             if new_messages:
                 # Add to history (equivalent to addToHistory)
-                self.add_to_history(self.initial_prompt)
-                
+                self.add_to_history(prompt_to_process)
+
                 # Update messages (equivalent to setMessages)
                 self.messages = [*self.messages, *new_messages]
-                
-                # Query API if needed (equivalent to query function)
+
+                # Update UI
+                try:
+                    messages_component = self.query_one("#messages_container", expect_type=Messages)
+                    messages_component.update_messages(self.messages)
+                except Exception:
+                    self.refresh()
+
+                # Query API (equivalent to query function)
+                print("DEBUG: Calling query_api")
                 await self.query_api(new_messages)
-            
-        except Exception:
-            pass  # Silently handle initialization errors
+                print("DEBUG: query_api completed")
+
+        except Exception as e:
+            print(f"DEBUG: Error processing initial prompt: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             self.is_loading = False
     
@@ -774,6 +804,7 @@ Try typing something to get started!"""),
     
     def set_agent(self, agent):
         """Set agent from app level and bind output adapter"""
+        print(f"DEBUG set_agent: agent={agent}, initial_prompt={self.initial_prompt}")
         self.agent = agent
         # Bind output adapter to agent if it supports confirmation
         if hasattr(agent, 'set_output_adapter'):
@@ -782,6 +813,12 @@ Try typing something to get started!"""),
         # Restore agent history from session if resuming
         if self.session and self.session.messages:
             restore_agent_history(agent, self.session, self.verbose)
+
+        # Process initial prompt now that agent is ready
+        if self.initial_prompt:
+            print(f"DEBUG: Triggering initial prompt processing: {self.initial_prompt}")
+            # Start the worker to process initial prompt
+            self._start_initial_prompt_worker()
 
     def handle_command_output(self, output_type: str, data: dict):
         """Handle output from command execution via adapter"""
@@ -1633,6 +1670,7 @@ def create_repl(
     Create a configured REPL application
     Equivalent to calling REPL component with props in React
     """
+    print(f"DEBUG create_repl: initial_prompt={initial_prompt}")
     app = REPLApp()
     app.repl_props.update({
         "commands": commands or [],
@@ -1644,6 +1682,7 @@ def create_repl(
         "continue_last": continue_last,
         **kwargs
     })
+    print(f"DEBUG create_repl: repl_props={app.repl_props}")
     return app
 
 
