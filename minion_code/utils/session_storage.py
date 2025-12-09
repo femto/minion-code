@@ -39,9 +39,18 @@ class SessionMetadata:
 
 @dataclass
 class Session:
-    """A complete session with metadata and messages."""
+    """A complete session with metadata and messages.
+
+    Attributes:
+        metadata: Session metadata (id, timestamps, etc.)
+        messages: Original messages (UI display, only grows, never truncated)
+        agent_history: Compacted history for agent context (synced after auto-compact)
+        compaction_count: Number of times this session has been compacted
+    """
     metadata: SessionMetadata
     messages: List[SessionMessage] = field(default_factory=list)
+    agent_history: List[Dict[str, Any]] = field(default_factory=list)
+    compaction_count: int = 0
 
 
 class SessionStorage:
@@ -93,7 +102,9 @@ class SessionStorage:
             # Convert to dict for JSON serialization
             session_dict = {
                 'metadata': asdict(session.metadata),
-                'messages': [asdict(msg) for msg in session.messages]
+                'messages': [asdict(msg) for msg in session.messages],
+                'agent_history': session.agent_history,  # Already list of dicts
+                'compaction_count': session.compaction_count
             }
 
             with open(session_path, 'w', encoding='utf-8') as f:
@@ -126,8 +137,16 @@ class SessionStorage:
             # Convert dict back to dataclass
             metadata = SessionMetadata(**session_dict['metadata'])
             messages = [SessionMessage(**msg) for msg in session_dict.get('messages', [])]
+            # Load new fields with backward compatibility (defaults for old sessions)
+            agent_history = session_dict.get('agent_history', [])
+            compaction_count = session_dict.get('compaction_count', 0)
 
-            return Session(metadata=metadata, messages=messages)
+            return Session(
+                metadata=metadata,
+                messages=messages,
+                agent_history=agent_history,
+                compaction_count=compaction_count
+            )
         except Exception as e:
             logger.error(f"Failed to load session {session_id}: {e}")
             return None
@@ -296,6 +315,9 @@ def add_message(session: Session, role: str, content: str, auto_save: bool = Tru
 def restore_agent_history(agent, session: Session, verbose: bool = False) -> int:
     """Restore agent's conversation history from session.
 
+    Prefers `agent_history` (compacted) over `messages` (original) to avoid
+    repeated compaction on session restore.
+
     Args:
         agent: The agent instance with state.history
         session: Session to restore from
@@ -304,7 +326,7 @@ def restore_agent_history(agent, session: Session, verbose: bool = False) -> int
     Returns:
         Number of messages restored
     """
-    if not agent or not session or not session.messages:
+    if not agent or not session:
         return 0
 
     # Check if agent has history
@@ -314,7 +336,21 @@ def restore_agent_history(agent, session: Session, verbose: bool = False) -> int
     # Clear existing history first
     agent.state.history.clear()
 
-    # Restore messages from session
+    # Prefer agent_history (compacted) if available
+    if session.agent_history:
+        for msg in session.agent_history:
+            agent.state.history.append(msg)
+
+        if verbose:
+            print(f"Restored {len(session.agent_history)} messages from agent_history "
+                  f"(compacted {session.compaction_count} times)")
+
+        return len(session.agent_history)
+
+    # Fallback to original messages (first time or old sessions without agent_history)
+    if not session.messages:
+        return 0
+
     for msg in session.messages:
         agent.state.history.append({
             'role': msg.role,
@@ -322,6 +358,6 @@ def restore_agent_history(agent, session: Session, verbose: bool = False) -> int
         })
 
     if verbose:
-        print(f"Restored {len(session.messages)} messages to agent history")
+        print(f"Restored {len(session.messages)} messages from original history")
 
     return len(session.messages)

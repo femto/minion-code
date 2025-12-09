@@ -1604,20 +1604,26 @@ class REPLApp(App):
         try:
             from minion_code import MinionCodeAgent
             from minion_code.utils.logs import logger
-            
+            from minion_code.agents.hooks import create_autonomous_hooks
+
             # Use gpt-4o-mini as default (doesn't require bedrock)
             # Users can override by setting environment variable or config
             default_llm = "sonnet"
-            
+
+            # Create hooks - use autonomous mode for TUI for now
+            # TODO: Integrate with TextualOutputAdapter for proper confirmation dialogs
+            hooks = create_autonomous_hooks()
+
             logger.info(f"Initializing agent with LLM: {default_llm}")
             self.agent = await MinionCodeAgent.create(
                 name="REPL Assistant",
-                llm=default_llm
+                llm=default_llm,
+                hooks=hooks
             )
             self.agent_ready = True
-            
+
             logger.info(f"Agent initialized with {len(self.agent.tools)} tools")
-            
+
             # Update REPL component with agent
             try:
                 repl_component = self.query_one(REPL)

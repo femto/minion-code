@@ -237,6 +237,32 @@ class SessionManager:
             ]
         )
 
+    def _create_compaction_callback(self, session: WebSession):
+        """
+        Create a callback function for syncing compacted history to storage.
+
+        When BaseAgent compacts history, this callback updates session storage
+        with the compacted agent_history.
+
+        Args:
+            session: WebSession to sync compacted history for
+
+        Returns:
+            Callback function for on_compaction hook
+        """
+        def sync_compaction(compacted_messages: List[Dict[str, Any]]):
+            if session._storage_session:
+                session._storage_session.agent_history = compacted_messages
+                session._storage_session.compaction_count += 1
+                save_session(session._storage_session)
+                logger.info(
+                    f"Session {session.session_id}: Synced compacted history "
+                    f"({len(compacted_messages)} messages, "
+                    f"compaction #{session._storage_session.compaction_count})"
+                )
+
+        return sync_compaction
+
     async def get_or_create_agent(self, session: WebSession):
         """
         Get or create agent for session based on history mode.
@@ -264,8 +290,11 @@ class SessionManager:
                 hooks=hooks
             )
 
-            # Restore history from storage
-            if session._storage_session and session._storage_session.messages:
+            # Inject on_compaction callback to sync compacted history
+            agent.on_compaction = self._create_compaction_callback(session)
+
+            # Restore history from storage (prefers agent_history if available)
+            if session._storage_session:
                 restore_agent_history(agent, session._storage_session, verbose=False)
 
             return agent
@@ -280,8 +309,11 @@ class SessionManager:
                     hooks=hooks
                 )
 
-                # Restore history on first creation
-                if session._storage_session and session._storage_session.messages:
+                # Inject on_compaction callback to sync compacted history
+                session._agent.on_compaction = self._create_compaction_callback(session)
+
+                # Restore history on first creation (prefers agent_history if available)
+                if session._storage_session:
                     restore_agent_history(session._agent, session._storage_session, verbose=False)
 
             return session._agent

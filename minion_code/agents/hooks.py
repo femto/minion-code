@@ -251,6 +251,101 @@ def _format_tool_input(tool_name: str, tool_input: Dict[str, Any]) -> str:
     return "\n".join(parts) if parts else "(no parameters)"
 
 
+def create_cli_confirm_hook(
+    allowed_tools: Optional[set] = None,
+    session_allowed: Optional[set] = None,
+) -> PreToolUseHook:
+    """
+    Create a hook that prompts for confirmation in CLI/terminal.
+
+    Args:
+        allowed_tools: Set of tool names that are always allowed (persistent)
+        session_allowed: Set of tool names allowed for this session only
+
+    Returns:
+        PreToolUseHook for CLI confirmation
+    """
+    # Initialize mutable defaults
+    if allowed_tools is None:
+        allowed_tools = set()
+    if session_allowed is None:
+        session_allowed = set()
+
+    # Known readonly tools (auto-accept)
+    readonly_tools = {"file_read", "glob", "grep", "ls", "web_fetch", "web_search", "todo_read"}
+
+    async def cli_confirm(tool_name: str, tool_input: Dict[str, Any], tool_use_id: str) -> PreToolUseResult:
+        # Auto-accept readonly tools
+        if tool_name in readonly_tools:
+            return PreToolUseResult(decision=PermissionDecision.ACCEPT)
+
+        # Check if already allowed
+        if tool_name in allowed_tools or tool_name in session_allowed:
+            return PreToolUseResult(decision=PermissionDecision.ACCEPT)
+
+        # Format tool info for display
+        input_summary = _format_tool_input(tool_name, tool_input)
+
+        # Print confirmation prompt
+        print(f"\n{'='*60}")
+        print(f"🔧 Tool: {tool_name}")
+        print(f"{'='*60}")
+        print(input_summary)
+        print(f"{'='*60}")
+        print("Options:")
+        print("  [y] Yes, allow this once")
+        print("  [n] No, deny")
+        print("  [a] Always allow this tool (session)")
+        print("  [A] Always allow this tool (permanent)")
+
+        try:
+            response = input("Allow? [y/n/a/A]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return PreToolUseResult(
+                decision=PermissionDecision.DENY,
+                reason="User cancelled"
+            )
+
+        if response == 'y':
+            return PreToolUseResult(decision=PermissionDecision.ACCEPT)
+        elif response == 'a':
+            session_allowed.add(tool_name)
+            logger.info(f"Tool '{tool_name}' allowed for this session")
+            return PreToolUseResult(decision=PermissionDecision.ACCEPT)
+        elif response == 'A':
+            allowed_tools.add(tool_name)
+            logger.info(f"Tool '{tool_name}' permanently allowed")
+            return PreToolUseResult(decision=PermissionDecision.ACCEPT)
+        else:
+            return PreToolUseResult(
+                decision=PermissionDecision.DENY,
+                reason="User denied permission"
+            )
+
+    return cli_confirm
+
+
+def create_cli_hooks(auto_accept: bool = False) -> HookConfig:
+    """
+    Create hook configuration for CLI usage.
+
+    Args:
+        auto_accept: If True, auto-accept all tools (no confirmation prompts)
+
+    Returns:
+        HookConfig for CLI
+    """
+    if auto_accept:
+        return create_autonomous_hooks()
+
+    return HookConfig(
+        pre_tool_use=[
+            HookMatcher("bash", create_dangerous_command_check_hook()),
+            HookMatcher("*", create_cli_confirm_hook()),
+        ]
+    )
+
+
 # ============================================================================
 # Convenience Functions
 # ============================================================================

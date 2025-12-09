@@ -29,6 +29,7 @@ from minion_code import MinionCodeAgent
 from minion_code.commands import command_registry
 from minion_code.utils.mcp_loader import MCPToolsLoader
 from minion_code.adapters import RichOutputAdapter
+from minion_code.agents.hooks import create_cli_hooks
 from minion_code.utils.session_storage import (
     Session, create_session, save_session, load_session,
     get_latest_session_id, add_message, restore_agent_history
@@ -52,7 +53,8 @@ class InterruptibleCLI:
         resume_session_id: Optional[str] = None,
         continue_last: bool = False,
         initial_prompt: Optional[str] = None,
-        print_output: bool = False
+        print_output: bool = False,
+        auto_accept: bool = False
     ):
         self.agent = None
         self.running = True
@@ -68,6 +70,9 @@ class InterruptibleCLI:
         # Initial prompt support (like claude "prompt")
         self.initial_prompt = initial_prompt
         self.print_output = print_output  # Print output and exit (non-interactive)
+
+        # Tool permission mode
+        self.auto_accept = auto_accept
 
         # Session management
         self.session: Optional[Session] = None
@@ -122,10 +127,14 @@ class InterruptibleCLI:
             
             agent_task = progress.add_task("🔧 Setting up MinionCodeAgent...", total=None)
             
+            # Create hooks for tool permission control
+            hooks = create_cli_hooks(auto_accept=self.auto_accept)
+
             self.agent = await MinionCodeAgent.create(
                 name="CLI Code Assistant",
                 llm="sonnet",
-                additional_tools=self.mcp_tools if self.mcp_tools else None
+                additional_tools=self.mcp_tools if self.mcp_tools else None,
+                hooks=hooks
             )
             
             progress.update(agent_task, completed=True)
@@ -513,6 +522,11 @@ def main(
         "--print",
         "-p",
         help="Print output and exit (non-interactive mode)"
+    ),
+    dangerously_skip_permissions: bool = typer.Option(
+        False,
+        "--dangerously-skip-permissions",
+        help="Skip tool permission prompts (auto-accept all). Use with caution!"
     )
 ):
     """
@@ -561,7 +575,8 @@ def main(
         resume_session_id=resume,
         continue_last=continue_session,
         initial_prompt=prompt,
-        print_output=print_output
+        print_output=print_output,
+        auto_accept=dangerously_skip_permissions
     )
 
     try:

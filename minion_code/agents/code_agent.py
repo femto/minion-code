@@ -268,52 +268,23 @@ class MinionCodeAgent(CodeAgent):
         ))
     
     async def pre_step(self, input_data, kwargs):
-        """Override pre_step to track iterations without todo usage and handle auto-compacting."""
-        # Call parent pre_step first
+        """Override pre_step to track iterations without todo usage.
+
+        Note: Auto-compact logic is handled by BaseAgent. This method only handles
+        iteration tracking and nag reminders.
+        """
+        # Call parent pre_step first (BaseAgent handles auto-compact)
         result = await super().pre_step(input_data, kwargs)
-        
+
         # Initialize metadata if not exists
         if not hasattr(self.state, 'metadata'):
             self.state.metadata = {}
         if "iteration_without_todos" not in self.state.metadata:
             self.state.metadata["iteration_without_todos"] = 0
-        
+
         # Increment iteration counter
         self.state.metadata["iteration_without_todos"] += 1
-        
-        # AUTO_COMPACT: Check if history needs compacting
-        if hasattr(self.state, 'history') and self.state.history:
-            # Convert history to list of dicts if needed
-            history_messages = []
-            for msg in self.state.history:
-                if isinstance(msg, dict):
-                    history_messages.append(msg)
-                else:
-                    # Handle other message formats if needed
-                    content = getattr(msg, 'content', str(msg))
-                    # Keep content in its original format (string or list)
-                    history_messages.append({
-                        'role': getattr(msg, 'role', 'unknown'),
-                        'content': content
-                    })
-            
-            # Check if compacting is needed
-            if self.auto_compact.needs_compacting(history_messages):
-                logger.info(f"AUTO_COMPACT: Compacting history from {len(history_messages)} messages")
-                compacted_messages = self.auto_compact.compact_history(history_messages)
-                
-                # Update the history with compacted messages
-                self.state.history.clear()
-                for msg in compacted_messages:
-                    self.state.history.append(msg)
-                
-                logger.info(f"AUTO_COMPACT: History compacted to {len(compacted_messages)} messages")
-                
-                # Log context stats
-                stats = self.auto_compact.get_context_stats(compacted_messages)
-                logger.info(f"AUTO_COMPACT: Context usage: {stats['usage_percentage']:.1%} "
-                           f"({stats['total_tokens']}/{self.auto_compact.config.context_window} tokens)")
-        
+
         # Add nag reminder if more than 10 iterations without todo usage
         if self.state.metadata["iteration_without_todos"] > 10:
             self.state.history.append({
@@ -322,7 +293,7 @@ class MinionCodeAgent(CodeAgent):
             })
             # Reset counter to avoid spamming reminders
             self.state.metadata["iteration_without_todos"] = 0
-        
+
         return result
     
     @classmethod
