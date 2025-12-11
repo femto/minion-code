@@ -132,7 +132,7 @@ class InterruptibleCLI:
 
             self.agent = await MinionCodeAgent.create(
                 name="CLI Code Assistant",
-                llm="sonnet",
+                llm="claude-sonnet-4-5",
                 additional_tools=self.mcp_tools if self.mcp_tools else None,
                 hooks=hooks
             )

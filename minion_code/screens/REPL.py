@@ -1608,7 +1608,7 @@ class REPLApp(App):
 
             # Use gpt-4o-mini as default (doesn't require bedrock)
             # Users can override by setting environment variable or config
-            default_llm = "sonnet"
+            default_llm = "claude-sonnet-4-5"
 
             # Create hooks - use autonomous mode for TUI for now
             # TODO: Integrate with TextualOutputAdapter for proper confirmation dialogs
@@ -1694,6 +1694,19 @@ def create_repl(
 
 def run(initial_prompt=None, debug=False, verbose=False, resume_session_id=None, continue_last=False):
     """Run the REPL application with optional configuration"""
+    # File-based logging for TUI debugging
+    import logging
+    logging.basicConfig(
+        filename='/tmp/minion_repl_debug.log',
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        force=True  # Override any existing config
+    )
+    logging.debug(f"=== REPL run() called ===")
+    logging.debug(f"initial_prompt: {repr(initial_prompt)}")
+    logging.debug(f"debug: {debug}, verbose: {verbose}")
+    logging.debug(f"resume_session_id: {resume_session_id}, continue_last: {continue_last}")
+
     app = create_repl(
         initial_prompt=initial_prompt,
         debug=debug,
@@ -1701,6 +1714,7 @@ def run(initial_prompt=None, debug=False, verbose=False, resume_session_id=None,
         resume_session_id=resume_session_id,
         continue_last=continue_last
     )
+    logging.debug(f"app.repl_props: {app.repl_props}")
     app.run()
 
 

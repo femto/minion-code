@@ -300,7 +300,7 @@ class MinionCodeAgent(CodeAgent):
     async def create(
         cls,
         name: str = "Minion Code Assistant",
-        llm: str = "sonnet",
+        llm: str = "claude-sonnet-4-5",
         llms: Optional[dict] = None,
         system_prompt: Optional[str] = None,
         workdir: Optional[Union[str, Path]] = None,
@@ -698,7 +698,7 @@ class MinionCodeAgent(CodeAgent):
 # Convenience function for quick setup
 async def create_minion_code_agent(
     name: str = "Minion Code Assistant",
-    llm: str = "gpt-4o-mini",
+    llm: str = "claude-sonnet-4-5",
     **kwargs
 ) -> MinionCodeAgent:
     """
