@@ -25,7 +25,6 @@ import sys
 from minion.agents import CodeAgent
 from minion.types import AgentState
 from minion.types.history import History
-from ..utils.auto_compact_core import AutoCompactCore, CompactConfig
 
 # Import all minion_code tools
 from ..tools import (
@@ -259,13 +258,7 @@ class MinionCodeAgent(CodeAgent):
         """Initialize the CodeAgent with thinking capabilities and optional state tracking."""
         super().__post_init__()
         self.conversation_history = []
-        # Initialize auto-compact functionality
-        self.auto_compact = AutoCompactCore(CompactConfig(
-            context_window=128000,  # 128k tokens
-            compact_threshold=0.92,  # 92%
-            preserve_recent_messages=10,
-            compression_ratio=0.5
-        ))
+        # Note: Auto-compact is handled by minion's BaseAgent
     
     async def pre_step(self, input_data, kwargs):
         """Override pre_step to track iterations without todo usage.
@@ -534,67 +527,54 @@ class MinionCodeAgent(CodeAgent):
         print(f"\n🔒 = readonly tool, ✏️ = read/write tool")
     
     def get_context_stats(self) -> dict:
-        """Get current context usage statistics."""
-        if not hasattr(self.state, 'history') or not self.state.history:
+        """Get current context usage statistics.
+
+        Note: Auto-compact is handled by minion's BaseAgent. This method
+        delegates to the parent class if available.
+        """
+        # Delegate to parent class (BaseAgent) methods
+        if hasattr(self, '_calculate_current_tokens') and hasattr(self, '_get_context_window_limit'):
+            if not hasattr(self.state, 'history') or not self.state.history:
+                context_limit = self._get_context_window_limit()
+                return {
+                    'total_tokens': 0,
+                    'usage_percentage': 0.0,
+                    'needs_compacting': False,
+                    'remaining_tokens': context_limit
+                }
+
+            current_tokens = self._calculate_current_tokens(self.state.history)
+            context_limit = self._get_context_window_limit()
+            usage_percentage = current_tokens / context_limit if context_limit > 0 else 0.0
+
             return {
-                'total_tokens': 0,
-                'usage_percentage': 0.0,
-                'needs_compacting': False,
-                'remaining_tokens': self.auto_compact.config.context_window
+                'total_tokens': current_tokens,
+                'usage_percentage': usage_percentage,
+                'needs_compacting': self._should_compact(self.state.history) if hasattr(self, '_should_compact') else False,
+                'remaining_tokens': context_limit - current_tokens
             }
-        
-        # Convert history to list of dicts if needed
-        history_messages = []
-        for msg in self.state.history:
-            if isinstance(msg, dict):
-                history_messages.append(msg)
-            else:
-                content = getattr(msg, 'content', str(msg))
-                # Keep content in its original format (string or list)
-                history_messages.append({
-                    'role': getattr(msg, 'role', 'unknown'),
-                    'content': content
-                })
-        
-        return self.auto_compact.get_context_stats(history_messages)
-    
-    def force_compact_history(self) -> bool:
-        """Manually trigger history compaction. Returns True if compaction occurred."""
-        if not hasattr(self.state, 'history') or not self.state.history:
-            return False
-        
-        # Convert history to list of dicts if needed
-        history_messages = []
-        for msg in self.state.history:
-            if isinstance(msg, dict):
-                history_messages.append(msg)
-            else:
-                content = getattr(msg, 'content', str(msg))
-                # Keep content in its original format (string or list)
-                history_messages.append({
-                    'role': getattr(msg, 'role', 'unknown'),
-                    'content': content
-                })
-        
-        original_count = len(history_messages)
-        compacted_messages = self.auto_compact.compact_history(history_messages)
-        
-        if len(compacted_messages) < original_count:
-            # Update the history with compacted messages
-            self.state.history.clear()
-            for msg in compacted_messages:
-                self.state.history.append(msg)
-            
-            logger.info(f"Manual compaction: {original_count} -> {len(compacted_messages)} messages")
+
+        # Fallback if parent methods not available
+        return {
+            'total_tokens': 0,
+            'usage_percentage': 0.0,
+            'needs_compacting': False,
+            'remaining_tokens': self.default_context_window if hasattr(self, 'default_context_window') else 128000
+        }
+
+    async def force_compact_history(self) -> bool:
+        """Manually trigger history compaction. Returns True if compaction occurred.
+
+        Note: Delegates to minion's BaseAgent.compact_now() method.
+        """
+        if hasattr(self, 'compact_now'):
+            await self.compact_now()
+            logger.info("Manual compaction triggered via BaseAgent.compact_now()")
             return True
-        
+
+        logger.warning("compact_now() not available on parent class")
         return False
-    
-    def update_compact_config(self, **kwargs) -> None:
-        """Update auto-compact configuration."""
-        self.auto_compact.update_config(**kwargs)
-        logger.info(f"Updated auto-compact config: {kwargs}")
-    
+
     def get_llm_for_task(self, task_type: str = "main"):
         """
         Get the appropriate LLM for a specific task type.
