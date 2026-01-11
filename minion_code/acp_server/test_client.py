@@ -4,8 +4,8 @@
 Simple ACP client for testing minion-code ACP agent.
 
 Usage:
-    python -m minion_code.acp.test_client
-    python -m minion_code.acp.test_client "your prompt here"
+    python -m minion_code.acp_server.test_client
+    python -m minion_code.acp_server.test_client "your prompt here"
 """
 
 import asyncio
@@ -41,17 +41,25 @@ class TestClient(Client):
                 print(f"{content}", end="", flush=True)
         elif hasattr(update, 'tool_call_id'):
             # ToolCallStart or ToolCallProgress
-            if hasattr(update, 'title'):
+            # Check session_update to distinguish them
+            session_update_type = getattr(update, 'session_update', None)
+            if session_update_type == "tool_call":
+                # ToolCallStart
                 print(f"\n[TOOL START] {update.title} (id={update.tool_call_id})")
-                if hasattr(update, 'raw_input') and update.raw_input:
-                    print(f"  Input: {update.raw_input}")
-            elif hasattr(update, 'status'):
-                print(f"\n[TOOL {update.status.upper()}] id={update.tool_call_id}")
-                if hasattr(update, 'raw_output') and update.raw_output:
-                    output = update.raw_output
-                    if len(output) > 500:
-                        output = output[:500] + "..."
-                    print(f"  Output: {output}")
+                # Print content if available
+                if hasattr(update, 'content') and update.content:
+                    for c in update.content:
+                        if hasattr(c, 'content') and hasattr(c.content, 'text'):
+                            print(f"  Code:\n{c.content.text}")
+            elif session_update_type == "tool_call_update":
+                # ToolCallProgress
+                status = getattr(update, 'status', 'unknown')
+                print(f"\n[TOOL {status.upper()}] id={update.tool_call_id}")
+                # Print content if available
+                if hasattr(update, 'content') and update.content:
+                    for c in update.content:
+                        if hasattr(c, 'content') and hasattr(c.content, 'text'):
+                            print(f"  Result: {c.content.text}")
         else:
             print(f"\n[UPDATE] {update_type}: {update}")
 
@@ -66,7 +74,7 @@ async def main(prompt: str = "Hello! What can you do?") -> None:
     async with spawn_agent_process(
         TestClient(),
         sys.executable,
-        "-m", "minion_code.acp.main"
+        "-m", "minion_code.acp_server.main"
     ) as (conn, proc):
         print("Agent spawned, initializing...")
 

@@ -25,6 +25,7 @@ from acp.schema import (
     AudioContentBlock,
     AuthenticateResponse,
     ClientCapabilities,
+    ContentToolCallContent,
     EmbeddedResourceContentBlock,
     ForkSessionResponse,
     HttpMcpServer,
@@ -405,7 +406,12 @@ class ACPSession:
                         title="Executing Python code",
                         kind="execute",
                         status="in_progress",
-                        raw_input={"code": content},
+                        content=[
+                            ContentToolCallContent(
+                                type="content",
+                                content=TextContentBlock(type="text", text=f"```python\n{content}\n```"),
+                            )
+                        ],
                     ),
                 )
 
@@ -419,7 +425,12 @@ class ACPSession:
                             session_update="tool_call_update",
                             tool_call_id=self._current_code_call_id,
                             status="completed" if success else "failed",
-                            raw_output=content,
+                            content=[
+                                ContentToolCallContent(
+                                    type="content",
+                                    content=TextContentBlock(type="text", text=content if content else "Executed successfully"),
+                                )
+                            ],
                         ),
                     )
                     self._current_code_call_id = None
