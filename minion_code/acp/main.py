@@ -16,9 +16,16 @@ import logging
 import sys
 from typing import Optional
 
-# Redirect stdout to stderr BEFORE any other imports
-# This is critical for ACP - stdout is reserved for JSON-RPC communication
+# Save original stdout for ACP communication
 _original_stdout = sys.stdout
+
+# Configure loguru to use stderr BEFORE any imports that use it
+# This is critical for ACP - stdout is reserved for JSON-RPC communication
+from loguru import logger as loguru_logger
+loguru_logger.remove()  # Remove default handler
+loguru_logger.add(sys.stderr, format="{time} | {level} | {name}:{function}:{line} - {message}")
+
+# Also redirect standard stdout to stderr for any stray prints
 sys.stdout = sys.stderr
 
 # Now import everything else
@@ -57,9 +64,9 @@ def main(log_level: str = "INFO") -> None:
     # Restore stdout for ACP communication
     sys.stdout = _original_stdout
 
-    # Run the ACP agent
+    # Run the ACP agent (run_agent is an async function)
     try:
-        run_agent(agent)
+        asyncio.run(run_agent(agent))
     except KeyboardInterrupt:
         logger.info("Shutting down ACP agent")
     except Exception as e:

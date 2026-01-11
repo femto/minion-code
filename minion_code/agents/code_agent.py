@@ -420,33 +420,55 @@ class MinionCodeAgent(CodeAgent):
         
         return agent
     
-    async def run_async(self, message: str, **kwargs) -> Any:
+    async def run_async(self, message: str, stream: bool = False, **kwargs) -> Any:
         """
         Run agent asynchronously and track conversation history.
-        
+
         Args:
             message: User message
+            stream: If True, return streaming generator
             **kwargs: Additional arguments passed to agent.run_async()
-        
+
         Returns:
-            Agent response
+            Agent response or async generator for streaming
         """
         try:
-            response = await super().run_async(message, **kwargs)
-            
-            # Track conversation history
-            self.conversation_history.append({
-                'user_message': message,
-                'agent_response': response.answer if hasattr(response, 'answer') else str(response),
-                'timestamp': asyncio.get_event_loop().time()
-            })
-            
-            return response
-            
+            if stream:
+                # For streaming, await parent to get async generator, then wrap it
+                stream_gen = await super().run_async(message, stream=True, **kwargs)
+                return self._wrap_stream_with_history(message, stream_gen)
+            else:
+                # For non-streaming, await the result
+                result = await super().run_async(message, stream=False, **kwargs)
+
+                # Track conversation history for non-streaming
+                self.conversation_history.append({
+                    'user_message': message,
+                    'agent_response': result.answer if hasattr(result, 'answer') else str(result),
+                    'timestamp': asyncio.get_event_loop().time()
+                })
+
+                return result
+
         except Exception as e:
             logger.error(f"Error in run_async: {e}")
             traceback.print_exc()
             raise
+
+    async def _wrap_stream_with_history(self, message: str, stream):
+        """Wrap stream generator to track conversation history."""
+        final_response = None
+        async for chunk in stream:
+            final_response = chunk
+            yield chunk
+
+        # Track conversation history after streaming completes
+        if final_response:
+            self.conversation_history.append({
+                'user_message': message,
+                'agent_response': final_response.answer if hasattr(final_response, 'answer') else str(final_response),
+                'timestamp': asyncio.get_event_loop().time()
+            })
     
     def run(self, message: str, **kwargs) -> Any:
         """

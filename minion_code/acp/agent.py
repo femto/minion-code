@@ -13,41 +13,37 @@ import sys
 import uuid
 from typing import Any, Dict, List, Optional
 
-from acp import Client
+from acp import Client, text_block
+from acp.helpers import (
+    update_agent_message_text,
+    update_agent_thought_text,
+)
 from acp.schema import (
     AgentCapabilities,
     AgentMessageChunk,
     AgentThoughtChunk,
+    AudioContentBlock,
     AuthenticateResponse,
-    CancelNotification,
     ClientCapabilities,
-    ForkSessionRequest,
+    EmbeddedResourceContentBlock,
     ForkSessionResponse,
     HttpMcpServer,
     ImageContentBlock,
     Implementation,
-    InitializeRequest,
     InitializeResponse,
-    ListSessionsRequest,
     ListSessionsResponse,
-    LoadSessionRequest,
     LoadSessionResponse,
     McpServerStdio,
-    NewSessionRequest,
     NewSessionResponse,
-    PromptRequest,
     PromptResponse,
-    ResumeSessionRequest,
+    ResourceContentBlock,
     ResumeSessionResponse,
-    SetSessionModelRequest,
     SetSessionModelResponse,
-    SetSessionModeRequest,
     SetSessionModeResponse,
     SseMcpServer,
-    StopReason,
     TextContentBlock,
     ToolCallStart,
-    ToolCallUpdate,
+    ToolCallProgress,
 )
 
 from ..agents.code_agent import MinionCodeAgent
@@ -177,27 +173,41 @@ class MinionACPAgent:
 
     async def prompt(
         self,
-        prompt: List[TextContentBlock | ImageContentBlock],
+        prompt: List[
+            TextContentBlock
+            | ImageContentBlock
+            | AudioContentBlock
+            | ResourceContentBlock
+            | EmbeddedResourceContentBlock
+        ],
         session_id: str,
         **kwargs: Any,
     ) -> PromptResponse:
         """Process a user prompt."""
         logger.info(f"Processing prompt for session {session_id}")
+        logger.info(f"Prompt content: {prompt}")
+        logger.info(f"Kwargs: {kwargs}")
 
         session = self.sessions.get(session_id)
         if not session:
             logger.error(f"Session {session_id} not found")
-            return PromptResponse(stop_reason=StopReason.error)
+            return PromptResponse(stop_reason="refusal")
 
         # Clear cancel event
         cancel_event = self._cancel_events.get(session_id)
         if cancel_event:
             cancel_event.clear()
 
-        # Extract text from prompt
+        # Extract text from prompt (handle both Pydantic models and dicts)
         text_parts = []
         for block in prompt:
-            if isinstance(block, TextContentBlock):
+            if isinstance(block, dict):
+                # Dict format
+                if block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+            elif isinstance(block, TextContentBlock):
+                text_parts.append(block.text)
+            elif hasattr(block, "text"):
                 text_parts.append(block.text)
 
         user_message = "\n".join(text_parts)
@@ -215,11 +225,9 @@ class MinionACPAgent:
             if self.client:
                 await self.client.session_update(
                     session_id=session_id,
-                    update=AgentMessageChunk(
-                        delta=f"Error: {str(e)}"
-                    ),
+                    update=update_agent_message_text(f"Error: {str(e)}"),
                 )
-            return PromptResponse(stop_reason=StopReason.error)
+            return PromptResponse(stop_reason="refusal")
 
     async def fork_session(
         self,
@@ -305,6 +313,8 @@ class ACPSession:
         self.agent: Optional[MinionCodeAgent] = None
         self.hooks: Optional[HookConfig] = None
         self._message_history: List[Dict[str, Any]] = []
+        # Track current code execution tool call ID for pairing start/result
+        self._current_code_call_id: Optional[str] = None
 
     async def initialize(self) -> None:
         """Initialize the session and create the agent."""
@@ -320,85 +330,142 @@ class ACPSession:
         # Create the agent
         self.agent = await MinionCodeAgent.create(
             hooks=self.hooks,
-            cwd=self.cwd,
+            workdir=self.cwd,
         )
 
     async def run_prompt(
         self,
         message: str,
         cancel_event: Optional[asyncio.Event] = None,
-    ) -> StopReason:
+    ) -> str:
         """
         Run a prompt through the agent and stream results.
 
         Returns the stop reason for the prompt response.
         """
         if not self.agent or not self.client:
-            return StopReason.error
+            return "refusal"
 
         try:
-            # Run agent with streaming
-            async for chunk in self.agent.run_async(message, stream=True):
+            # Run agent with streaming - await to get async generator, then iterate
+            stream = await self.agent.run_async(message, stream=True)
+            async for chunk in stream:
                 # Check for cancellation
                 if cancel_event and cancel_event.is_set():
-                    return StopReason.cancelled
+                    return "cancelled"
 
                 # Handle different chunk types
                 await self._handle_stream_chunk(chunk)
 
-            return StopReason.end_turn
+            return "end_turn"
 
         except asyncio.CancelledError:
-            return StopReason.cancelled
+            return "cancelled"
         except Exception as e:
             logger.error(f"Error in run_prompt: {e}")
-            return StopReason.error
+            return "refusal"
 
     async def _handle_stream_chunk(self, chunk: Any) -> None:
-        """Handle a stream chunk from the agent."""
+        """Handle a stream chunk from the agent and convert to ACP events."""
         if not self.client:
             return
 
         # Import StreamChunk type
-        from minion.types import StreamChunk
+        from minion.types import StreamChunk, AgentResponse
 
         if isinstance(chunk, StreamChunk):
             chunk_type = chunk.chunk_type
             content = chunk.content
+            metadata = getattr(chunk, 'metadata', {}) or {}
 
             if chunk_type == "thinking":
-                # Send as thought chunk
-                await self.client.session_update(
-                    session_id=self.session_id,
-                    update=AgentThoughtChunk(delta=content),
-                )
-            elif chunk_type == "content":
-                # Send as message chunk
-                await self.client.session_update(
-                    session_id=self.session_id,
-                    update=AgentMessageChunk(delta=content),
-                )
+                # LLM reasoning/thinking - send as thought chunk
+                if content:
+                    await self.client.session_update(
+                        session_id=self.session_id,
+                        update=update_agent_thought_text(content),
+                    )
+
+            elif chunk_type in ("text", "content"):
+                # Regular assistant message content
+                if content:
+                    await self.client.session_update(
+                        session_id=self.session_id,
+                        update=update_agent_message_text(content),
+                    )
+
             elif chunk_type == "code_start":
-                # Code execution starting - send as tool call
+                # Code execution starting - send ToolCallStart
+                self._current_code_call_id = str(uuid.uuid4())
                 await self.client.session_update(
                     session_id=self.session_id,
                     update=ToolCallStart(
-                        id=str(uuid.uuid4()),
-                        name="python_execute",
-                        input={"code": content},
-                        state="running",
+                        session_update="tool_call",
+                        tool_call_id=self._current_code_call_id,
+                        title="Executing Python code",
+                        kind="execute",
+                        status="in_progress",
+                        raw_input={"code": content},
                     ),
                 )
-            elif chunk_type == "code_result":
-                # Code result - handled by post_tool_use hook
-                pass
-            # Other chunk types can be handled as needed
 
-        elif hasattr(chunk, 'answer'):
-            # Final response
+            elif chunk_type == "code_result":
+                # Code execution result - send ToolCallProgress
+                if self._current_code_call_id:
+                    success = metadata.get("success", True)
+                    await self.client.session_update(
+                        session_id=self.session_id,
+                        update=ToolCallProgress(
+                            session_update="tool_call_update",
+                            tool_call_id=self._current_code_call_id,
+                            status="completed" if success else "failed",
+                            raw_output=content,
+                        ),
+                    )
+                    self._current_code_call_id = None
+
+            elif chunk_type == "step_start":
+                # Step start notification - can be logged or sent as info
+                logger.debug(f"Step started: {metadata.get('iteration', '?')}")
+
+            elif chunk_type == "tool_call":
+                # Direct tool call (non-code execution) - handled by pre_tool_use hook
+                # But we can also send notification here if needed
+                pass
+
+            elif chunk_type == "tool_response":
+                # Tool response - handled by post_tool_use hook
+                pass
+
+            elif chunk_type == "error":
+                # Error message
+                if content:
+                    await self.client.session_update(
+                        session_id=self.session_id,
+                        update=update_agent_message_text(f"Error: {content}"),
+                    )
+
+            elif chunk_type == "final_answer":
+                # Final answer reached
+                if content:
+                    await self.client.session_update(
+                        session_id=self.session_id,
+                        update=update_agent_message_text(content),
+                    )
+
+        elif isinstance(chunk, AgentResponse):
+            # Final AgentResponse with answer
+            if chunk.answer:
+                await self.client.session_update(
+                    session_id=self.session_id,
+                    update=update_agent_message_text(chunk.answer),
+                )
+
+        elif hasattr(chunk, 'answer') and chunk.answer:
+            # Fallback for objects with answer attribute
             await self.client.session_update(
                 session_id=self.session_id,
-                update=AgentMessageChunk(delta=chunk.answer or ""),
+                update=update_agent_message_text(chunk.answer),
             )
 
 
