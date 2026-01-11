@@ -448,7 +448,7 @@ def acp(
         # Start with debug logging
         mcode acp --log-level debug
     """
-    from minion_code.acp.main import main as acp_main
+    from minion_code.acp_server.main import main as acp_main
     acp_main(log_level=log_level)
 
 
