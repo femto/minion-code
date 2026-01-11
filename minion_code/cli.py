@@ -423,6 +423,35 @@ def serve(
     )
 
 
+@app.command()
+def acp(
+    log_level: str = typer.Option(
+        "info",
+        "--log-level",
+        "-l",
+        help="Logging level (debug, info, warning, error)"
+    ),
+):
+    """
+    🔌 Start as ACP (Agent Client Protocol) agent.
+
+    Runs minion-code as an ACP-compatible agent over stdio.
+    This allows integration with ACP clients like Zed editor.
+
+    The agent communicates via JSON-RPC over stdin/stdout,
+    with all other output redirected to stderr.
+
+    Examples:
+        # Start ACP agent
+        mcode acp
+
+        # Start with debug logging
+        mcode acp --log-level debug
+    """
+    from minion_code.acp.main import main as acp_main
+    acp_main(log_level=log_level)
+
+
 def run():
     """Entry point for pyproject.toml scripts."""
     _maybe_insert_main_command()
@@ -431,7 +460,7 @@ def run():
 
 def _maybe_insert_main_command():
     """Insert 'main' command if not provided, to enable 'mcode "prompt"' usage."""
-    known_commands = {'main', 'repl', 'console', 'serve', '--help', '-h'}
+    known_commands = {'main', 'repl', 'console', 'serve', 'acp', '--help', '-h'}
     args = sys.argv[1:]
 
     if not args:
