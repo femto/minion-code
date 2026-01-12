@@ -431,6 +431,11 @@ def acp(
         "-l",
         help="Logging level (debug, info, warning, error)"
     ),
+    dangerously_skip_permissions: bool = typer.Option(
+        False,
+        "--dangerously-skip-permissions",
+        help="Skip permission prompts for tool calls (dangerous!)"
+    ),
 ):
     """
     🔌 Start as ACP (Agent Client Protocol) agent.
@@ -447,9 +452,12 @@ def acp(
 
         # Start with debug logging
         mcode acp --log-level debug
+
+        # Start without permission prompts (dangerous!)
+        mcode acp --dangerously-skip-permissions
     """
     from minion_code.acp_server.main import main as acp_main
-    acp_main(log_level=log_level)
+    acp_main(log_level=log_level, dangerously_skip_permissions=dangerously_skip_permissions)
 
 
 def run():

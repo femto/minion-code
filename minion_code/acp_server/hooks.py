@@ -16,6 +16,10 @@ from acp import Client
 from acp.schema import (
     ToolCallStart,
     ToolCallProgress,
+    ToolCallUpdate,
+    PermissionOption,
+    TextContentBlock,
+    ContentToolCallContent,
 )
 
 from ..agents.hooks import (
@@ -84,10 +88,69 @@ class ACPToolHooks:
         tool_call_id = self._generate_tool_call_id()
         self._tool_call_ids[tool_use_id] = tool_call_id
 
-        # Optionally request permission (not fully implemented)
+        # Request permission via ACP if enabled
         if self.request_permission:
-            # TODO: Implement proper permission request via ACP
-            pass
+            try:
+                # Create permission options
+                options = [
+                    PermissionOption(
+                        option_id="allow_once",
+                        name="Allow once",
+                        kind="allow_once",
+                    ),
+                    PermissionOption(
+                        option_id="allow_always",
+                        name="Always allow this tool",
+                        kind="allow_always",
+                    ),
+                    PermissionOption(
+                        option_id="reject_once",
+                        name="Reject",
+                        kind="reject_once",
+                    ),
+                ]
+
+                # Create tool call info for permission request (use ToolCallUpdate, not ToolCallStart)
+                tool_call_for_permission = ToolCallUpdate(
+                    tool_call_id=tool_call_id,
+                    title=f"Permission: {tool_name}",
+                    kind=get_tool_kind(tool_name),
+                    status="pending",
+                    content=[
+                        ContentToolCallContent(
+                            type="content",
+                            content=TextContentBlock(
+                                type="text",
+                                text=f"Tool: {tool_name}\nInput: {tool_input}"
+                            ),
+                        )
+                    ],
+                )
+
+                # Request permission from user
+                permission_response = await self.client.request_permission(
+                    options=options,
+                    session_id=self.session_id,
+                    tool_call=tool_call_for_permission,
+                )
+
+                # Check response
+                outcome = permission_response.outcome
+                if hasattr(outcome, 'outcome'):
+                    outcome = outcome.outcome
+
+                if outcome in ("rejected", "reject_once", "reject_always"):
+                    logger.info(f"Permission denied for {tool_name}")
+                    return PreToolUseResult(
+                        decision=PermissionDecision.DENY,
+                        reason="User denied permission"
+                    )
+
+                logger.info(f"Permission granted for {tool_name}: {outcome}")
+
+            except Exception as e:
+                logger.error(f"Failed to request permission: {e}")
+                # Continue without permission on error (fail open)
 
         # Send tool_call start notification
         try:

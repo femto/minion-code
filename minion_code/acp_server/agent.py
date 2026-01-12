@@ -66,10 +66,12 @@ class MinionACPAgent:
     to communicate with ACP clients over stdio.
     """
 
-    def __init__(self):
+    def __init__(self, skip_permissions: bool = False, config: Optional[Dict] = None):
         self.client: Optional[Client] = None
         self.sessions: Dict[str, "ACPSession"] = {}
         self._cancel_events: Dict[str, asyncio.Event] = {}
+        self.skip_permissions = skip_permissions
+        self.config = config or {}
 
     def on_connect(self, conn: Client) -> None:
         """Called when connected to an ACP client."""
@@ -115,6 +117,7 @@ class MinionACPAgent:
             cwd=cwd,
             client=self.client,
             mcp_servers=mcp_servers,
+            skip_permissions=self.skip_permissions,
         )
         await session.initialize()
 
@@ -251,6 +254,7 @@ class MinionACPAgent:
                 cwd=cwd,
                 client=self.client,
                 mcp_servers=mcp_servers or old_session.mcp_servers,
+                skip_permissions=self.skip_permissions,
             )
             await new_session.initialize()
             self.sessions[new_session_id] = new_session
@@ -275,6 +279,7 @@ class MinionACPAgent:
             cwd=cwd,
             client=self.client,
             mcp_servers=mcp_servers or [],
+            skip_permissions=self.skip_permissions,
         )
         await session.initialize()
         self.sessions[session_id] = session
@@ -309,11 +314,13 @@ class ACPSession:
         cwd: str,
         client: Optional[Client],
         mcp_servers: List[Any],
+        skip_permissions: bool = False,
     ):
         self.session_id = session_id
         self.cwd = cwd
         self.client = client
         self.mcp_servers = mcp_servers
+        self.skip_permissions = skip_permissions
         self.agent: Optional[MinionCodeAgent] = None
         self.hooks: Optional[HookConfig] = None
         self._message_history: List[Dict[str, Any]] = []
@@ -327,7 +334,7 @@ class ACPSession:
             self.hooks = create_acp_hooks(
                 client=self.client,
                 session_id=self.session_id,
-                request_permission=False,  # For now, auto-accept tools
+                request_permission=not self.skip_permissions,  # Ask user permission unless skipped
                 include_dangerous_check=True,
             )
 
