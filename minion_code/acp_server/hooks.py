@@ -28,6 +28,7 @@ from ..agents.hooks import (
     PostToolUseResult,
     PermissionDecision,
 )
+from .permissions import PermissionStore
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ class ACPToolHooks:
     client: Client
     session_id: str
     request_permission: bool = False  # Whether to request permission via ACP
+    permission_store: Optional[PermissionStore] = None  # Persistent permission storage
     _tool_call_ids: Dict[str, str] = field(default_factory=dict)
 
     @staticmethod
@@ -109,6 +111,19 @@ class ACPToolHooks:
 
         if tool_name in SAFE_TOOLS:
             logger.debug(f"Tool {tool_name} is safe, skipping permission request")
+
+        # Check persistent permissions first
+        if needs_permission and self.permission_store:
+            stored_permission = self.permission_store.is_allowed(tool_name)
+            if stored_permission is True:
+                logger.info(f"Tool {tool_name} has persistent allow permission, skipping request")
+                needs_permission = False
+            elif stored_permission is False:
+                logger.info(f"Tool {tool_name} has persistent reject permission")
+                return PreToolUseResult(
+                    decision=PermissionDecision.DENY,
+                    reason="Tool permanently rejected by user"
+                )
 
         # Request permission via ACP if enabled and tool is not safe
         if needs_permission:
@@ -162,11 +177,18 @@ class ACPToolHooks:
                     outcome = outcome.outcome
 
                 if outcome in ("rejected", "reject_once", "reject_always"):
-                    logger.info(f"Permission denied for {tool_name}")
+                    logger.info(f"Permission denied for {tool_name}: {outcome}")
+                    # Save persistent rejection if "always"
+                    if outcome == "reject_always" and self.permission_store:
+                        self.permission_store.set_permission(tool_name, always_allow=False)
                     return PreToolUseResult(
                         decision=PermissionDecision.DENY,
                         reason="User denied permission"
                     )
+
+                # Save persistent allowance if "always"
+                if outcome == "allow_always" and self.permission_store:
+                    self.permission_store.set_permission(tool_name, always_allow=True)
 
                 logger.info(f"Permission granted for {tool_name}: {outcome}")
 
@@ -254,6 +276,7 @@ def create_acp_hooks(
     session_id: str,
     request_permission: bool = False,
     include_dangerous_check: bool = True,
+    permission_store: Optional[PermissionStore] = None,
 ) -> HookConfig:
     """
     Create HookConfig with ACP-specific hooks.
@@ -263,6 +286,7 @@ def create_acp_hooks(
         session_id: Current session ID
         request_permission: Whether to request permission via ACP for tool calls
         include_dangerous_check: Whether to include dangerous command blocking
+        permission_store: Optional persistent permission storage
 
     Returns:
         HookConfig configured for ACP integration
@@ -271,6 +295,7 @@ def create_acp_hooks(
         client=client,
         session_id=session_id,
         request_permission=request_permission,
+        permission_store=permission_store,
     )
 
     # Create hook functions

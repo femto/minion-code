@@ -51,6 +51,7 @@ from acp.schema import (
 from ..agents.code_agent import MinionCodeAgent
 from ..agents.hooks import HookConfig, wrap_tools_with_hooks
 from .hooks import create_acp_hooks
+from .permissions import PermissionStore
 
 logger = logging.getLogger(__name__)
 
@@ -323,12 +324,16 @@ class ACPSession:
         self.skip_permissions = skip_permissions
         self.agent: Optional[MinionCodeAgent] = None
         self.hooks: Optional[HookConfig] = None
+        self.permission_store: Optional[PermissionStore] = None
         self._message_history: List[Dict[str, Any]] = []
         # Track current code execution tool call ID for pairing start/result
         self._current_code_call_id: Optional[str] = None
 
     async def initialize(self) -> None:
         """Initialize the session and create the agent."""
+        # Create permission store for this project
+        self.permission_store = PermissionStore(cwd=self.cwd)
+
         # Create ACP hooks
         if self.client:
             self.hooks = create_acp_hooks(
@@ -336,6 +341,7 @@ class ACPSession:
                 session_id=self.session_id,
                 request_permission=not self.skip_permissions,  # Ask user permission unless skipped
                 include_dangerous_check=True,
+                permission_store=self.permission_store,
             )
 
         # Create the agent
