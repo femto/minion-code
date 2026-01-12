@@ -46,6 +46,22 @@ TOOL_KIND_MAP = {
     "think": "think",
 }
 
+# Tools that are safe and don't need permission
+# These are read-only, internal, or non-destructive operations
+SAFE_TOOLS = {
+    # Read-only tools
+    # "file_read",
+    # "glob",
+    # "grep",
+    # "ls",
+    # "todo_read",
+    # Internal/non-destructive tools
+    "think",
+    "final_answer",
+    "user_input",
+    # Note: file_write, file_edit, bash, python_interpreter are NOT safe
+}
+
 
 def get_tool_kind(tool_name: str) -> str:
     """Get the ACP ToolKind for a tool name."""
@@ -88,8 +104,14 @@ class ACPToolHooks:
         tool_call_id = self._generate_tool_call_id()
         self._tool_call_ids[tool_use_id] = tool_call_id
 
-        # Request permission via ACP if enabled
-        if self.request_permission:
+        # Check if this tool needs permission
+        needs_permission = self.request_permission and tool_name not in SAFE_TOOLS
+
+        if tool_name in SAFE_TOOLS:
+            logger.debug(f"Tool {tool_name} is safe, skipping permission request")
+
+        # Request permission via ACP if enabled and tool is not safe
+        if needs_permission:
             try:
                 # Create permission options
                 options = [
