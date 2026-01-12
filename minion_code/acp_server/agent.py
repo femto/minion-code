@@ -9,6 +9,7 @@ with ACP-compatible clients.
 
 import asyncio
 import logging
+import os
 import sys
 import uuid
 from typing import Any, Dict, List, Optional
@@ -104,7 +105,9 @@ class MinionACPAgent:
     ) -> NewSessionResponse:
         """Create a new session."""
         session_id = str(uuid.uuid4())
-        logger.info(f"Creating new session {session_id} in {cwd}")
+        pid = os.getpid()
+        session_count = len(self.sessions) + 1
+        logger.info(f"[PID={pid}] Creating session #{session_count}: {session_id} in {cwd}")
 
         # Create session
         session = ACPSession(
@@ -185,9 +188,9 @@ class MinionACPAgent:
         **kwargs: Any,
     ) -> PromptResponse:
         """Process a user prompt."""
-        logger.info(f"Processing prompt for session {session_id}")
-        logger.info(f"Prompt content: {prompt}")
-        logger.info(f"Kwargs: {kwargs}")
+        pid = os.getpid()
+        logger.info(f"[PID={pid}] Processing prompt for session {session_id}")
+        logger.info(f"[PID={pid}] Prompt content: {prompt}")
 
         session = self.sessions.get(session_id)
         if not session:

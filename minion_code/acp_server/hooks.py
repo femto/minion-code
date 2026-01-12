@@ -92,6 +92,7 @@ class ACPToolHooks:
         # Send tool_call start notification
         try:
             tool_call = ToolCallStart(
+                session_update="tool_call",
                 tool_call_id=tool_call_id,
                 title=f"Running {tool_name}",
                 kind=get_tool_kind(tool_name),
@@ -148,6 +149,7 @@ class ACPToolHooks:
         # Send tool_call progress notification
         try:
             update = ToolCallProgress(
+                session_update="tool_call_update",
                 tool_call_id=tool_call_id,
                 status=status,
                 raw_output=output,

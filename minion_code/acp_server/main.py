@@ -13,6 +13,7 @@ Usage:
 
 import asyncio
 import logging
+import os
 import sys
 from typing import Optional
 
@@ -37,12 +38,18 @@ logger = logging.getLogger(__name__)
 
 
 def setup_logging(level: str = "INFO") -> None:
-    """Setup logging to stderr (stdout is used for ACP protocol)."""
+    """Setup logging to stderr and file (stdout is used for ACP protocol)."""
+    # Log to stderr
     logging.basicConfig(
         level=getattr(logging, level.upper()),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         stream=sys.stderr,
     )
+    # Also log to file for debugging
+    debug_log = os.path.expanduser("~/minion-code-acp-debug.log")
+    file_handler = logging.FileHandler(debug_log, mode='a')
+    file_handler.setFormatter(logging.Formatter("%(asctime)s - PID=%(process)d - %(name)s - %(levelname)s - %(message)s"))
+    logging.getLogger().addHandler(file_handler)
 
 
 def main(log_level: str = "INFO") -> None:
@@ -56,7 +63,8 @@ def main(log_level: str = "INFO") -> None:
     4. Runs the ACP server over stdio
     """
     setup_logging(log_level)
-    logger.info("Starting minion-code ACP agent")
+    pid = os.getpid()
+    logger.info(f"Starting minion-code ACP agent [PID={pid}]")
 
     # Create the agent
     agent = MinionACPAgent()
