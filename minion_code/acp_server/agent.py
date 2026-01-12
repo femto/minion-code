@@ -406,6 +406,7 @@ class ACPSession:
                         title="Executing Python code",
                         kind="execute",
                         status="in_progress",
+                        raw_input=f"```python\n{content}\n```",
                         content=[
                             ContentToolCallContent(
                                 type="content",
