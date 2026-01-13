@@ -42,34 +42,36 @@ class ModelCommand(BaseCommand):
             json.dump(config, f, indent=2)
 
     def _get_available_models(self) -> List[str]:
-        """Get list of available models from minion config.yaml."""
-        models = []
+        """Get list of available models from minion config.yaml.
 
-        # Try ~/.minion/config.yaml first
-        config_paths = [
-            self.MINION_CONFIG_FILE,
-        ]
+        Uses the same logic as minion's load_config():
+        1. First load user config (~/.minion/config.yaml)
+        2. Then load base config (MINION_ROOT/config/config.yaml) which OVERWRITES user config
+        """
+        config_dict = {}
 
-        # Also try MINION_ROOT/config/config.yaml
+        # First load user config
+        if self.MINION_CONFIG_FILE.exists():
+            try:
+                with open(self.MINION_CONFIG_FILE, 'r') as f:
+                    config_dict = yaml.safe_load(f) or {}
+            except Exception:
+                pass
+
+        # Then load base config (MINION_ROOT), which overwrites user config
         try:
             from minion.const import get_minion_root
             minion_root = get_minion_root()
-            config_paths.append(Path(minion_root) / "config" / "config.yaml")
+            base_config_path = Path(minion_root) / "config" / "config.yaml"
+            if base_config_path.exists():
+                with open(base_config_path, 'r') as f:
+                    base_config = yaml.safe_load(f) or {}
+                config_dict.update(base_config)  # Overwrite, same as minion
         except Exception:
             pass
 
-        for config_path in config_paths:
-            if config_path.exists():
-                try:
-                    with open(config_path, 'r') as f:
-                        config = yaml.safe_load(f)
-                        if config and 'models' in config:
-                            models = list(config['models'].keys())
-                            break
-                except Exception:
-                    continue
-
-        return models
+        models = list(config_dict.get('models', {}).keys())
+        return sorted(models)
 
     def _update_agent_model(self, model_name: str) -> bool:
         """Update the agent's model at runtime."""
@@ -77,9 +79,9 @@ class ModelCommand(BaseCommand):
             return False
 
         try:
-            from minion.providers import get_llm_provider
+            from minion.types.llm_types import create_llm_from_model
             # Create new LLM provider with the new model
-            new_llm = get_llm_provider(model_name)
+            new_llm = create_llm_from_model(model_name)
             self.agent.llm = new_llm
 
             # Update llms dict if it exists
