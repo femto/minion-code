@@ -54,7 +54,8 @@ class InterruptibleCLI:
         continue_last: bool = False,
         initial_prompt: Optional[str] = None,
         print_output: bool = False,
-        auto_accept: bool = False
+        auto_accept: bool = False,
+        model: Optional[str] = None
     ):
         self.agent = None
         self.running = True
@@ -73,6 +74,9 @@ class InterruptibleCLI:
 
         # Tool permission mode
         self.auto_accept = auto_accept
+
+        # LLM model override
+        self.model = model
 
         # Session management
         self.session: Optional[Session] = None
@@ -130,9 +134,14 @@ class InterruptibleCLI:
             # Create hooks for tool permission control
             hooks = create_cli_hooks(auto_accept=self.auto_accept)
 
+            # Use model from CLI if provided, otherwise use default
+            llm_model = self.model if self.model else "claude-sonnet-4-5"
+            if self.model and self.verbose:
+                self.console.print(f"[dim]Using model: {self.model}[/dim]")
+
             self.agent = await MinionCodeAgent.create(
                 name="CLI Code Assistant",
-                llm="claude-sonnet-4-5",
+                llm=llm_model,
                 additional_tools=self.mcp_tools if self.mcp_tools else None,
                 hooks=hooks
             )

@@ -67,13 +67,14 @@ class MinionACPAgent:
     to communicate with ACP clients over stdio.
     """
 
-    def __init__(self, skip_permissions: bool = False, config: Optional[Dict] = None, cwd: Optional[str] = None):
+    def __init__(self, skip_permissions: bool = False, config: Optional[Dict] = None, cwd: Optional[str] = None, model: Optional[str] = None):
         self.client: Optional[Client] = None
         self.sessions: Dict[str, "ACPSession"] = {}
         self._cancel_events: Dict[str, asyncio.Event] = {}
         self.skip_permissions = skip_permissions
         self.config = config or {}
         self.cwd = cwd or os.getcwd()
+        self.model = model  # LLM model to use
 
     def on_connect(self, conn: Client) -> None:
         """Called when connected to an ACP client."""
@@ -124,6 +125,7 @@ class MinionACPAgent:
             client=self.client,
             mcp_servers=mcp_servers,
             skip_permissions=self.skip_permissions,
+            model=self.model,
         )
         await session.initialize()
 
@@ -321,12 +323,14 @@ class ACPSession:
         client: Optional[Client],
         mcp_servers: List[Any],
         skip_permissions: bool = False,
+        model: Optional[str] = None,
     ):
         self.session_id = session_id
         self.cwd = cwd
         self.client = client
         self.mcp_servers = mcp_servers
         self.skip_permissions = skip_permissions
+        self.model = model
         self.agent: Optional[MinionCodeAgent] = None
         self.hooks: Optional[HookConfig] = None
         self.permission_store: Optional[PermissionStore] = None
@@ -349,11 +353,16 @@ class ACPSession:
                 permission_store=self.permission_store,
             )
 
-        # Create the agent
-        self.agent = await MinionCodeAgent.create(
-            hooks=self.hooks,
-            workdir=self.cwd,
-        )
+        # Create the agent with optional model override
+        create_kwargs = {
+            "hooks": self.hooks,
+            "workdir": self.cwd,
+        }
+        if self.model:
+            create_kwargs["llm"] = self.model
+            logger.info(f"Creating agent with model: {self.model}")
+
+        self.agent = await MinionCodeAgent.create(**create_kwargs)
 
     async def run_prompt(
         self,

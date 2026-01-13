@@ -97,7 +97,7 @@ def setup_logging(level: str = "INFO") -> None:
     logging.getLogger().addHandler(file_handler)
 
 
-def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False, cwd: Optional[str] = None) -> None:
+def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False, cwd: Optional[str] = None, model: Optional[str] = None) -> None:
     """
     Main entry point for running minion-code as an ACP agent.
 
@@ -111,6 +111,7 @@ def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False, cw
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
         dangerously_skip_permissions: If True, skip permission prompts for tool calls
         cwd: Working directory for the agent (defaults to current directory)
+        model: LLM model to use (defaults to config file setting)
     """
     setup_logging(log_level)
     pid = os.getpid()
@@ -126,6 +127,15 @@ def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False, cw
     # Load config
     config = load_config()
 
+    # Handle model: CLI arg > config file > default
+    if model:
+        logger.info(f"Using model from CLI: {model}")
+    elif config.get("model"):
+        model = config.get("model")
+        logger.info(f"Using model from config: {model}")
+    else:
+        logger.info("Using default model (from MinionCodeAgent)")
+
     # Check if permissions should be skipped
     skip_permissions = dangerously_skip_permissions or config.get("skip_permissions", False)
     if skip_permissions:
@@ -136,6 +146,7 @@ def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False, cw
         skip_permissions=skip_permissions,
         config=config,
         cwd=cwd,
+        model=model,
     )
 
     # Restore stdout for ACP communication

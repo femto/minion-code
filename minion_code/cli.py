@@ -34,7 +34,8 @@ def run_console_cli(
     resume_session_id: Optional[str] = None,
     continue_last: bool = False,
     initial_prompt: Optional[str] = None,
-    print_output: bool = False
+    print_output: bool = False,
+    model: Optional[str] = None
 ):
     """Run the traditional console CLI interface"""
     from minion_code.cli_simple import InterruptibleCLI
@@ -44,7 +45,8 @@ def run_console_cli(
         resume_session_id=resume_session_id,
         continue_last=continue_last,
         initial_prompt=initial_prompt,
-        print_output=print_output
+        print_output=print_output,
+        model=model
     )
     return asyncio.run(cli.run())
 
@@ -55,7 +57,8 @@ def run_tui_repl(
     initial_prompt: Optional[str] = None,
     dir: Optional[str] = None,
     resume_session_id: Optional[str] = None,
-    continue_last: bool = False
+    continue_last: bool = False,
+    model: Optional[str] = None
 ):
     """Run the modern TUI REPL interface"""
     try:
@@ -65,7 +68,8 @@ def run_tui_repl(
             debug=debug,
             verbose=verbose,
             resume_session_id=resume_session_id,
-            continue_last=continue_last
+            continue_last=continue_last,
+            model=model
         )
     except ImportError as e:
         console = Console()
@@ -76,7 +80,8 @@ def run_tui_repl(
         run_console_cli(
             verbose=verbose,
             resume_session_id=resume_session_id,
-            continue_last=continue_last
+            continue_last=continue_last,
+            model=model
         )
     except Exception as e:
         console = Console()
@@ -99,6 +104,12 @@ def main(
         "--dir",
         "-d",
         help="Change to specified directory before starting"
+    ),
+    model: Optional[str] = typer.Option(
+        None,
+        "--model",
+        "-m",
+        help="LLM model to use (e.g., gpt-4o, claude-3-5-sonnet). If not specified, uses config file setting."
     ),
     verbose: bool = typer.Option(
         False,
@@ -202,7 +213,8 @@ def main(
             resume_session_id=resume,
             continue_last=continue_session,
             initial_prompt=initial_prompt,
-            print_output=print_output
+            print_output=print_output,
+            model=model
         )
     else:
         # Use TUI interface (default)
@@ -212,7 +224,8 @@ def main(
             initial_prompt=initial_prompt,
             dir=dir,
             resume_session_id=resume,
-            continue_last=continue_session
+            continue_last=continue_session,
+            model=model
         )
 
 
@@ -223,6 +236,12 @@ def repl(
         "--dir",
         "-d",
         help="🗂️  Change to specified directory before starting"
+    ),
+    model: Optional[str] = typer.Option(
+        None,
+        "--model",
+        "-m",
+        help="🤖 LLM model to use (e.g., gpt-4o, claude-3-5-sonnet)"
     ),
     verbose: bool = typer.Option(
         False,
@@ -274,7 +293,8 @@ def repl(
         debug=debug,
         verbose=verbose,
         initial_prompt=prompt,
-        dir=dir
+        dir=dir,
+        model=model
     )
 
 
@@ -285,6 +305,12 @@ def console(
         "--dir",
         "-d",
         help="Change to specified directory before starting"
+    ),
+    model: Optional[str] = typer.Option(
+        None,
+        "--model",
+        "-m",
+        help="LLM model to use (e.g., gpt-4o, claude-3-5-sonnet)"
     ),
     verbose: bool = typer.Option(
         False,
@@ -359,7 +385,8 @@ def console(
         verbose=verbose,
         mcp_config=mcp_config_path,
         resume_session_id=resume,
-        continue_last=continue_session
+        continue_last=continue_session,
+        model=model
     )
 
 
@@ -431,6 +458,12 @@ def acp(
         "-d",
         help="Working directory for the agent"
     ),
+    model: Optional[str] = typer.Option(
+        None,
+        "--model",
+        "-m",
+        help="LLM model to use (e.g., gpt-4o, claude-3-5-sonnet). If not specified, uses config file setting."
+    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
@@ -465,6 +498,9 @@ def acp(
         # Start with specific working directory
         mcode acp --dir /path/to/project
 
+        # Start with specific model
+        mcode acp --model gpt-4o
+
         # Start with verbose logging
         mcode acp --verbose
 
@@ -476,7 +512,7 @@ def acp(
         log_level = "debug"
 
     from minion_code.acp_server.main import main as acp_main
-    acp_main(log_level=log_level, dangerously_skip_permissions=dangerously_skip_permissions, cwd=directory)
+    acp_main(log_level=log_level, dangerously_skip_permissions=dangerously_skip_permissions, cwd=directory, model=model)
 
 
 def run():

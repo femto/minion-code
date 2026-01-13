@@ -1606,9 +1606,10 @@ class REPLApp(App):
             from minion_code.utils.logs import logger
             from minion_code.agents.hooks import create_autonomous_hooks
 
-            # Use gpt-4o-mini as default (doesn't require bedrock)
-            # Users can override by setting environment variable or config
-            default_llm = "claude-sonnet-4-5"
+            # Check for model from CLI or use default
+            # Users can override with --model flag or config
+            model_from_props = self.repl_props.get("model")
+            default_llm = model_from_props if model_from_props else "claude-sonnet-4-5"
 
             # Create hooks - use autonomous mode for TUI for now
             # TODO: Integrate with TextualOutputAdapter for proper confirmation dialogs
@@ -1692,7 +1693,7 @@ def create_repl(
     return app
 
 
-def run(initial_prompt=None, debug=False, verbose=False, resume_session_id=None, continue_last=False):
+def run(initial_prompt=None, debug=False, verbose=False, resume_session_id=None, continue_last=False, model=None):
     """Run the REPL application with optional configuration"""
     # File-based logging for TUI debugging
     import logging
@@ -1704,7 +1705,7 @@ def run(initial_prompt=None, debug=False, verbose=False, resume_session_id=None,
     )
     logging.debug(f"=== REPL run() called ===")
     logging.debug(f"initial_prompt: {repr(initial_prompt)}")
-    logging.debug(f"debug: {debug}, verbose: {verbose}")
+    logging.debug(f"debug: {debug}, verbose: {verbose}, model: {model}")
     logging.debug(f"resume_session_id: {resume_session_id}, continue_last: {continue_last}")
 
     app = create_repl(
@@ -1712,7 +1713,8 @@ def run(initial_prompt=None, debug=False, verbose=False, resume_session_id=None,
         debug=debug,
         verbose=verbose,
         resume_session_id=resume_session_id,
-        continue_last=continue_last
+        continue_last=continue_last,
+        model=model
     )
     logging.debug(f"app.repl_props: {app.repl_props}")
     app.run()
