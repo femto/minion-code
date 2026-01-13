@@ -89,6 +89,42 @@ class OutputAdapter(ABC):
         """
         pass
 
+    def info(self, content: str) -> None:
+        """
+        Display info message.
+
+        Args:
+            content: Message content
+        """
+        self.text(f"[blue]ℹ {content}[/blue]")
+
+    def success(self, content: str) -> None:
+        """
+        Display success message.
+
+        Args:
+            content: Message content
+        """
+        self.text(f"[green]✓ {content}[/green]")
+
+    def warning(self, content: str) -> None:
+        """
+        Display warning message.
+
+        Args:
+            content: Message content
+        """
+        self.text(f"[yellow]⚠ {content}[/yellow]")
+
+    def error(self, content: str) -> None:
+        """
+        Display error message.
+
+        Args:
+            content: Message content
+        """
+        self.text(f"[red]✗ {content}[/red]")
+
     @abstractmethod
     async def confirm(self,
                      message: str,

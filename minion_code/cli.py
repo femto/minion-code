@@ -390,6 +390,82 @@ def console(
     )
 
 
+@app.command(name="model")
+def model_cmd(
+    model_name: Optional[str] = typer.Argument(
+        None,
+        help="Model name to set (e.g., gpt-4o, claude-3-5-sonnet). If not provided, shows current model."
+    ),
+    clear: bool = typer.Option(
+        False,
+        "--clear",
+        "-c",
+        help="Clear the saved model (use default)"
+    ),
+):
+    """
+    🤖 Configure the default LLM model.
+
+    Set, view, or clear the default model used by minion-code.
+    The model setting is saved to ~/.minion/minion-code.json.
+
+    Examples:
+        # View current model
+        mcode model
+
+        # Set default model
+        mcode model gpt-4o
+        mcode model claude-3-5-sonnet
+
+        # Clear model (use default)
+        mcode model --clear
+    """
+    import json
+    from pathlib import Path
+    from rich.console import Console
+
+    console_obj = Console()
+    config_dir = Path.home() / ".minion"
+    config_file = config_dir / "minion-code.json"
+
+    # Load current config
+    config = {}
+    if config_file.exists():
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+        except Exception:
+            pass
+
+    if clear:
+        # Clear model setting
+        if "model" in config:
+            del config["model"]
+            config_dir.mkdir(parents=True, exist_ok=True)
+            with open(config_file, 'w') as f:
+                json.dump(config, f, indent=2)
+            console_obj.print("✅ [green]Model setting cleared. Will use default model.[/green]")
+        else:
+            console_obj.print("ℹ️  [dim]No model setting to clear.[/dim]")
+    elif model_name:
+        # Set model
+        config["model"] = model_name
+        config_dir.mkdir(parents=True, exist_ok=True)
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+        console_obj.print(f"✅ [green]Default model set to:[/green] [bold cyan]{model_name}[/bold cyan]")
+        console_obj.print(f"📁 [dim]Config saved to: {config_file}[/dim]")
+    else:
+        # Show current model
+        current_model = config.get("model")
+        if current_model:
+            console_obj.print(f"🤖 [bold]Current default model:[/bold] [cyan]{current_model}[/cyan]")
+        else:
+            console_obj.print("🤖 [bold]No default model set[/bold] (using built-in default)")
+        console_obj.print(f"\n💡 [dim]Set with: mcode model <model-name>[/dim]")
+        console_obj.print(f"💡 [dim]Clear with: mcode model --clear[/dim]")
+
+
 @app.command()
 def serve(
     host: str = typer.Option(
@@ -523,7 +599,7 @@ def run():
 
 def _maybe_insert_main_command():
     """Insert 'main' command if not provided, to enable 'mcode "prompt"' usage."""
-    known_commands = {'main', 'repl', 'console', 'serve', 'acp', '--help', '-h'}
+    known_commands = {'main', 'repl', 'console', 'serve', 'acp', 'model', '--help', '-h'}
     args = sys.argv[1:]
 
     if not args:

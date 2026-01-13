@@ -1588,8 +1588,9 @@ class REPLApp(App):
     def compose(self) -> ComposeResult:
         """Compose the main application - equivalent to React App render"""
         yield Header(show_clock=False)
-        # Pass agent to REPL component
-        repl_props_with_agent = {**self.repl_props, "agent": self.agent}
+        # Pass agent to REPL component (filter out app-level props like 'model')
+        repl_props_filtered = {k: v for k, v in self.repl_props.items() if k != "model"}
+        repl_props_with_agent = {**repl_props_filtered, "agent": self.agent}
         yield REPL(**repl_props_with_agent)
         yield Footer()
     

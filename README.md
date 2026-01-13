@@ -73,6 +73,10 @@ mcode
 # Specify working directory
 mcode --dir /path/to/project
 
+# Specify LLM model
+mcode --model gpt-4o
+mcode --model claude-3-5-sonnet
+
 # Enable verbose output
 mcode --verbose
 
@@ -80,8 +84,29 @@ mcode --verbose
 mcode --config mcp.json
 
 # Combined usage
-mcode --dir /path/to/project --config mcp.json --verbose
+mcode --dir /path/to/project --model gpt-4o --config mcp.json --verbose
 ```
+
+### Model Configuration
+
+Configure the default LLM model used by minion-code:
+
+```bash
+# View current default model
+mcode model
+
+# Set default model (saved to ~/.minion/minion-code.json)
+mcode model gpt-4o
+mcode model claude-3-5-sonnet
+
+# Clear default model (use built-in default)
+mcode model --clear
+```
+
+**Model Priority:**
+1. CLI `--model` argument (highest priority)
+2. Config file `~/.minion/minion-code.json`
+3. Built-in default (lowest priority)
 
 ### ACP Protocol Support
 
@@ -94,11 +119,17 @@ mcode acp
 # Specify working directory
 mcode acp --dir /path/to/project
 
+# Specify LLM model
+mcode acp --model gpt-4o
+
 # Enable verbose logging
 mcode acp --verbose
 
 # Skip tool permission prompts (auto-allow all tools)
 mcode acp --dangerously-skip-permissions
+
+# Combined usage
+mcode acp --dir /path/to/project --model claude-3-5-sonnet --verbose
 ```
 
 #### Using with Zed Editor
@@ -107,18 +138,15 @@ Add the following to Zed's `settings.json`:
 
 ```json
 {
-  "agent": {
-    "profiles": {
-      "minion-code": {
-        "name": "Minion Code",
-        "provider": {
-          "type": "acp",
-          "binary": {
-            "path": "mcode",
-            "args": ["acp", "--verbose"]
-          }
-        }
-      }
+  "agent_servers": {
+    
+    "minion-code": {
+      "type": "custom",
+      "command": "/path/to/mcode",
+      "args": [
+        "acp"
+      ],
+      "env": {}
     }
   }
 }
