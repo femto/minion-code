@@ -7,7 +7,7 @@ These components provide user interaction dialogs for confirmation,
 choice selection, and text input in the Textual TUI.
 """
 
-from textual.containers import Container, Vertical, Horizontal
+from textual.containers import Container, Vertical, Horizontal, VerticalScroll
 from textual.widgets import Button, Static, Label
 from textual.app import ComposeResult
 from textual import on
@@ -112,13 +112,23 @@ class ChoiceDialog(Container):
     Choice selection dialog component.
 
     Displays a list of choices as buttons and calls a callback
-    with the selected index.
+    with the selected index. Supports keyboard navigation with
+    arrow keys and number keys.
     """
+
+    BINDINGS = [
+        ("up", "move_up", "Previous"),
+        ("down", "move_down", "Next"),
+        ("k", "move_up", "Previous"),
+        ("j", "move_down", "Next"),
+        ("escape", "cancel", "Cancel"),
+        ("enter", "select", "Select"),
+    ]
 
     DEFAULT_CSS = """
     ChoiceDialog {
         width: 60;
-        height: auto;
+        max-height: 80%;
         background: $panel;
         border: thick $primary;
         padding: 1 2;
@@ -139,14 +149,30 @@ class ChoiceDialog(Container):
         padding: 1;
     }
 
-    ChoiceDialog .choice-buttons {
-        height: auto;
+    ChoiceDialog .dialog-hint {
+        text-align: center;
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+
+    ChoiceDialog .choice-scroll {
+        max-height: 50vh;
+        min-height: 10;
         padding: 1;
+        scrollbar-gutter: stable;
     }
 
     ChoiceDialog Button {
         width: 100%;
         margin: 0 0 1 0;
+    }
+
+    ChoiceDialog Button:focus {
+        background: $accent;
+    }
+
+    ChoiceDialog .cancel-button {
+        margin-top: 1;
     }
     """
 
@@ -173,6 +199,7 @@ class ChoiceDialog(Container):
         self.choices = choices
         self.title = title
         self.on_result = on_result
+        self.can_focus = True
 
     def compose(self) -> ComposeResult:
         """Compose the dialog UI."""
@@ -180,10 +207,78 @@ class ChoiceDialog(Container):
             yield Static(self.title, classes="dialog-title")
             if self.message:
                 yield Static(self.message, classes="dialog-message")
-            with Vertical(classes="choice-buttons"):
+            yield Static("Use ↑↓/jk to navigate, Enter to select, Esc to cancel", classes="dialog-hint")
+            with VerticalScroll(classes="choice-scroll"):
                 for i, choice in enumerate(self.choices):
                     yield Button(f"{i+1}. {choice}", id=f"choice_{i}", variant="primary")
-                yield Button("Cancel", id="choice_cancel", variant="error")
+            yield Button("Cancel", id="choice_cancel", variant="error", classes="cancel-button")
+
+    def on_mount(self):
+        """Focus first button when dialog appears."""
+        try:
+            first_button = self.query_one("#choice_0", Button)
+            first_button.focus()
+        except Exception:
+            pass
+
+    def action_move_up(self):
+        """Move focus to previous choice."""
+        try:
+            focused = self.app.focused
+            if focused and focused.id and focused.id.startswith("choice_"):
+                if focused.id == "choice_cancel":
+                    # Move from cancel to last choice
+                    last_btn = self.query_one(f"#choice_{len(self.choices)-1}", Button)
+                    last_btn.focus()
+                    self._scroll_to_button(last_btn)
+                else:
+                    idx = int(focused.id.split("_")[1])
+                    if idx > 0:
+                        prev_btn = self.query_one(f"#choice_{idx-1}", Button)
+                        prev_btn.focus()
+                        self._scroll_to_button(prev_btn)
+        except Exception:
+            pass
+
+    def action_move_down(self):
+        """Move focus to next choice."""
+        try:
+            focused = self.app.focused
+            if focused and focused.id and focused.id.startswith("choice_"):
+                idx = int(focused.id.split("_")[1])
+                if idx < len(self.choices) - 1:
+                    next_btn = self.query_one(f"#choice_{idx+1}", Button)
+                    next_btn.focus()
+                    self._scroll_to_button(next_btn)
+                else:
+                    # Move to cancel button
+                    cancel_btn = self.query_one("#choice_cancel", Button)
+                    cancel_btn.focus()
+        except Exception:
+            pass
+
+    def _scroll_to_button(self, button: Button):
+        """Scroll to make the button visible."""
+        try:
+            scroll_container = self.query_one(".choice-scroll", VerticalScroll)
+            scroll_container.scroll_to_widget(button)
+        except Exception:
+            pass
+
+    def action_select(self):
+        """Select the currently focused choice."""
+        try:
+            focused = self.app.focused
+            if focused and focused.id:
+                focused.press()
+        except Exception:
+            pass
+
+    def action_cancel(self):
+        """Cancel the dialog."""
+        if self.on_result:
+            self.on_result(self.interaction_id, -1)
+        self.remove()
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed):

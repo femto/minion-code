@@ -170,16 +170,16 @@ class ModelCommand(BaseCommand):
                     else:
                         choices.append(model)
 
-                # Ask user to select
-                selected = await self.output.choice(
+                # Ask user to select (returns index, -1 if cancelled)
+                selected_index = await self.output.choice(
                     message="Select a model:",
                     choices=choices,
                     title="Available Models"
                 )
 
-                if selected:
-                    # Remove " (current)" suffix if present
-                    model_name = selected.replace(" (current)", "")
+                if selected_index >= 0 and selected_index < len(models):
+                    # Get the model name from original models list (without " (current)" suffix)
+                    model_name = models[selected_index]
                     if model_name != current_config_model:
                         self._set_model(model_name)
                     else:
