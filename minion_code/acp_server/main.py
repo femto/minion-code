@@ -97,7 +97,7 @@ def setup_logging(level: str = "INFO") -> None:
     logging.getLogger().addHandler(file_handler)
 
 
-def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False) -> None:
+def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False, cwd: Optional[str] = None) -> None:
     """
     Main entry point for running minion-code as an ACP agent.
 
@@ -110,10 +110,18 @@ def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False) ->
     Args:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
         dangerously_skip_permissions: If True, skip permission prompts for tool calls
+        cwd: Working directory for the agent (defaults to current directory)
     """
     setup_logging(log_level)
     pid = os.getpid()
     logger.info(f"Starting minion-code ACP agent [PID={pid}]")
+
+    # Resolve working directory
+    if cwd:
+        cwd = os.path.abspath(cwd)
+        logger.info(f"Using working directory: {cwd}")
+    else:
+        cwd = os.getcwd()
 
     # Load config
     config = load_config()
@@ -127,6 +135,7 @@ def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False) ->
     agent = MinionACPAgent(
         skip_permissions=skip_permissions,
         config=config,
+        cwd=cwd,
     )
 
     # Restore stdout for ACP communication

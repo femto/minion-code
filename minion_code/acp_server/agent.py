@@ -67,12 +67,13 @@ class MinionACPAgent:
     to communicate with ACP clients over stdio.
     """
 
-    def __init__(self, skip_permissions: bool = False, config: Optional[Dict] = None):
+    def __init__(self, skip_permissions: bool = False, config: Optional[Dict] = None, cwd: Optional[str] = None):
         self.client: Optional[Client] = None
         self.sessions: Dict[str, "ACPSession"] = {}
         self._cancel_events: Dict[str, asyncio.Event] = {}
         self.skip_permissions = skip_permissions
         self.config = config or {}
+        self.cwd = cwd or os.getcwd()
 
     def on_connect(self, conn: Client) -> None:
         """Called when connected to an ACP client."""
@@ -110,6 +111,10 @@ class MinionACPAgent:
         session_id = str(uuid.uuid4())
         pid = os.getpid()
         session_count = len(self.sessions) + 1
+
+        # Use CLI-provided cwd as fallback if client doesn't provide one
+        if not cwd:
+            cwd = self.cwd
         logger.info(f"[PID={pid}] Creating session #{session_count}: {session_id} in {cwd}")
 
         # Create session

@@ -425,6 +425,18 @@ def serve(
 
 @app.command()
 def acp(
+    directory: Optional[str] = typer.Option(
+        None,
+        "--dir",
+        "-d",
+        help="Working directory for the agent"
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose (debug) logging"
+    ),
     log_level: str = typer.Option(
         "info",
         "--log-level",
@@ -450,14 +462,21 @@ def acp(
         # Start ACP agent
         mcode acp
 
-        # Start with debug logging
-        mcode acp --log-level debug
+        # Start with specific working directory
+        mcode acp --dir /path/to/project
+
+        # Start with verbose logging
+        mcode acp --verbose
 
         # Start without permission prompts (dangerous!)
         mcode acp --dangerously-skip-permissions
     """
+    # Handle verbose flag
+    if verbose:
+        log_level = "debug"
+
     from minion_code.acp_server.main import main as acp_main
-    acp_main(log_level=log_level, dangerously_skip_permissions=dangerously_skip_permissions)
+    acp_main(log_level=log_level, dangerously_skip_permissions=dangerously_skip_permissions, cwd=directory)
 
 
 def run():

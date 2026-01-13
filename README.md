@@ -1,113 +1,163 @@
 # MinionCodeAgent
 
-一个增强的AI代码助手，基于Minion框架构建，预配置了丰富的开发工具，专为代码开发任务优化。
+An enhanced AI code assistant built on the Minion framework, pre-configured with rich development tools, optimized for code development tasks.
 
-## 特性
+## Features
 
-- 🤖 **智能代码助手**：预配置的AI agent，专为编程任务设计
-- 🔧 **丰富的工具集**：自动包含文件操作、命令执行、网络搜索等12+个工具
-- ⚡ **即开即用**：一行代码创建，无需复杂配置
-- 📝 **对话历史**：内置对话历史跟踪和管理
-- 🎯 **优化提示**：专为代码开发任务优化的系统提示
-- 🛡️ **安全设计**：内置安全检查，防止危险操作
+- 🤖 **Intelligent Code Assistant**: Pre-configured AI agent designed for programming tasks
+- 🔧 **Rich Toolset**: Automatically includes 12+ tools for file operations, command execution, web search, etc.
+- ⚡ **Ready to Use**: One-line creation, no complex configuration needed
+- 📝 **Conversation History**: Built-in conversation history tracking and management
+- 🎯 **Optimized Prompts**: System prompts optimized for code development tasks
+- 🛡️ **Security by Design**: Built-in security checks to prevent dangerous operations
+- 🔌 **ACP Protocol Support**: Seamless integration with ACP clients like Zed editor
 
-## 安装
+## Installation
 
-### 方式一：从源码安装（推荐开发使用）
+### Option 1: Install from source (recommended for development)
 
 ```bash
-# 克隆依赖仓库
+# Clone the dependency repository
 git clone https://github.com/femto/minion
 
-# 克隆本仓库
+# Clone this repository
 git clone https://github.com/femto/minion-code
 
-# 进入目录
+# Enter the directory
 cd minion-code
 
-# 安装 minion 依赖
+# Install minion dependency
 pip install -e ../minion
 
-# 安装 minion-code
+# Install minion-code
 pip install -e .
 ```
 
-此时 `MINION_ROOT` 位于 `../minion`
+In this case, `MINION_ROOT` is located at `../minion`
 
-### 方式二：直接安装（推荐一般使用）
+### Option 2: Direct installation (recommended for general use)
 
 ```bash
-# 克隆本仓库
+# Clone this repository
 git clone https://github.com/femto/minion-code
 cd minion-code
 
-# 安装依赖
+# Install dependencies
 pip install minionx
 
-# 安装 minion-code
+# Install minion-code
 pip install -e .
 ```
 
-此时 `MINION_ROOT` 位于当前启动的位置
+In this case, `MINION_ROOT` is located at the current startup location
 
-启动时会显示 `MINION_ROOT` 的实际路径：
+On startup, the actual path of `MINION_ROOT` will be displayed:
 ```
 2025-11-13 12:21:48.042 | INFO     | minion.const:get_minion_root:44 - MINION_ROOT set to: <some_path>
 ```
 
-# LLM Congiguration
-please refer
-https://github.com/femto/minion?tab=readme-ov-file#get-started
-make sure config file is in
-MINION_ROOT/config/config.yaml or ~/.minion/config.yaml
-## 快速开始
+# LLM Configuration
 
-### CLI使用
+Please refer to https://github.com/femto/minion?tab=readme-ov-file#get-started
+
+Make sure the config file is in `MINION_ROOT/config/config.yaml` or `~/.minion/config.yaml`
+
+## Quick Start
+
+### CLI Usage
 
 ```bash
-# 基本使用
+# Basic usage
 mcode
 
-# 指定工作目录
+# Specify working directory
 mcode --dir /path/to/project
 
-# 启用详细输出
+# Enable verbose output
 mcode --verbose
 
-# 使用MCP配置文件加载额外工具
+# Load additional tools using MCP config file
 mcode --config mcp.json
 
-# 组合使用
+# Combined usage
 mcode --dir /path/to/project --config mcp.json --verbose
 ```
 
-### 编程接口
+### ACP Protocol Support
+
+MinionCodeAgent supports the [ACP (Agent Communication Protocol)](https://agentcommunicationprotocol.dev/) protocol, enabling integration with ACP-compatible clients like Zed editor.
+
+```bash
+# Start ACP server (stdio mode)
+mcode acp
+
+# Specify working directory
+mcode acp --dir /path/to/project
+
+# Enable verbose logging
+mcode acp --verbose
+
+# Skip tool permission prompts (auto-allow all tools)
+mcode acp --dangerously-skip-permissions
+```
+
+#### Using with Zed Editor
+
+Add the following to Zed's `settings.json`:
+
+```json
+{
+  "agent": {
+    "profiles": {
+      "minion-code": {
+        "name": "Minion Code",
+        "provider": {
+          "type": "acp",
+          "binary": {
+            "path": "mcode",
+            "args": ["acp", "--verbose"]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### Permission Management
+
+In ACP mode, tool calls will request user permission:
+- **Allow once**: Allow this time only
+- **Always allow**: Permanently allow this tool (saved to `~/.minion/sessions/`)
+- **Reject**: Deny execution
+
+### Programming Interface
 
 ```python
 import asyncio
 from minion_code import MinionCodeAgent
 
 async def main():
-    # 创建AI代码助手，自动配置所有工具
+    # Create AI code assistant with all tools auto-configured
     agent = await MinionCodeAgent.create(
         name="My Code Assistant",
         llm="gpt-4.1"
     )
-    
-    # 与AI助手对话
+
+    # Chat with the AI assistant
     response = await agent.run_async("List files in current directory")
     print(response.answer)
-    
+
     response = await agent.run_async("Read the README.md file")
     print(response.answer)
 
 asyncio.run(main())
 ```
 
-### 自定义配置
+### Custom Configuration
 
 ```python
-# 自定义系统提示和工作目录
+# Custom system prompt and working directory
 agent = await MinionCodeAgent.create(
     name="Python Expert",
     llm="gpt-4.1",
@@ -117,50 +167,50 @@ agent = await MinionCodeAgent.create(
 )
 ```
 
-### 查看可用工具
+### View Available Tools
 
 ```python
-# 打印工具摘要
+# Print tools summary
 agent.print_tools_summary()
 
-# 获取工具信息
+# Get tools info
 tools_info = agent.get_tools_info()
 for tool in tools_info:
     print(f"{tool['name']}: {tool['description']}")
 ```
 
-## 内置工具
+## Built-in Tools
 
-MinionCodeAgent自动包含以下工具类别：
+MinionCodeAgent automatically includes the following tool categories:
 
-### 📁 文件和目录工具
-- **FileReadTool**: 读取文件内容
-- **FileWriteTool**: 写入文件
-- **GrepTool**: 在文件中搜索文本
-- **GlobTool**: 文件模式匹配
-- **LsTool**: 列出目录内容
+### 📁 File and Directory Tools
+- **FileReadTool**: Read file contents
+- **FileWriteTool**: Write files
+- **GrepTool**: Search text in files
+- **GlobTool**: File pattern matching
+- **LsTool**: List directory contents
 
-### 💻 系统和执行工具
-- **BashTool**: 执行shell命令
-- **PythonInterpreterTool**: 执行Python代码
+### 💻 System and Execution Tools
+- **BashTool**: Execute shell commands
+- **PythonInterpreterTool**: Execute Python code
 
-### 🌐 网络和搜索工具
-- **WebSearchTool**: 网络搜索
-- **WikipediaSearchTool**: Wikipedia搜索
-- **VisitWebpageTool**: 访问网页
+### 🌐 Network and Search Tools
+- **WebSearchTool**: Web search
+- **WikipediaSearchTool**: Wikipedia search
+- **VisitWebpageTool**: Visit webpages
 
-### 🔧 其他工具
-- **UserInputTool**: 用户输入
-- **TodoWriteTool**: 任务管理写入
-- **TodoReadTool**: 任务管理读取
+### 🔧 Other Tools
+- **UserInputTool**: User input
+- **TodoWriteTool**: Task management write
+- **TodoReadTool**: Task management read
 
-## MCP工具集成
+## MCP Tool Integration
 
-MinionCodeAgent支持通过MCP (Model Context Protocol) 配置文件加载额外的工具。
+MinionCodeAgent supports loading additional tools via MCP (Model Context Protocol) configuration files.
 
-### MCP配置文件格式
+### MCP Configuration File Format
 
-创建一个JSON配置文件（如`mcp.json`）：
+Create a JSON configuration file (e.g., `mcp.json`):
 
 ```json
 {
@@ -190,35 +240,35 @@ MinionCodeAgent支持通过MCP (Model Context Protocol) 配置文件加载额外
 }
 ```
 
-### 配置选项说明
+### Configuration Options
 
-- `command`: 启动MCP服务器的命令
-- `args`: 命令参数列表
-- `env`: 环境变量（可选）
-- `disabled`: 是否禁用此服务器（默认false）
-- `autoApprove`: 自动批准的工具名称列表（可选）
+- `command`: Command to start the MCP server
+- `args`: List of command arguments
+- `env`: Environment variables (optional)
+- `disabled`: Whether to disable this server (default: false)
+- `autoApprove`: List of tool names to auto-approve (optional)
 
-### 使用MCP配置
+### Using MCP Configuration
 
 ```bash
-# 使用MCP配置文件
+# Use MCP config file
 minion-code --config examples/mcp_config.json
 
-# 查看加载的工具（包括MCP工具）
-# 在CLI中输入: tools
+# View loaded tools (including MCP tools)
+# In CLI, type: tools
 ```
 
-### 编程接口中使用MCP工具
+### Using MCP Tools in Programming Interface
 
 ```python
 from minion_code.utils.mcp_loader import load_mcp_tools
 from pathlib import Path
 
 async def main():
-    # 加载MCP工具
+    # Load MCP tools
     mcp_tools = await load_mcp_tools(Path("mcp.json"))
-    
-    # 创建包含MCP工具的agent
+
+    # Create agent with MCP tools
     agent = await MinionCodeAgent.create(
         name="Enhanced Assistant",
         llm="gpt-4o-mini",
@@ -226,43 +276,43 @@ async def main():
     )
 ```
 
-## 对话历史管理
+## Conversation History Management
 
 ```python
-# 获取对话历史
+# Get conversation history
 history = agent.get_conversation_history()
 for entry in history:
     print(f"User: {entry['user_message']}")
     print(f"Agent: {entry['agent_response']}")
 
-# 清除历史
+# Clear history
 agent.clear_conversation_history()
 ```
 
-## 与原始实现的对比
+## Comparison with Original Implementation
 
-### 之前 (复杂的手动配置)
+### Before (Complex manual configuration)
 ```python
-# 需要手动导入和配置所有工具
+# Need to manually import and configure all tools
 from minion_code.tools import (
-    FileReadTool, FileWriteTool, BashTool, 
-    GrepTool, GlobTool, LsTool, 
+    FileReadTool, FileWriteTool, BashTool,
+    GrepTool, GlobTool, LsTool,
     PythonInterpreterTool, WebSearchTool,
-    # ... 更多工具
+    # ... more tools
 )
 
-# 手动创建工具实例
+# Manually create tool instances
 custom_tools = [
     FileReadTool(),
     FileWriteTool(),
     BashTool(),
-    # ... 更多工具配置
+    # ... more tool configuration
 ]
 
-# 手动设置系统提示
+# Manually set system prompt
 SYSTEM_PROMPT = "You are a coding agent..."
 
-# 创建agent (约50行代码)
+# Create agent (~50 lines of code)
 agent = await CodeAgent.create(
     name="Minion Code Assistant",
     llm="gpt-4o-mini",
@@ -271,23 +321,23 @@ agent = await CodeAgent.create(
 )
 ```
 
-### 现在 (使用MinionCodeAgent)
+### Now (Using MinionCodeAgent)
 ```python
-# 一行代码完成所有设置
+# One line of code completes all setup
 agent = await MinionCodeAgent.create(
     name="Minion Code Assistant",
     llm="gpt-4o-mini"
 )
 ```
 
-## API参考
+## API Reference
 
 ### MinionCodeAgent.create()
 
 ```python
 async def create(
     name: str = "Minion Code Assistant",
-    llm: str = "gpt-4o-mini", 
+    llm: str = "gpt-4o-mini",
     system_prompt: Optional[str] = None,
     workdir: Optional[Union[str, Path]] = None,
     additional_tools: Optional[List[Any]] = None,
@@ -295,75 +345,75 @@ async def create(
 ) -> MinionCodeAgent
 ```
 
-**参数:**
-- `name`: Agent名称
-- `llm`: 使用的LLM模型
-- `system_prompt`: 自定义系统提示（可选）
-- `workdir`: 工作目录（可选，默认当前目录）
-- `additional_tools`: 额外工具列表（可选）
-- `**kwargs`: 传递给CodeAgent.create()的其他参数
+**Parameters:**
+- `name`: Agent name
+- `llm`: LLM model to use
+- `system_prompt`: Custom system prompt (optional)
+- `workdir`: Working directory (optional, defaults to current directory)
+- `additional_tools`: List of additional tools (optional)
+- `**kwargs`: Other parameters passed to CodeAgent.create()
 
-### 实例方法
+### Instance Methods
 
-- `run_async(message: str)`: 异步运行agent
-- `run(message: str)`: 同步运行agent  
-- `get_conversation_history()`: 获取对话历史
-- `clear_conversation_history()`: 清除对话历史
-- `get_tools_info()`: 获取工具信息
-- `print_tools_summary()`: 打印工具摘要
+- `run_async(message: str)`: Run agent asynchronously
+- `run(message: str)`: Run agent synchronously
+- `get_conversation_history()`: Get conversation history
+- `clear_conversation_history()`: Clear conversation history
+- `get_tools_info()`: Get tools info
+- `print_tools_summary()`: Print tools summary
 
-### 属性
+### Properties
 
-- `agent`: 访问底层CodeAgent实例
-- `tools`: 获取可用工具列表
-- `name`: 获取agent名称
+- `agent`: Access underlying CodeAgent instance
+- `tools`: Get available tools list
+- `name`: Get agent name
 
-## 安全特性
+## Security Features
 
-- **命令执行安全**：BashTool禁止执行危险命令（如`rm -rf`、`sudo`等）
-- **Python执行限制**：PythonInterpreterTool在受限环境中执行，只允许安全的内置函数和指定模块
-- **文件访问控制**：所有文件操作都有路径验证和错误处理
+- **Command Execution Safety**: BashTool prohibits dangerous commands (e.g., `rm -rf`, `sudo`, etc.)
+- **Python Execution Restrictions**: PythonInterpreterTool runs in a restricted environment, allowing only safe built-in functions and specified modules
+- **File Access Control**: All file operations have path validation and error handling
 
-## 示例
+## Examples
 
-查看 `examples/` 目录中的完整示例：
+See complete examples in the `examples/` directory:
 
-- `simple_code_agent.py`: 基本MinionCodeAgent使用示例
-- `simple_tui.py`: 简化的TUI实现
-- `advanced_textual_tui.py`: 高级TUI界面（使用Textual库）
-- `minion_agent_tui.py`: 原始复杂实现（对比参考）
-- `mcp_config.json`: MCP配置文件示例
-- `test_mcp_config.py`: MCP配置加载测试
-- `demo_mcp_cli.py`: MCP CLI功能演示
+- `simple_code_agent.py`: Basic MinionCodeAgent usage example
+- `simple_tui.py`: Simplified TUI implementation
+- `advanced_textual_tui.py`: Advanced TUI interface (using Textual library)
+- `minion_agent_tui.py`: Original complex implementation (for comparison)
+- `mcp_config.json`: MCP configuration file example
+- `test_mcp_config.py`: MCP configuration loading test
+- `demo_mcp_cli.py`: MCP CLI feature demo
 
-运行示例：
+Run examples:
 
 ```bash
-# 基本使用示例
+# Basic usage example
 python examples/simple_code_agent.py
 
-# 简单TUI
+# Simple TUI
 python examples/simple_tui.py
 
-# 高级TUI (需要安装 textual: pip install textual rich)
+# Advanced TUI (requires textual: pip install textual rich)
 python examples/advanced_textual_tui.py
 
-# 测试MCP配置加载
+# Test MCP config loading
 python examples/test_mcp_config.py
 
-# MCP CLI功能演示
+# MCP CLI feature demo
 python examples/demo_mcp_cli.py
 ```
 
-## 文档
+## Documentation
 
-- [LLM 配置指南](LLM_CONFIG.md) - 如何配置大语言模型（LLM）
-- [MCP 工具集成指南](docs/MCP_GUIDE.md) - 详细的MCP配置和使用指南
+- [LLM Configuration Guide](LLM_CONFIG.md) - How to configure Large Language Models (LLM)
+- [MCP Tool Integration Guide](docs/MCP_GUIDE.md) - Detailed MCP configuration and usage guide
 
-## 贡献
+## Contributing
 
-欢迎提交Issue和Pull Request来改进这个项目！
+Issues and Pull Requests are welcome to improve this project!
 
-## 许可证
+## License
 
 MIT License
