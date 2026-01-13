@@ -171,15 +171,28 @@ class ACPToolHooks:
                     tool_call=tool_call_for_permission,
                 )
 
-                # Check response
-                outcome = permission_response.outcome
-                if hasattr(outcome, 'outcome'):
-                    outcome = outcome.outcome
+                # Check response - extract option_id and outcome
+                raw_outcome = permission_response.outcome
+                option_id = None
+                outcome = raw_outcome
 
-                if outcome in ("rejected", "reject_once", "reject_always"):
-                    logger.info(f"Permission denied for {tool_name}: {outcome}")
+                # Handle nested structures from different ACP clients
+                if hasattr(raw_outcome, 'option_id'):
+                    option_id = raw_outcome.option_id
+                if hasattr(raw_outcome, 'outcome'):
+                    outcome = raw_outcome.outcome
+                    if hasattr(outcome, 'option_id'):
+                        option_id = outcome.option_id
+
+                # Use option_id if available (more reliable), otherwise fall back to outcome
+                selected = option_id or outcome
+
+                logger.info(f"Permission response for {tool_name}: selected={selected}, option_id={option_id}, outcome={outcome}")
+
+                if selected in ("rejected", "reject_once", "reject_always"):
+                    logger.info(f"Permission denied for {tool_name}: {selected}")
                     # Save persistent rejection if "always"
-                    if outcome == "reject_always" and self.permission_store:
+                    if selected == "reject_always" and self.permission_store:
                         self.permission_store.set_permission(tool_name, always_allow=False)
                     return PreToolUseResult(
                         decision=PermissionDecision.DENY,
@@ -187,10 +200,11 @@ class ACPToolHooks:
                     )
 
                 # Save persistent allowance if "always"
-                if outcome == "allow_always" and self.permission_store:
+                if selected == "allow_always" and self.permission_store:
                     self.permission_store.set_permission(tool_name, always_allow=True)
+                    logger.info(f"Saved persistent allow permission for {tool_name}")
 
-                logger.info(f"Permission granted for {tool_name}: {outcome}")
+                logger.info(f"Permission granted for {tool_name}: {selected}")
 
             except Exception as e:
                 logger.error(f"Failed to request permission: {e}")
