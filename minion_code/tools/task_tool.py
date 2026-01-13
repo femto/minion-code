@@ -4,9 +4,9 @@ Task Tool for launching specialized agents to handle complex, multi-step tasks.
 Uses SubagentRegistry to dynamically manage available agent types.
 """
 
-import asyncio
 import time
 import uuid
+from pathlib import Path
 from typing import Dict, Any, Optional, List, Union
 from minion.tools import BaseTool
 from minion.types import AgentState
@@ -100,9 +100,10 @@ class TaskTool(BaseTool):
     }
     output_type = "string"
 
-    def __init__(self, **kwargs):
+    def __init__(self, workdir: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
         self._registry = None
+        self._workdir = Path(workdir) if workdir else None
         # Set dynamic description
         self.description = generate_task_tool_prompt()
 
@@ -114,20 +115,9 @@ class TaskTool(BaseTool):
             self._registry = load_subagents()
         return self._registry
 
-    def forward(self, description: str, prompt: str, model_name: Optional[str] = None,
-                subagent_type: Optional[str] = None, *, state: AgentState) -> str:
-        """Execute the task using a specialized agent."""
-        try:
-            return asyncio.run(self._execute_task_async(
-                description, prompt, model_name, subagent_type, state
-            ))
-        except Exception as e:
-            return f"Error executing task: {str(e)}"
-
-    async def _execute_task_async(self, description: str, prompt: str,
-                                  model_name: Optional[str], subagent_type: Optional[str],
-                                  state: AgentState) -> str:
-        """Execute the task asynchronously."""
+    async def forward(self, description: str, prompt: str, model_name: Optional[str] = None,
+                      subagent_type: Optional[str] = None, *, state: AgentState) -> str:
+        """Execute the task using a specialized agent (async)."""
         start_time = time.time()
 
         # Default to general-purpose
@@ -162,11 +152,15 @@ class TaskTool(BaseTool):
         try:
             from ..agents.code_agent import MinionCodeAgent
 
+            # Determine working directory
+            workdir = self._workdir or Path.cwd()
+
             # Create agent with filtered tools
             agent = await MinionCodeAgent.create(
                 name=f"Task Agent ({agent_type})",
                 llm=effective_model,
                 system_prompt=effective_prompt if subagent_config.system_prompt else None,
+                workdir=workdir,
                 additional_tools=self._get_filtered_tools(subagent_config.tools)
             )
 
