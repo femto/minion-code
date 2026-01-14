@@ -102,9 +102,21 @@ def _format_tool_input(tool_name: str, tool_input: Dict[str, Any]) -> str:
     if tool_name == "file_read":
         return f"File: {tool_input.get('file_path', '')}"
 
-    # Default: show all parameters
+    if tool_name == "Task":
+        desc = tool_input.get("description", "")
+        prompt = tool_input.get("prompt", "")
+        subagent = tool_input.get("subagent_type", "general-purpose")
+        # Truncate prompt if too long
+        if len(prompt) > 200:
+            prompt = prompt[:200] + "..."
+        return f"Subagent: {subagent}\nDescription: {desc}\nPrompt: {prompt}"
+
+    # Default: show all parameters (excluding internal ones like 'state')
     parts = []
+    skip_keys = {"state"}  # Internal parameters to hide
     for key, value in tool_input.items():
+        if key in skip_keys:
+            continue
         if isinstance(value, str) and len(value) > 100:
             value = value[:100] + "..."
         parts.append(f"{key}: {value}")
@@ -126,17 +138,19 @@ def create_confirm_writes_hook(
         skip_readonly: If True, auto-accept readonly tools without confirmation
     """
     async def confirm_writes(tool_name: str, tool_input: Dict[str, Any], tool_use_id: str) -> PreToolUseResult:
-        # Check if tool is readonly
-        if skip_readonly and tools_registry:
-            tool = tools_registry.get(tool_name)
-            if tool and getattr(tool, 'readonly', False):
-                return PreToolUseResult(decision=PermissionDecision.ACCEPT)
-
-        # Known readonly tools (fallback if no registry)
+        # Skip readonly tools
         if skip_readonly:
-            readonly_tools = {"file_read", "glob", "grep", "ls", "web_fetch", "web_search", "todo_read"}
+            # Known readonly tools (hardcoded list)
+            # Task is readonly because subagents have their own permission control
+            readonly_tools = {"file_read", "glob", "grep", "ls", "web_fetch", "web_search", "todo_read", "Task"}
             if tool_name in readonly_tools:
                 return PreToolUseResult(decision=PermissionDecision.ACCEPT)
+
+            # Check if tool is readonly from registry
+            if tools_registry:
+                tool = tools_registry.get(tool_name)
+                if tool and getattr(tool, 'readonly', False):
+                    return PreToolUseResult(decision=PermissionDecision.ACCEPT)
 
         # Format tool input for display
         input_summary = _format_tool_input(tool_name, tool_input)
@@ -188,7 +202,8 @@ def create_cli_confirm_hook(
     if session_allowed is None:
         session_allowed = set()
 
-    readonly_tools = {"file_read", "glob", "grep", "ls", "web_fetch", "web_search", "todo_read"}
+    # Task is readonly because subagents have their own permission control
+    readonly_tools = {"file_read", "glob", "grep", "ls", "web_fetch", "web_search", "todo_read", "Task"}
 
     # Use Rich console if provided, otherwise create one
     if console is None:
@@ -196,6 +211,7 @@ def create_cli_confirm_hook(
         console = Console()
 
     async def cli_confirm(tool_name: str, tool_input: Dict[str, Any], tool_use_id: str) -> PreToolUseResult:
+        # Skip readonly tools
         if tool_name in readonly_tools:
             return PreToolUseResult(decision=PermissionDecision.ACCEPT)
 
