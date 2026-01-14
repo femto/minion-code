@@ -90,12 +90,12 @@ class TaskTool(AsyncBaseTool):
         "model_name": {
             "type": "string",
             "description": "Optional: Specific model name to use for this task",
-            "required": False
+            "nullable": True
         },
         "subagent_type": {
             "type": "string",
             "description": "The type of specialized agent to use (default: general-purpose)",
-            "required": False
+            "nullable": True
         }
     }
     output_type = "string"
