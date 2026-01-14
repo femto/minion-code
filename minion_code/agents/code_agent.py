@@ -370,11 +370,11 @@ class MinionCodeAgent(CodeAgent):
         ]
         
         # Add TaskTool if available (avoid circular import)
-        # try:
-        #     from ..tools.task_tool import TaskTool
-        #     minion_tools.append(TaskTool())
-        # except ImportError:
-        #     pass
+        try:
+            from ..tools.task_tool import TaskTool
+            minion_tools.append(TaskTool(workdir=str(workdir)))
+        except ImportError:
+            pass
         
         # Add any additional tools
         all_tools = minion_tools[:]
