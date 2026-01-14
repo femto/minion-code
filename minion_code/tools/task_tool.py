@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Union
-from minion.tools import BaseTool
+from minion.tools import AsyncBaseTool
 from minion.types import AgentState
 
 
@@ -66,7 +66,7 @@ Example usage:
 """
 
 
-class TaskTool(BaseTool):
+class TaskTool(AsyncBaseTool):
     """
     A tool for launching specialized agents to handle complex, multi-step tasks autonomously.
     Uses SubagentRegistry to dynamically manage available agent types.
@@ -100,8 +100,8 @@ class TaskTool(BaseTool):
     }
     output_type = "string"
 
-    def __init__(self, workdir: Optional[str] = None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, workdir: Optional[str] = None):
+        super().__init__()
         self._registry = None
         self._workdir = Path(workdir) if workdir else None
         # Set dynamic description
