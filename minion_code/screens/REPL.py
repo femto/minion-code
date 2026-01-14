@@ -1605,16 +1605,23 @@ class REPLApp(App):
         try:
             from minion_code import MinionCodeAgent
             from minion_code.utils.logs import logger
-            from minion_code.agents.hooks import create_autonomous_hooks
+            from minion_code.agents.hooks import create_default_hooks
 
             # Check for model from CLI or use default
             # Users can override with --model flag or config
             model_from_props = self.repl_props.get("model")
             default_llm = model_from_props if model_from_props else "claude-sonnet-4-5"
 
-            # Create hooks - use autonomous mode for TUI for now
-            # TODO: Integrate with TextualOutputAdapter for proper confirmation dialogs
-            hooks = create_autonomous_hooks()
+            # Get REPL component's output adapter for permission dialogs
+            try:
+                repl_component = self.query_one(REPL)
+                output_adapter = repl_component.output_adapter
+                hooks = create_default_hooks(output_adapter)
+                logger.info("Created hooks with TextualOutputAdapter for permission dialogs")
+            except Exception as e:
+                logger.warning(f"Could not get output adapter, using autonomous hooks: {e}")
+                from minion_code.agents.hooks import create_autonomous_hooks
+                hooks = create_autonomous_hooks()
 
             logger.info(f"Initializing agent with LLM: {default_llm}")
             self.agent = await MinionCodeAgent.create(

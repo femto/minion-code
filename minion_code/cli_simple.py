@@ -29,7 +29,7 @@ from minion_code import MinionCodeAgent
 from minion_code.commands import command_registry
 from minion_code.utils.mcp_loader import MCPToolsLoader
 from minion_code.adapters import RichOutputAdapter
-from minion_code.agents.hooks import create_cli_hooks
+from minion_code.agents.hooks import create_cli_hooks, SpinnerController
 from minion_code.utils.session_storage import (
     Session, create_session, save_session, load_session,
     get_latest_session_id, add_message, restore_agent_history
@@ -85,7 +85,10 @@ class InterruptibleCLI:
 
         # Create output adapter for commands
         self.output_adapter = RichOutputAdapter(self.console)
-        
+
+        # Spinner controller for pausing during permission prompts
+        self.spinner_controller = SpinnerController()
+
     async def setup(self):
         """Setup the agent."""
         with Progress(
@@ -132,7 +135,11 @@ class InterruptibleCLI:
             agent_task = progress.add_task("🔧 Setting up MinionCodeAgent...", total=None)
             
             # Create hooks for tool permission control
-            hooks = create_cli_hooks(auto_accept=self.auto_accept)
+            hooks = create_cli_hooks(
+                auto_accept=self.auto_accept,
+                spinner_controller=self.spinner_controller,
+                console=self.console,
+            )
 
             # Use model from CLI if provided, otherwise use default
             llm_model = self.model if self.model else "claude-sonnet-4-5"
@@ -292,13 +299,18 @@ class InterruptibleCLI:
         try:
             with Progress(
                 SpinnerColumn(),
-                TextColumn("[progress.description]{task.description} (Ctrl+C to interrupt)"),
+                TextColumn("[progress.description]{task.description}"),
                 console=self.console,
             ) as progress:
                 task = progress.add_task("🤖 Processing...", total=None)
-                
-                response = await self.process_input_with_interrupt(user_input)
-                
+
+                # Set progress on spinner controller so hooks can pause/resume it
+                self.spinner_controller.set_progress(progress)
+                try:
+                    response = await self.process_input_with_interrupt(user_input)
+                finally:
+                    self.spinner_controller.clear_progress()
+
                 progress.update(task, completed=True)
             
             if response is None:
