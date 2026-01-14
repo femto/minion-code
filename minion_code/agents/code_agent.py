@@ -381,21 +381,16 @@ class MinionCodeAgent(CodeAgent):
         if additional_tools:
             all_tools.extend(additional_tools)
 
-        # Wrap tools with hooks if configured
-        if hooks is not None and (hooks.pre_tool_use or hooks.post_tool_use):
-            from .hooks import wrap_tools_with_hooks
-            logger.info(f"Wrapping {len(all_tools)} tools with {len(hooks.pre_tool_use)} pre and {len(hooks.post_tool_use)} post hooks")
-            all_tools = wrap_tools_with_hooks(all_tools, hooks)
-
         logger.info(f"Creating MinionCodeAgent with {len(all_tools)} tools")
         logger.info(f"LLM config - main: {llm}, quick: {llm_quick}, task: {llm_task}, reasoning: {llm_reasoning}")
-        
-        # Create the underlying CodeAgent
+
+        # Create the underlying CodeAgent (hooks applied in BaseAgent.setup())
         agent = await super().create(
             name=name,
             llm=llm,
             system_prompt=system_prompt,
             tools=all_tools,
+            hooks=hooks,  # Pass hooks to parent - applied in BaseAgent.setup()
             **kwargs
         )
         
