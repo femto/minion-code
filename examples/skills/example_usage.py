@@ -24,17 +24,14 @@ async def main():
 
     # Create agent - SkillTool is included by default
     print("Creating MinionCodeAgent...")
-    agent = await MinionCodeAgent.create(
-        name="Skill Demo Agent",
-        llm="sonnet"
-    )
+    agent = await MinionCodeAgent.create(name="Skill Demo Agent", llm="sonnet")
     print("✓ Agent created with SkillTool\n")
 
     # Show available tools (including SkillTool)
     print("Available tools:")
     tools_info = agent.get_tools_info()
     for tool in tools_info:
-        if 'skill' in tool['name'].lower():
+        if "skill" in tool["name"].lower():
             print(f"  ★ {tool['name']}: {tool['description']}")
         else:
             print(f"  - {tool['name']}")
@@ -44,11 +41,11 @@ async def main():
     print("Asking agent to list available skills...")
     print("-" * 40)
 
-    response = await agent.run_async(
-        "Please read Titans.pdf and give a summary"
-    )
+    response = await agent.run_async("Please read Titans.pdf and give a summary")
 
-    print(f"\nAgent response:\n{response.answer if hasattr(response, 'answer') else response}")
+    print(
+        f"\nAgent response:\n{response.answer if hasattr(response, 'answer') else response}"
+    )
     print()
 
     print("=" * 60)

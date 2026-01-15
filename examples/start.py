@@ -14,14 +14,17 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+
 def check_tui_available():
     """Check if TUI dependencies are available"""
     try:
         import textual
         import rich
+
         return True
     except ImportError:
         return False
+
 
 def show_interface_menu():
     """Show interface selection menu"""
@@ -32,11 +35,11 @@ def show_interface_menu():
     print("3. ❓ Auto-detect best interface")
     print("4. 🚪 Exit")
     print()
-    
+
     while True:
         try:
             choice = input("Select interface (1-4): ").strip()
-            if choice in ['1', '2', '3', '4']:
+            if choice in ["1", "2", "3", "4"]:
                 return choice
             else:
                 print("❌ Invalid choice. Please enter 1, 2, 3, or 4.")
@@ -44,11 +47,13 @@ def show_interface_menu():
             print("\n👋 Goodbye!")
             sys.exit(0)
 
+
 def start_tui_repl():
     """Start TUI REPL interface"""
     print("🚀 Starting TUI REPL interface...")
     try:
         from minion_code.screens.REPL import run
+
         run()
     except ImportError as e:
         print(f"❌ TUI dependencies not available: {e}")
@@ -59,12 +64,14 @@ def start_tui_repl():
         return False
     return True
 
+
 def start_console_cli():
     """Start console CLI interface"""
     print("🚀 Starting console CLI interface...")
     try:
         from minion_code.cli_simple import InterruptibleCLI
         import asyncio
+
         cli = InterruptibleCLI()
         asyncio.run(cli.run())
     except Exception as e:
@@ -72,10 +79,11 @@ def start_console_cli():
         return False
     return True
 
+
 def auto_detect_interface():
     """Auto-detect and start the best available interface"""
     print("🔍 Auto-detecting best interface...")
-    
+
     if check_tui_available():
         print("✅ TUI dependencies available - starting TUI REPL")
         return start_tui_repl()
@@ -83,24 +91,25 @@ def auto_detect_interface():
         print("⚠️  TUI dependencies not available - starting console CLI")
         return start_console_cli()
 
+
 def main():
     """Main entry point"""
     print("🤖 MinionCodeAgent Universal Launcher")
     print("=" * 50)
-    
+
     # Check if command line arguments are provided
     if len(sys.argv) > 1:
         arg = sys.argv[1].lower()
-        
-        if arg in ['repl', 'tui', 'r']:
+
+        if arg in ["repl", "tui", "r"]:
             if not start_tui_repl():
                 print("🔄 Falling back to console CLI...")
                 start_console_cli()
-        elif arg in ['console', 'cli', 'c']:
+        elif arg in ["console", "cli", "c"]:
             start_console_cli()
-        elif arg in ['auto', 'a']:
+        elif arg in ["auto", "a"]:
             auto_detect_interface()
-        elif arg in ['help', 'h', '--help', '-h']:
+        elif arg in ["help", "h", "--help", "-h"]:
             print_help()
         else:
             print(f"❌ Unknown argument: {arg}")
@@ -109,22 +118,24 @@ def main():
     else:
         # Interactive mode
         choice = show_interface_menu()
-        
-        if choice == '1':
+
+        if choice == "1":
             if not start_tui_repl():
                 print("🔄 Falling back to console CLI...")
                 start_console_cli()
-        elif choice == '2':
+        elif choice == "2":
             start_console_cli()
-        elif choice == '3':
+        elif choice == "3":
             auto_detect_interface()
-        elif choice == '4':
+        elif choice == "4":
             print("👋 Goodbye!")
             sys.exit(0)
 
+
 def print_help():
     """Print help information"""
-    print("""
+    print(
+        """
 Usage: python examples/start.py [INTERFACE]
 
 Interfaces:
@@ -147,7 +158,9 @@ Dependencies:
 
 Install TUI dependencies:
   pip install textual rich
-    """)
+    """
+    )
+
 
 if __name__ == "__main__":
     try:

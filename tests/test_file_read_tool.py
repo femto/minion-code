@@ -11,11 +11,13 @@ import pytest
 
 # Import the tool
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from minion_code.tools.file_read_tool import FileReadTool
 
 try:
     from PIL import Image
+
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
@@ -32,6 +34,7 @@ class TestFileReadTool:
     def teardown_method(self):
         """Cleanup test fixtures"""
         import shutil
+
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
@@ -94,7 +97,7 @@ class TestFileReadTool:
         """Test reading an image file"""
         # Create a simple test image
         test_image = os.path.join(self.temp_dir, "test.png")
-        img = Image.new('RGB', (100, 100), color='red')
+        img = Image.new("RGB", (100, 100), color="red")
         img.save(test_image)
 
         # Read image
@@ -109,7 +112,7 @@ class TestFileReadTool:
         """Test format_for_observation with image"""
         # Create a simple test image
         test_image = os.path.join(self.temp_dir, "test.png")
-        img = Image.new('RGB', (100, 100), color='blue')
+        img = Image.new("RGB", (100, 100), color="blue")
         img.save(test_image)
 
         # Read image

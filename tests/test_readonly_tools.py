@@ -18,7 +18,6 @@ from minion_code.tools import (
     WikipediaSearchTool,
     VisitWebpageTool,
     UserInputTool,
-
 )
 
 
@@ -73,7 +72,6 @@ def test_visit_webpage_tool():
     result = tool.forward("https://www.example.com")
     assert "网页访问结果" in result
     assert "https://www.example.com" in result
-
 
 
 def test_tool_inheritance():

@@ -10,7 +10,11 @@ import tempfile
 import shutil
 
 from minion_code.skills.skill import Skill
-from minion_code.skills.skill_registry import SkillRegistry, get_skill_registry, reset_skill_registry
+from minion_code.skills.skill_registry import (
+    SkillRegistry,
+    get_skill_registry,
+    reset_skill_registry,
+)
 from minion_code.skills.skill_loader import SkillLoader
 
 
@@ -30,9 +34,9 @@ This is the skill content.
 """
         frontmatter, body = Skill._parse_frontmatter(content)
 
-        assert frontmatter['name'] == 'test-skill'
-        assert frontmatter['description'] == 'A test skill for testing purposes'
-        assert '# Test Skill Instructions' in body
+        assert frontmatter["name"] == "test-skill"
+        assert frontmatter["description"] == "A test skill for testing purposes"
+        assert "# Test Skill Instructions" in body
 
     def test_parse_frontmatter_with_optional_fields(self):
         """Test parsing frontmatter with optional fields."""
@@ -52,10 +56,10 @@ Instructions here.
 """
         frontmatter, body = Skill._parse_frontmatter(content)
 
-        assert frontmatter['name'] == 'advanced-skill'
-        assert frontmatter['license'] == 'MIT'
-        assert frontmatter['allowed-tools'] == ['Bash', 'Read']
-        assert frontmatter['metadata']['author'] == 'test'
+        assert frontmatter["name"] == "advanced-skill"
+        assert frontmatter["license"] == "MIT"
+        assert frontmatter["allowed-tools"] == ["Bash", "Read"]
+        assert frontmatter["metadata"]["author"] == "test"
 
     def test_parse_frontmatter_no_frontmatter(self):
         """Test parsing content without frontmatter."""
@@ -72,7 +76,8 @@ Instructions here.
         skill_dir.mkdir()
 
         skill_md = skill_dir / "SKILL.md"
-        skill_md.write_text("""---
+        skill_md.write_text(
+            """---
 name: my-skill
 description: My custom skill for testing
 ---
@@ -84,7 +89,8 @@ Follow these instructions to use my skill.
 ## Steps
 1. Do this
 2. Then that
-""")
+"""
+        )
 
         skill = Skill.from_skill_md(skill_md, location="project")
 
@@ -101,13 +107,15 @@ Follow these instructions to use my skill.
         skill_dir.mkdir()
 
         skill_md = skill_dir / "SKILL.md"
-        skill_md.write_text("""---
+        skill_md.write_text(
+            """---
 name: incomplete-skill
 # Missing description!
 ---
 
 Some content.
-""")
+"""
+        )
 
         skill = Skill.from_skill_md(skill_md)
         assert skill is None
@@ -119,7 +127,7 @@ Some content.
             description="Test XML output",
             content="Content here",
             path=Path("/tmp/test"),
-            location="user"
+            location="user",
         )
 
         xml = skill.to_xml()
@@ -137,7 +145,7 @@ Some content.
             description="Test skill",
             content="# Instructions\n\nDo this.",
             path=skill_path,
-            location="project"
+            location="project",
         )
 
         prompt = skill.get_prompt()
@@ -164,7 +172,7 @@ class TestSkillRegistry:
             description="Test skill",
             content="Content",
             path=Path("/tmp"),
-            location="project"
+            location="project",
         )
 
         result = registry.register(skill)
@@ -180,7 +188,7 @@ class TestSkillRegistry:
             description="User version",
             content="User content",
             path=Path("/home/user"),
-            location="user"
+            location="user",
         )
 
         project_skill = Skill(
@@ -188,7 +196,7 @@ class TestSkillRegistry:
             description="Project version",
             content="Project content",
             path=Path("/project"),
-            location="project"
+            location="project",
         )
 
         # Register user skill first
@@ -208,7 +216,7 @@ class TestSkillRegistry:
             description="Project version",
             content="Project content",
             path=Path("/project"),
-            location="project"
+            location="project",
         )
 
         user_skill = Skill(
@@ -216,7 +224,7 @@ class TestSkillRegistry:
             description="User version",
             content="User content",
             path=Path("/home/user"),
-            location="user"
+            location="user",
         )
 
         # Register project skill first
@@ -238,7 +246,7 @@ class TestSkillRegistry:
                 description=f"Skill {i}",
                 content="Content",
                 path=Path("/tmp"),
-                location="project"
+                location="project",
             )
             registry.register(skill)
 
@@ -254,7 +262,7 @@ class TestSkillRegistry:
             description="Test prompt generation",
             content="Content",
             path=Path("/tmp"),
-            location="project"
+            location="project",
         )
         registry.register(skill)
 
@@ -274,7 +282,7 @@ class TestSkillRegistry:
                 description="A " * 50,  # Long description
                 content="Content",
                 path=Path("/tmp"),
-                location="project"
+                location="project",
             )
             registry.register(skill)
 
@@ -306,13 +314,15 @@ class TestSkillLoader:
         for name in ["skill-a", "skill-b"]:
             skill_dir = skills_dir / name
             skill_dir.mkdir()
-            (skill_dir / "SKILL.md").write_text(f"""---
+            (skill_dir / "SKILL.md").write_text(
+                f"""---
 name: {name}
 description: Test skill {name}
 ---
 
 Instructions for {name}.
-""")
+"""
+            )
 
         loader = SkillLoader(project_root=tmp_path)
         skill_files = loader.discover_skills(skills_dir)
@@ -328,13 +338,15 @@ Instructions for {name}.
         nested_dir = skills_dir / "document-skills" / "pdf"
         nested_dir.mkdir(parents=True)
 
-        (nested_dir / "SKILL.md").write_text("""---
+        (nested_dir / "SKILL.md").write_text(
+            """---
 name: pdf
 description: PDF processing skill
 ---
 
 PDF instructions.
-""")
+"""
+        )
 
         loader = SkillLoader(project_root=tmp_path)
         skill_files = loader.discover_skills(skills_dir)
@@ -348,13 +360,15 @@ PDF instructions.
         skills_dir = tmp_path / ".claude" / "skills" / "test-skill"
         skills_dir.mkdir(parents=True)
 
-        (skills_dir / "SKILL.md").write_text("""---
+        (skills_dir / "SKILL.md").write_text(
+            """---
 name: test-skill
 description: A test skill
 ---
 
 Test instructions.
-""")
+"""
+        )
 
         reset_skill_registry()
         loader = SkillLoader(project_root=tmp_path)
@@ -376,7 +390,8 @@ class TestIntegration:
         skills_dir = tmp_path / ".minion" / "skills" / "my-workflow"
         skills_dir.mkdir(parents=True)
 
-        (skills_dir / "SKILL.md").write_text("""---
+        (skills_dir / "SKILL.md").write_text(
+            """---
 name: my-workflow
 description: Custom workflow for data processing
 allowed-tools:
@@ -399,7 +414,8 @@ This skill helps you process data efficiently.
 ```bash
 cat input.txt | process | tee output.txt
 ```
-""")
+"""
+        )
 
         # Load
         loader = SkillLoader(project_root=tmp_path)
