@@ -36,7 +36,7 @@ class HelpCommand(BaseCommand):
             self.output.panel(
                 f"❌ Command '/{command_name}' not found",
                 title="Error",
-                border_style="red"
+                border_style="red",
             )
             return
 
@@ -45,9 +45,7 @@ class HelpCommand(BaseCommand):
         help_text = temp_command.get_help()
 
         self.output.panel(
-            help_text,
-            title=f"Help: /{command_name}",
-            border_style="blue"
+            help_text, title=f"Help: /{command_name}", border_style="blue"
         )
 
     async def _show_general_help(self) -> None:
@@ -62,11 +60,7 @@ class HelpCommand(BaseCommand):
 
         for name, command_class in sorted(commands.items()):
             aliases = ", ".join(f"/{alias}" for alias in command_class.aliases)
-            rows.append([
-                f"/{name}",
-                command_class.description,
-                aliases or "-"
-            ])
+            rows.append([f"/{name}", command_class.description, aliases or "-"])
 
         self.output.table(headers, rows, title="📚 Available Commands")
 
@@ -76,5 +70,5 @@ class HelpCommand(BaseCommand):
             "💬 Regular messages are sent to the AI agent\n"
             "🔍 Use '/help <command>' for detailed help on a specific command",
             title="Usage Tips",
-            border_style="green"
+            border_style="green",
         )

@@ -91,10 +91,7 @@ class ACPToolHooks:
         return str(uuid.uuid4())
 
     async def pre_tool_use(
-        self,
-        tool_name: str,
-        tool_input: Dict[str, Any],
-        tool_use_id: str
+        self, tool_name: str, tool_input: Dict[str, Any], tool_use_id: str
     ) -> PreToolUseResult:
         """
         Pre-tool-use hook that sends ToolCallStart notification.
@@ -116,13 +113,15 @@ class ACPToolHooks:
         if needs_permission and self.permission_store:
             stored_permission = self.permission_store.is_allowed(tool_name)
             if stored_permission is True:
-                logger.info(f"Tool {tool_name} has persistent allow permission, skipping request")
+                logger.info(
+                    f"Tool {tool_name} has persistent allow permission, skipping request"
+                )
                 needs_permission = False
             elif stored_permission is False:
                 logger.info(f"Tool {tool_name} has persistent reject permission")
                 return PreToolUseResult(
                     decision=PermissionDecision.DENY,
-                    reason="Tool permanently rejected by user"
+                    reason="Tool permanently rejected by user",
                 )
 
         # Request permission via ACP if enabled and tool is not safe
@@ -158,7 +157,7 @@ class ACPToolHooks:
                             type="content",
                             content=TextContentBlock(
                                 type="text",
-                                text=f"Tool: {tool_name}\nInput: {tool_input}"
+                                text=f"Tool: {tool_name}\nInput: {tool_input}",
                             ),
                         )
                     ],
@@ -177,26 +176,30 @@ class ACPToolHooks:
                 outcome = raw_outcome
 
                 # Handle nested structures from different ACP clients
-                if hasattr(raw_outcome, 'option_id'):
+                if hasattr(raw_outcome, "option_id"):
                     option_id = raw_outcome.option_id
-                if hasattr(raw_outcome, 'outcome'):
+                if hasattr(raw_outcome, "outcome"):
                     outcome = raw_outcome.outcome
-                    if hasattr(outcome, 'option_id'):
+                    if hasattr(outcome, "option_id"):
                         option_id = outcome.option_id
 
                 # Use option_id if available (more reliable), otherwise fall back to outcome
                 selected = option_id or outcome
 
-                logger.info(f"Permission response for {tool_name}: selected={selected}, option_id={option_id}, outcome={outcome}")
+                logger.info(
+                    f"Permission response for {tool_name}: selected={selected}, option_id={option_id}, outcome={outcome}"
+                )
 
                 if selected in ("rejected", "reject_once", "reject_always"):
                     logger.info(f"Permission denied for {tool_name}: {selected}")
                     # Save persistent rejection if "always"
                     if selected == "reject_always" and self.permission_store:
-                        self.permission_store.set_permission(tool_name, always_allow=False)
+                        self.permission_store.set_permission(
+                            tool_name, always_allow=False
+                        )
                     return PreToolUseResult(
                         decision=PermissionDecision.DENY,
-                        reason="User denied permission"
+                        reason="User denied permission",
                     )
 
                 # Save persistent allowance if "always"
@@ -235,7 +238,7 @@ class ACPToolHooks:
         tool_input: Dict[str, Any],
         tool_use_id: str,
         result: Any,
-        error: Optional[Exception] = None
+        error: Optional[Exception] = None,
     ) -> PostToolUseResult:
         """
         Post-tool-use hook that sends ToolCallProgress notification.
@@ -263,6 +266,7 @@ class ACPToolHooks:
             else:
                 try:
                     import json
+
                     output = json.dumps(result, indent=2, default=str)
                 except Exception:
                     output = str(result)
@@ -314,9 +318,7 @@ def create_acp_hooks(
 
     # Create hook functions
     async def acp_pre_tool_use(
-        tool_name: str,
-        tool_input: Dict[str, Any],
-        tool_use_id: str
+        tool_name: str, tool_input: Dict[str, Any], tool_use_id: str
     ) -> PreToolUseResult:
         return await acp_hooks.pre_tool_use(tool_name, tool_input, tool_use_id)
 
@@ -325,15 +327,18 @@ def create_acp_hooks(
         tool_input: Dict[str, Any],
         tool_use_id: str,
         result: Any,
-        error: Optional[Exception] = None
+        error: Optional[Exception] = None,
     ) -> PostToolUseResult:
-        return await acp_hooks.post_tool_use(tool_name, tool_input, tool_use_id, result, error)
+        return await acp_hooks.post_tool_use(
+            tool_name, tool_input, tool_use_id, result, error
+        )
 
     config = HookConfig()
 
     # Add dangerous command check if requested
     if include_dangerous_check:
         from ..agents.hooks import create_dangerous_command_check_hook
+
         config.add_pre_tool_use("bash", create_dangerous_command_check_hook())
 
     # Add ACP hooks for all tools

@@ -13,7 +13,11 @@ Subagent search paths (in priority order):
 """
 
 from .subagent import SubagentConfig
-from .subagent_registry import SubagentRegistry, get_subagent_registry, reset_subagent_registry
+from .subagent_registry import (
+    SubagentRegistry,
+    get_subagent_registry,
+    reset_subagent_registry,
+)
 from .subagent_loader import SubagentLoader, load_subagents, get_available_subagents
 
 __all__ = [

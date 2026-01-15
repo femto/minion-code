@@ -31,15 +31,20 @@ from minion_code.utils.mcp_loader import MCPToolsLoader
 from minion_code.adapters import RichOutputAdapter
 from minion_code.agents.hooks import create_cli_hooks, SpinnerController
 from minion_code.utils.session_storage import (
-    Session, create_session, save_session, load_session,
-    get_latest_session_id, add_message, restore_agent_history
+    Session,
+    create_session,
+    save_session,
+    load_session,
+    get_latest_session_id,
+    add_message,
+    restore_agent_history,
 )
 
 app = typer.Typer(
     name="minion-code-simple",
     help="🤖 MinionCodeAgent Simple CLI - Console-based interface",
     add_completion=False,
-    rich_markup_mode="rich"
+    rich_markup_mode="rich",
 )
 
 
@@ -55,7 +60,7 @@ class InterruptibleCLI:
         initial_prompt: Optional[str] = None,
         print_output: bool = False,
         auto_accept: bool = False,
-        model: Optional[str] = None
+        model: Optional[str] = None,
     ):
         self.agent = None
         self.running = True
@@ -104,36 +109,49 @@ class InterruptibleCLI:
 
                 if self.mcp_loader.config_path:
                     if self.verbose:
-                        self.console.print(f"[dim]Using MCP config: {self.mcp_loader.config_path}[/dim]")
+                        self.console.print(
+                            f"[dim]Using MCP config: {self.mcp_loader.config_path}[/dim]"
+                        )
 
                     self.mcp_loader.load_config()
                     self.mcp_tools = await self.mcp_loader.load_all_tools()
 
                     if self.mcp_tools:
-                        self.console.print(f"✅ Loaded {len(self.mcp_tools)} MCP tools from {self.mcp_loader.config_path}")
+                        self.console.print(
+                            f"✅ Loaded {len(self.mcp_tools)} MCP tools from {self.mcp_loader.config_path}"
+                        )
                     else:
                         server_info = self.mcp_loader.get_server_info()
                         if server_info:
-                            self.console.print(f"📋 Found {len(server_info)} MCP server(s) configured")
+                            self.console.print(
+                                f"📋 Found {len(server_info)} MCP server(s) configured"
+                            )
                             for name, info in server_info.items():
-                                status = "disabled" if info['disabled'] else "enabled"
-                                self.console.print(f"  - {name}: {info['command']} ({status})")
+                                status = "disabled" if info["disabled"] else "enabled"
+                                self.console.print(
+                                    f"  - {name}: {info['command']} ({status})"
+                                )
                         else:
                             self.console.print("⚠️  No MCP servers found in config")
                 else:
                     if self.verbose:
-                        self.console.print("[dim]No MCP config found in standard locations[/dim]")
+                        self.console.print(
+                            "[dim]No MCP config found in standard locations[/dim]"
+                        )
 
                 progress.update(mcp_task, completed=True)
             except Exception as e:
                 self.console.print(f"❌ Failed to load MCP tools: {e}")
                 if self.verbose:
                     import traceback
+
                     self.console.print(f"[dim]{traceback.format_exc()}[/dim]")
                 progress.update(mcp_task, completed=True)
-            
-            agent_task = progress.add_task("🔧 Setting up MinionCodeAgent...", total=None)
-            
+
+            agent_task = progress.add_task(
+                "🔧 Setting up MinionCodeAgent...", total=None
+            )
+
             # Create hooks for tool permission control
             hooks = create_cli_hooks(
                 auto_accept=self.auto_accept,
@@ -156,27 +174,31 @@ class InterruptibleCLI:
                 decay_ttl_steps=3,
                 decay_min_size=100_000,  # 100KB
             )
-            
+
             progress.update(agent_task, completed=True)
-        
+
         # Show setup summary
         total_tools = len(self.agent.tools)
         mcp_count = len(self.mcp_tools)
         builtin_count = total_tools - mcp_count
-        
-        summary_text = f"✅ Agent ready with [bold green]{total_tools}[/bold green] tools!"
+
+        summary_text = (
+            f"✅ Agent ready with [bold green]{total_tools}[/bold green] tools!"
+        )
         if mcp_count > 0:
             summary_text += f"\n🔌 MCP tools: [bold cyan]{mcp_count}[/bold cyan]"
-            summary_text += f"\n🛠️  Built-in tools: [bold blue]{builtin_count}[/bold blue]"
+            summary_text += (
+                f"\n🛠️  Built-in tools: [bold blue]{builtin_count}[/bold blue]"
+            )
         summary_text += f"\n⚠️  [bold yellow]Press Ctrl+C during processing to interrupt tasks[/bold yellow]"
-        
+
         success_panel = Panel(
             summary_text,
             title="[bold green]Setup Complete[/bold green]",
-            border_style="green"
+            border_style="green",
         )
         self.console.print(success_panel)
-        
+
         if self.verbose:
             self.console.print(f"[dim]Working directory: {os.getcwd()}[/dim]")
 
@@ -191,66 +213,76 @@ class InterruptibleCLI:
         if self.resume_session_id:
             self.session = load_session(self.resume_session_id)
             if self.session:
-                self.console.print(Panel(
-                    f"Restored session `{self.resume_session_id}` "
-                    f"({len(self.session.messages)} messages)\n"
-                    f"Title: {self.session.metadata.title or '(none)'}",
-                    title="[bold green]Session Restored[/bold green]",
-                    border_style="green"
-                ))
+                self.console.print(
+                    Panel(
+                        f"Restored session `{self.resume_session_id}` "
+                        f"({len(self.session.messages)} messages)\n"
+                        f"Title: {self.session.metadata.title or '(none)'}",
+                        title="[bold green]Session Restored[/bold green]",
+                        border_style="green",
+                    )
+                )
                 # Restore agent history
                 restore_agent_history(self.agent, self.session, self.verbose)
             else:
-                self.console.print(Panel(
-                    f"Session `{self.resume_session_id}` not found. Starting new session.",
-                    title="[bold yellow]Warning[/bold yellow]",
-                    border_style="yellow"
-                ))
+                self.console.print(
+                    Panel(
+                        f"Session `{self.resume_session_id}` not found. Starting new session.",
+                        title="[bold yellow]Warning[/bold yellow]",
+                        border_style="yellow",
+                    )
+                )
                 self.session = create_session(current_project)
         elif self.continue_last:
             latest_id = get_latest_session_id(project_path=current_project)
             if latest_id:
                 self.session = load_session(latest_id)
                 if self.session:
-                    self.console.print(Panel(
-                        f"Continuing session `{latest_id}` "
-                        f"({len(self.session.messages)} messages)\n"
-                        f"Title: {self.session.metadata.title or '(none)'}",
-                        title="[bold green]Session Continued[/bold green]",
-                        border_style="green"
-                    ))
+                    self.console.print(
+                        Panel(
+                            f"Continuing session `{latest_id}` "
+                            f"({len(self.session.messages)} messages)\n"
+                            f"Title: {self.session.metadata.title or '(none)'}",
+                            title="[bold green]Session Continued[/bold green]",
+                            border_style="green",
+                        )
+                    )
                     # Restore agent history
                     restore_agent_history(self.agent, self.session, self.verbose)
                 else:
                     self.session = create_session(current_project)
             else:
-                self.console.print(Panel(
-                    "No previous session found. Starting new session.",
-                    title="[bold yellow]Note[/bold yellow]",
-                    border_style="yellow"
-                ))
+                self.console.print(
+                    Panel(
+                        "No previous session found. Starting new session.",
+                        title="[bold yellow]Note[/bold yellow]",
+                        border_style="yellow",
+                    )
+                )
                 self.session = create_session(current_project)
         else:
             # Create new session
             self.session = create_session(current_project)
 
         if self.verbose and self.session:
-            self.console.print(f"[dim]Session ID: {self.session.metadata.session_id}[/dim]")
+            self.console.print(
+                f"[dim]Session ID: {self.session.metadata.session_id}[/dim]"
+            )
 
     async def process_input_with_interrupt(self, user_input: str):
         """Process user input with interrupt support."""
         self.task_cancelled = False
         self.interrupt_requested = False
-        
+
         try:
             # Create the actual processing task
             async def processing_task():
                 response = await self.agent.run_async(user_input)
                 return response
-            
+
             # Start the task
             self.current_task = asyncio.create_task(processing_task())
-            
+
             # Monitor for cancellation while task runs
             while not self.current_task.done():
                 if self.interrupt_requested:
@@ -260,24 +292,26 @@ class InterruptibleCLI:
                     except asyncio.CancelledError:
                         pass
                     return None
-                
+
                 await asyncio.sleep(0.1)  # Check every 100ms
-            
+
             # Get the result
             response = await self.current_task
             return response
-            
+
         except asyncio.CancelledError:
             return None
         finally:
             self.current_task = None
-    
+
     def interrupt_current_task(self):
         """Interrupt the current running task."""
         if self.current_task and not self.current_task.done():
             self.interrupt_requested = True
-            self.console.print("\n⚠️  [bold yellow]Task interruption requested...[/bold yellow]")
-    
+            self.console.print(
+                "\n⚠️  [bold yellow]Task interruption requested...[/bold yellow]"
+            )
+
     async def cleanup(self):
         """Clean up resources."""
         if self.mcp_loader:
@@ -286,19 +320,21 @@ class InterruptibleCLI:
             except Exception as e:
                 if self.verbose:
                     self.console.print(f"[dim]Error during MCP cleanup: {e}[/dim]")
-    
+
     async def process_input(self, user_input: str):
         """Process user input."""
         user_input = user_input.strip()
-        
+
         if self.verbose:
-            self.console.print(f"[dim]Processing input: {user_input[:50]}{'...' if len(user_input) > 50 else ''}[/dim]")
-        
+            self.console.print(
+                f"[dim]Processing input: {user_input[:50]}{'...' if len(user_input) > 50 else ''}[/dim]"
+            )
+
         # Check if it's a command (starts with /)
-        if user_input.startswith('/'):
+        if user_input.startswith("/"):
             await self.process_command(user_input)
             return
-        
+
         # Process with agent
         try:
             with Progress(
@@ -316,17 +352,17 @@ class InterruptibleCLI:
                     self.spinner_controller.clear_progress()
 
                 progress.update(task, completed=True)
-            
+
             if response is None:
                 # Task was cancelled
                 cancelled_panel = Panel(
                     "⚠️  [bold yellow]Task was interrupted![/bold yellow]",
                     title="[bold yellow]Interrupted[/bold yellow]",
-                    border_style="yellow"
+                    border_style="yellow",
                 )
                 self.console.print(cancelled_panel)
                 return
-            
+
             # Save to session
             if self.session:
                 add_message(self.session, "user", user_input)
@@ -341,50 +377,61 @@ class InterruptibleCLI:
             response_panel = Panel(
                 agent_content,
                 title="🤖 [bold green]Agent Response[/bold green]",
-                border_style="green"
+                border_style="green",
             )
             self.console.print(response_panel)
 
             if self.verbose:
-                self.console.print(f"[dim]Response length: {len(response.answer)} characters[/dim]")
+                self.console.print(
+                    f"[dim]Response length: {len(response.answer)} characters[/dim]"
+                )
                 if self.session:
-                    self.console.print(f"[dim]Session: {self.session.metadata.session_id} ({len(self.session.messages)} msgs)[/dim]")
-            
+                    self.console.print(
+                        f"[dim]Session: {self.session.metadata.session_id} ({len(self.session.messages)} msgs)[/dim]"
+                    )
+
         except KeyboardInterrupt:
             # Handle Ctrl+C during processing
             self.interrupt_current_task()
             cancelled_panel = Panel(
                 "⚠️  [bold yellow]Task interrupted by user![/bold yellow]",
                 title="[bold yellow]Interrupted[/bold yellow]",
-                border_style="yellow"
+                border_style="yellow",
             )
             self.console.print(cancelled_panel)
         except Exception as e:
             error_panel = Panel(
                 f"❌ [bold red]Error: {e}[/bold red]",
                 title="[bold red]Error[/bold red]",
-                border_style="red"
+                border_style="red",
             )
             self.console.print(error_panel)
-            
+
             if self.verbose:
                 import traceback
-                self.console.print(f"[dim]Full traceback:\n{traceback.format_exc()}[/dim]")
-    
+
+                self.console.print(
+                    f"[dim]Full traceback:\n{traceback.format_exc()}[/dim]"
+                )
+
     async def process_command(self, command_input: str):
         """Process a command input with support for different command types."""
         from minion_code.commands import CommandType
 
         # Remove the leading /
-        command_input = command_input[1:] if command_input.startswith('/') else command_input
+        command_input = (
+            command_input[1:] if command_input.startswith("/") else command_input
+        )
 
         # Split command and arguments
-        parts = command_input.split(' ', 1)
+        parts = command_input.split(" ", 1)
         command_name = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
 
         if self.verbose:
-            self.console.print(f"[dim]Executing command: {command_name} with args: {args}[/dim]")
+            self.console.print(
+                f"[dim]Executing command: {command_name} with args: {args}[/dim]"
+            )
 
         # Get command class
         command_class = command_registry.get_command(command_name)
@@ -393,14 +440,14 @@ class InterruptibleCLI:
                 f"❌ [bold red]Unknown command: /{command_name}[/bold red]\n"
                 f"💡 [italic]Use '/help' to see available commands[/italic]",
                 title="[bold red]Error[/bold red]",
-                border_style="red"
+                border_style="red",
             )
             self.console.print(error_panel)
             return
 
         # Get command type and is_skill
-        command_type = getattr(command_class, 'command_type', CommandType.LOCAL)
-        is_skill = getattr(command_class, 'is_skill', False)
+        command_type = getattr(command_class, "command_type", CommandType.LOCAL)
+        is_skill = getattr(command_class, "is_skill", False)
 
         # Handle PROMPT type commands - expand and send to LLM
         if command_type == CommandType.PROMPT:
@@ -410,14 +457,16 @@ class InterruptibleCLI:
 
                 # Process expanded prompt through AI
                 if self.verbose:
-                    self.console.print(f"[dim]Expanded prompt: {expanded_prompt[:100]}...[/dim]")
+                    self.console.print(
+                        f"[dim]Expanded prompt: {expanded_prompt[:100]}...[/dim]"
+                    )
                 await self.process_input(expanded_prompt)
 
             except Exception as e:
                 error_panel = Panel(
                     f"❌ [bold red]Error expanding command /{command_name}: {e}[/bold red]",
                     title="[bold red]Command Error[/bold red]",
-                    border_style="red"
+                    border_style="red",
                 )
                 self.console.print(error_panel)
             return
@@ -444,14 +493,17 @@ class InterruptibleCLI:
             error_panel = Panel(
                 f"❌ [bold red]Error executing command /{command_name}: {e}[/bold red]",
                 title="[bold red]Command Error[/bold red]",
-                border_style="red"
+                border_style="red",
             )
             self.console.print(error_panel)
 
             if self.verbose:
                 import traceback
-                self.console.print(f"[dim]Full traceback:\n{traceback.format_exc()}[/dim]")
-    
+
+                self.console.print(
+                    f"[dim]Full traceback:\n{traceback.format_exc()}[/dim]"
+                )
+
     async def run(self):
         """Run the CLI."""
         # Welcome banner (skip in print mode for cleaner output)
@@ -462,7 +514,7 @@ class InterruptibleCLI:
                 "⚠️  [italic]Press Ctrl+C during processing to interrupt tasks[/italic]\n"
                 "🛑 [italic]Type '/quit' to exit[/italic]",
                 title="[bold magenta]Welcome[/bold magenta]",
-                border_style="magenta"
+                border_style="magenta",
             )
             self.console.print(welcome_panel)
 
@@ -481,8 +533,7 @@ class InterruptibleCLI:
             try:
                 # Use rich prompt for better input experience
                 user_input = Prompt.ask(
-                    "\n[bold cyan]👤 You[/bold cyan]",
-                    console=self.console
+                    "\n[bold cyan]👤 You[/bold cyan]", console=self.console
                 ).strip()
 
                 if user_input:
@@ -498,7 +549,7 @@ class InterruptibleCLI:
                     goodbye_panel = Panel(
                         "\n👋 [bold yellow]Goodbye![/bold yellow]",
                         title="[bold red]Exit[/bold red]",
-                        border_style="red"
+                        border_style="red",
                     )
                     self.console.print(goodbye_panel)
                     break
@@ -510,89 +561,84 @@ class InterruptibleCLI:
 @app.command()
 def main(
     prompt: Optional[str] = typer.Argument(
-        None,
-        help="Initial prompt to send to the agent (like 'claude \"prompt\"')"
+        None, help="Initial prompt to send to the agent (like 'claude \"prompt\"')"
     ),
     dir: Optional[str] = typer.Option(
-        None,
-        "--dir",
-        "-d",
-        help="Change to specified directory before starting"
+        None, "--dir", "-d", help="Change to specified directory before starting"
     ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
         "-v",
-        help="Enable verbose output with additional debugging information"
+        help="Enable verbose output with additional debugging information",
     ),
     config: Optional[str] = typer.Option(
-        None,
-        "--config",
-        "-c",
-        help="Path to MCP configuration file (JSON format)"
+        None, "--config", "-c", help="Path to MCP configuration file (JSON format)"
     ),
     continue_session: bool = typer.Option(
-        False,
-        "--continue",
-        help="Continue the most recent session for this project"
+        False, "--continue", help="Continue the most recent session for this project"
     ),
     resume: Optional[str] = typer.Option(
-        None,
-        "--resume",
-        "-r",
-        help="Resume a specific session by ID"
+        None, "--resume", "-r", help="Resume a specific session by ID"
     ),
     print_output: bool = typer.Option(
-        False,
-        "--print",
-        "-p",
-        help="Print output and exit (non-interactive mode)"
+        False, "--print", "-p", help="Print output and exit (non-interactive mode)"
     ),
     dangerously_skip_permissions: bool = typer.Option(
         False,
         "--dangerously-skip-permissions",
-        help="Skip tool permission prompts (auto-accept all). Use with caution!"
-    )
+        help="Skip tool permission prompts (auto-accept all). Use with caution!",
+    ),
 ):
     """
     🤖 Start the MinionCodeAgent Simple CLI interface
-    
+
     Console-based AI-powered code assistant with task interruption support.
     """
     console = Console()
-    
+
     # Change directory if specified
     if dir:
         try:
             target_dir = Path(dir).resolve()
             if not target_dir.exists():
-                console.print(f"❌ [bold red]Directory does not exist: {dir}[/bold red]")
+                console.print(
+                    f"❌ [bold red]Directory does not exist: {dir}[/bold red]"
+                )
                 raise typer.Exit(1)
             if not target_dir.is_dir():
                 console.print(f"❌ [bold red]Path is not a directory: {dir}[/bold red]")
                 raise typer.Exit(1)
-            
+
             os.chdir(target_dir)
             if verbose:
-                console.print(f"📁 [bold green]Changed to directory: {target_dir}[/bold green]")
+                console.print(
+                    f"📁 [bold green]Changed to directory: {target_dir}[/bold green]"
+                )
         except Exception as e:
             console.print(f"❌ [bold red]Failed to change directory: {e}[/bold red]")
             raise typer.Exit(1)
-    
+
     # Validate MCP config if provided
     mcp_config_path = None
     if config:
         mcp_config_path = Path(config).resolve()
         if not mcp_config_path.exists():
-            console.print(f"❌ [bold red]MCP config file does not exist: {config}[/bold red]")
+            console.print(
+                f"❌ [bold red]MCP config file does not exist: {config}[/bold red]"
+            )
             raise typer.Exit(1)
         if not mcp_config_path.is_file():
-            console.print(f"❌ [bold red]MCP config path is not a file: {config}[/bold red]")
+            console.print(
+                f"❌ [bold red]MCP config path is not a file: {config}[/bold red]"
+            )
             raise typer.Exit(1)
-        
+
         if verbose:
-            console.print(f"🔌 [bold green]Using MCP config: {mcp_config_path}[/bold green]")
-    
+            console.print(
+                f"🔌 [bold green]Using MCP config: {mcp_config_path}[/bold green]"
+            )
+
     # Create and run CLI
     cli = InterruptibleCLI(
         verbose=verbose,
@@ -601,7 +647,7 @@ def main(
         continue_last=continue_session,
         initial_prompt=prompt,
         print_output=print_output,
-        auto_accept=dangerously_skip_permissions
+        auto_accept=dangerously_skip_permissions,
     )
 
     try:

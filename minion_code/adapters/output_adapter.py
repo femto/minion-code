@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 class MessageStyle(Enum):
     """Message style types"""
+
     INFO = "info"
     SUCCESS = "success"
     WARNING = "warning"
@@ -25,6 +26,7 @@ class MessageStyle(Enum):
 @dataclass
 class ConfirmOptions:
     """Options for confirmation dialog"""
+
     message: str
     title: str = "Confirm"
     default: bool = False
@@ -36,6 +38,7 @@ class ConfirmOptions:
 @dataclass
 class ChoiceOptions:
     """Options for choice dialog"""
+
     message: str
     choices: List[str]
     title: str = "Select"
@@ -126,12 +129,14 @@ class OutputAdapter(ABC):
         self.text(f"[red]✗ {content}[/red]")
 
     @abstractmethod
-    async def confirm(self,
-                     message: str,
-                     title: str = "Confirm",
-                     default: bool = False,
-                     ok_text: str = "Yes",
-                     cancel_text: str = "No") -> bool:
+    async def confirm(
+        self,
+        message: str,
+        title: str = "Confirm",
+        default: bool = False,
+        ok_text: str = "Yes",
+        cancel_text: str = "No",
+    ) -> bool:
         """
         Display a confirmation dialog and wait for user response.
 
@@ -148,11 +153,13 @@ class OutputAdapter(ABC):
         pass
 
     @abstractmethod
-    async def choice(self,
-                    message: str,
-                    choices: List[str],
-                    title: str = "Select",
-                    default_index: int = 0) -> int:
+    async def choice(
+        self,
+        message: str,
+        choices: List[str],
+        title: str = "Select",
+        default_index: int = 0,
+    ) -> int:
         """
         Display a choice dialog and wait for user selection.
 
@@ -168,11 +175,13 @@ class OutputAdapter(ABC):
         pass
 
     @abstractmethod
-    async def input(self,
-                   message: str,
-                   title: str = "Input",
-                   default: str = "",
-                   placeholder: str = "") -> Optional[str]:
+    async def input(
+        self,
+        message: str,
+        title: str = "Input",
+        default: str = "",
+        placeholder: str = "",
+    ) -> Optional[str]:
         """
         Display an input dialog and wait for user input.
 

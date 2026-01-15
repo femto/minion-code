@@ -40,7 +40,6 @@ TOOL_MAPPING = {
         PythonInterpreterTool,
         UserInputTool,
         TaskTool,
-
         TodoWriteTool,
         TodoReadTool,
         SkillTool,
@@ -66,7 +65,6 @@ __all__ = [
     # Web tools
     # Interactive tools
     "UserInputTool",
-
     # Todo tools
     "TodoWriteTool",
     "TodoReadTool",

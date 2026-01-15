@@ -10,7 +10,7 @@ from minion_code.utils.session_storage import (
     list_sessions,
     load_session,
     get_latest_session_id,
-    SessionMetadata
+    SessionMetadata,
 )
 
 
@@ -51,7 +51,7 @@ class ResumeCommand(BaseCommand):
                 "No previous sessions found for this project.\n\n"
                 "Use `/resume list` to see all available sessions.",
                 title="No Sessions",
-                border_style="yellow"
+                border_style="yellow",
             )
 
     async def _list_sessions(self, project_path: str) -> None:
@@ -67,7 +67,7 @@ class ResumeCommand(BaseCommand):
                 "No saved sessions found.\n\n"
                 "Sessions are automatically saved during conversations.",
                 title="No Sessions",
-                border_style="yellow"
+                border_style="yellow",
             )
             return
 
@@ -96,16 +96,17 @@ class ResumeCommand(BaseCommand):
         lines.append("Use `/resume` to restore the latest session")
 
         self.output.panel(
-            "\n".join(lines),
-            title="Available Sessions",
-            border_style="blue"
+            "\n".join(lines), title="Available Sessions", border_style="blue"
         )
 
-    def _format_session_line(self, session: SessionMetadata, show_path: bool = False) -> str:
+    def _format_session_line(
+        self, session: SessionMetadata, show_path: bool = False
+    ) -> str:
         """Format a session for display."""
         # Parse timestamp for display
         try:
             from datetime import datetime
+
             updated = datetime.fromisoformat(session.updated_at)
             time_str = updated.strftime("%m/%d %H:%M")
         except:
@@ -122,7 +123,7 @@ class ResumeCommand(BaseCommand):
             path = session.project_path
             home = os.path.expanduser("~")
             if path.startswith(home):
-                path = "~" + path[len(home):]
+                path = "~" + path[len(home) :]
             if len(path) > 30:
                 path = "..." + path[-27:]
             line += f"\n    {path}"
@@ -138,7 +139,7 @@ class ResumeCommand(BaseCommand):
                 f"Session `{session_id}` not found.\n\n"
                 "Use `/resume list` to see available sessions.",
                 title="Session Not Found",
-                border_style="red"
+                border_style="red",
             )
             return
 
@@ -147,19 +148,19 @@ class ResumeCommand(BaseCommand):
             self.output.panel(
                 "Agent not initialized. Cannot restore session.",
                 title="Error",
-                border_style="red"
+                border_style="red",
             )
             return
 
         # Check if agent has restore_session method
-        if not hasattr(self.agent, 'restore_session'):
+        if not hasattr(self.agent, "restore_session"):
             self.output.panel(
                 "Session restoration not yet implemented in agent.\n\n"
                 f"Session `{session_id}` has {len(session.messages)} messages:\n"
                 f"Title: {session.metadata.title or '(none)'}\n"
                 f"Project: {session.metadata.project_path}",
                 title="Coming Soon",
-                border_style="yellow"
+                border_style="yellow",
             )
             return
 
@@ -172,11 +173,9 @@ class ResumeCommand(BaseCommand):
                 f"Title: {session.metadata.title or '(none)'}\n"
                 f"You can continue the conversation now.",
                 title="Session Restored",
-                border_style="green"
+                border_style="green",
             )
         except Exception as e:
             self.output.panel(
-                f"Failed to restore session: {e}",
-                title="Error",
-                border_style="red"
+                f"Failed to restore session: {e}", title="Error", border_style="red"
             )

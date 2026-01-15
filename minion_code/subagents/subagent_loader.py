@@ -28,10 +28,10 @@ class SubagentLoader:
     """
 
     SUBAGENT_DIRS = [
-        ".claude/agents",      # Claude Code compatible
-        ".minion/agents",      # Minion compatible
-        ".claude/subagents",   # Legacy/alternative
-        ".minion/subagents",   # Legacy/alternative
+        ".claude/agents",  # Claude Code compatible
+        ".minion/agents",  # Minion compatible
+        ".claude/subagents",  # Legacy/alternative
+        ".minion/subagents",  # Legacy/alternative
     ]
 
     SUBAGENT_FILE = "SUBAGENT.yaml"

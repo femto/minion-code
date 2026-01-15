@@ -75,28 +75,30 @@ class TaskTool(AsyncBaseTool):
     name = "Task"
     # Description will be set dynamically in __init__
     description = "Launch a new agent to handle complex, multi-step tasks autonomously"
-    readonly = True  # Task execution is read-only from the perspective of the calling agent
+    readonly = (
+        True  # Task execution is read-only from the perspective of the calling agent
+    )
     needs_state = True
 
     inputs = {
         "description": {
             "type": "string",
-            "description": "A short (3-5 word) description of the task"
+            "description": "A short (3-5 word) description of the task",
         },
         "prompt": {
             "type": "string",
-            "description": "The task for the agent to perform"
+            "description": "The task for the agent to perform",
         },
         "model_name": {
             "type": "string",
             "description": "Optional: Specific model name to use for this task",
-            "nullable": True
+            "nullable": True,
         },
         "subagent_type": {
             "type": "string",
             "description": "The type of specialized agent to use (default: general-purpose)",
-            "nullable": True
-        }
+            "nullable": True,
+        },
     }
     output_type = "string"
 
@@ -112,11 +114,19 @@ class TaskTool(AsyncBaseTool):
         """Get the subagent registry, loading subagents if needed."""
         if self._registry is None:
             from ..subagents import load_subagents
+
             self._registry = load_subagents()
         return self._registry
 
-    async def forward(self, description: str, prompt: str, model_name: Optional[str] = None,
-                      subagent_type: Optional[str] = None, *, state: AgentState) -> str:
+    async def forward(
+        self,
+        description: str,
+        prompt: str,
+        model_name: Optional[str] = None,
+        subagent_type: Optional[str] = None,
+        *,
+        state: AgentState,
+    ) -> str:
         """Execute the task using a specialized agent (async)."""
         start_time = time.time()
 
@@ -128,9 +138,11 @@ class TaskTool(AsyncBaseTool):
 
         if subagent_config is None:
             available_types = self.registry.list_names()
-            return f"Agent type '{agent_type}' not found.\n\nAvailable agents:\n" + \
-                   "\n".join(f"  - {t}" for t in available_types) + \
-                   "\n\nUse one of the available agent types."
+            return (
+                f"Agent type '{agent_type}' not found.\n\nAvailable agents:\n"
+                + "\n".join(f"  - {t}" for t in available_types)
+                + "\n\nUse one of the available agent types."
+            )
 
         # Build effective prompt
         effective_prompt = prompt
@@ -159,7 +171,9 @@ class TaskTool(AsyncBaseTool):
             agent = await MinionCodeAgent.create(
                 name=f"Task Agent ({agent_type})",
                 llm=effective_model,
-                system_prompt=effective_prompt if subagent_config.system_prompt else None,
+                system_prompt=(
+                    effective_prompt if subagent_config.system_prompt else None
+                ),
                 workdir=workdir,
                 additional_tools=self._get_filtered_tools(subagent_config.tools),
                 # History decay: save large outputs to file after N steps
@@ -172,9 +186,9 @@ class TaskTool(AsyncBaseTool):
             response = await agent.run_async(prompt)
 
             # Extract response
-            if hasattr(response, 'answer'):
+            if hasattr(response, "answer"):
                 result_text = response.answer
-            elif hasattr(response, 'content'):
+            elif hasattr(response, "content"):
                 result_text = response.content
             else:
                 result_text = str(response)
@@ -182,10 +196,16 @@ class TaskTool(AsyncBaseTool):
             duration = time.time() - start_time
             completion_message = f"Task completed ({self._format_duration(duration)})"
 
-            return "\n".join(progress_messages) + f"\n\n{result_text}\n\n{completion_message}"
+            return (
+                "\n".join(progress_messages)
+                + f"\n\n{result_text}\n\n{completion_message}"
+            )
 
         except Exception as e:
-            return "\n".join(progress_messages) + f"\n\nError during task execution: {str(e)}"
+            return (
+                "\n".join(progress_messages)
+                + f"\n\nError during task execution: {str(e)}"
+            )
 
     def _get_filtered_tools(self, tool_filter: Union[str, List[str]]) -> Optional[List]:
         """Get filtered tools based on subagent configuration."""
@@ -207,21 +227,25 @@ class TaskTool(AsyncBaseTool):
             remaining_seconds = seconds % 60
             return f"{minutes}m {remaining_seconds:.1f}s"
 
-    def _validate_input(self, description: str, prompt: str,
-                        model_name: Optional[str] = None,
-                        subagent_type: Optional[str] = None) -> Dict[str, Any]:
+    def _validate_input(
+        self,
+        description: str,
+        prompt: str,
+        model_name: Optional[str] = None,
+        subagent_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Validate input parameters."""
 
         if not description or not isinstance(description, str):
             return {
                 "valid": False,
-                "message": "Description is required and must be a string"
+                "message": "Description is required and must be a string",
             }
 
         if not prompt or not isinstance(prompt, str):
             return {
                 "valid": False,
-                "message": "Prompt is required and must be a string"
+                "message": "Prompt is required and must be a string",
             }
 
         # Validate subagent_type if provided
@@ -229,7 +253,7 @@ class TaskTool(AsyncBaseTool):
             available_types = self.registry.list_names()
             return {
                 "valid": False,
-                "message": f"Agent type '{subagent_type}' does not exist. Available types: {', '.join(available_types)}"
+                "message": f"Agent type '{subagent_type}' does not exist. Available types: {', '.join(available_types)}",
             }
 
         return {"valid": True}
@@ -238,12 +262,14 @@ class TaskTool(AsyncBaseTool):
     def get_available_agent_types(cls) -> List[str]:
         """Get list of available agent types."""
         from ..subagents import get_available_subagents
+
         return [s.name for s in get_available_subagents()]
 
     @classmethod
     def get_agent_description(cls, agent_type: str) -> Optional[Dict[str, Any]]:
         """Get description for a specific agent type."""
         from ..subagents import get_subagent_registry
+
         registry = get_subagent_registry()
         subagent = registry.get(agent_type)
         if subagent:

@@ -26,8 +26,11 @@ _original_stdout = sys.stdout
 # Configure loguru to use stderr BEFORE any imports that use it
 # This is critical for ACP - stdout is reserved for JSON-RPC communication
 from loguru import logger as loguru_logger
+
 loguru_logger.remove()  # Remove default handler
-loguru_logger.add(sys.stderr, format="{time} | {level} | {name}:{function}:{line} - {message}")
+loguru_logger.add(
+    sys.stderr, format="{time} | {level} | {name}:{function}:{line} - {message}"
+)
 
 # Also redirect standard stdout to stderr for any stray prints
 sys.stdout = sys.stderr
@@ -54,7 +57,7 @@ def load_config() -> dict:
     """Load minion-code config from ~/.minion/minion-code.json"""
     if MINION_CODE_CONFIG.exists():
         try:
-            with open(MINION_CODE_CONFIG, 'r') as f:
+            with open(MINION_CODE_CONFIG, "r") as f:
                 return json.load(f)
         except Exception as e:
             logger.warning(f"Failed to load config: {e}")
@@ -65,7 +68,7 @@ def save_config(config: dict) -> None:
     """Save minion-code config to ~/.minion/minion-code.json"""
     ensure_config_dir()
     try:
-        with open(MINION_CODE_CONFIG, 'w') as f:
+        with open(MINION_CODE_CONFIG, "w") as f:
             json.dump(config, f, indent=2)
     except Exception as e:
         logger.warning(f"Failed to save config: {e}")
@@ -75,6 +78,7 @@ def get_session_log_dir(cwd: str) -> Path:
     """Get session log directory for a project."""
     # Hash the cwd to create a unique folder name
     import hashlib
+
     cwd_hash = hashlib.md5(cwd.encode()).hexdigest()[:8]
     project_name = Path(cwd).name
     session_dir = MINION_CONFIG_DIR / "sessions" / f"{project_name}-{cwd_hash}"
@@ -92,12 +96,21 @@ def setup_logging(level: str = "INFO") -> None:
     )
     # Also log to file for debugging
     debug_log = os.path.expanduser("~/minion-code-acp-debug.log")
-    file_handler = logging.FileHandler(debug_log, mode='a')
-    file_handler.setFormatter(logging.Formatter("%(asctime)s - PID=%(process)d - %(name)s - %(levelname)s - %(message)s"))
+    file_handler = logging.FileHandler(debug_log, mode="a")
+    file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s - PID=%(process)d - %(name)s - %(levelname)s - %(message)s"
+        )
+    )
     logging.getLogger().addHandler(file_handler)
 
 
-def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False, cwd: Optional[str] = None, model: Optional[str] = None) -> None:
+def main(
+    log_level: str = "INFO",
+    dangerously_skip_permissions: bool = False,
+    cwd: Optional[str] = None,
+    model: Optional[str] = None,
+) -> None:
     """
     Main entry point for running minion-code as an ACP agent.
 
@@ -137,7 +150,9 @@ def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False, cw
         logger.info("Using default model (from MinionCodeAgent)")
 
     # Check if permissions should be skipped
-    skip_permissions = dangerously_skip_permissions or config.get("skip_permissions", False)
+    skip_permissions = dangerously_skip_permissions or config.get(
+        "skip_permissions", False
+    )
     if skip_permissions:
         logger.warning("Permission prompts DISABLED (--dangerously-skip-permissions)")
 
@@ -164,9 +179,16 @@ def main(log_level: str = "INFO", dangerously_skip_permissions: bool = False, cw
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Minion Code ACP Agent")
     parser.add_argument("--log-level", default="INFO", help="Log level")
-    parser.add_argument("--dangerously-skip-permissions", action="store_true",
-                       help="Skip permission prompts for tool calls")
+    parser.add_argument(
+        "--dangerously-skip-permissions",
+        action="store_true",
+        help="Skip permission prompts for tool calls",
+    )
     args = parser.parse_args()
-    main(log_level=args.log_level, dangerously_skip_permissions=args.dangerously_skip_permissions)
+    main(
+        log_level=args.log_level,
+        dangerously_skip_permissions=args.dangerously_skip_permissions,
+    )

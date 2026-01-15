@@ -144,7 +144,9 @@ class SkillLoader:
                     if registered:
                         logger.info(f"Registered skill: {skill.name} ({location})")
                     else:
-                        logger.debug(f"Skipped skill {skill.name} - already registered from higher priority location")
+                        logger.debug(
+                            f"Skipped skill {skill.name} - already registered from higher priority location"
+                        )
 
         return registry
 

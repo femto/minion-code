@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def create_app(
     title: str = "Minion Code API",
     version: str = "1.0.0",
-    cors_origins: Optional[list] = None
+    cors_origins: Optional[list] = None,
 ) -> FastAPI:
     """
     Create and configure FastAPI application.
@@ -77,7 +77,7 @@ Provides streaming chat interface with:
 - `incremental` - Reuse agent, only send new message (stateful, low latency)
         """,
         docs_url="/docs",
-        redoc_url="/redoc"
+        redoc_url="/redoc",
     )
 
     # CORS configuration
@@ -110,12 +110,7 @@ Provides streaming chat interface with:
     # Root endpoint
     @app.get("/")
     async def root():
-        return {
-            "name": title,
-            "version": version,
-            "docs": "/docs",
-            "health": "/health"
-        }
+        return {"name": title, "version": version, "docs": "/docs", "health": "/health"}
 
     return app
 
@@ -124,7 +119,7 @@ def run_server(
     host: str = "0.0.0.0",
     port: int = 8000,
     reload: bool = False,
-    log_level: str = "info"
+    log_level: str = "info",
 ):
     """
     Run the web server.
@@ -145,7 +140,7 @@ def run_server(
         host=host,
         port=port,
         reload=reload,
-        log_level=log_level
+        log_level=log_level,
     )
 
 

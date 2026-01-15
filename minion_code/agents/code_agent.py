@@ -39,7 +39,6 @@ from ..tools import (
     LsTool,
     PythonInterpreterTool,
     UserInputTool,
-
     TodoWriteTool,
     TodoReadTool,
     SkillTool,
@@ -62,11 +61,11 @@ async def query_quick(
 ) -> str:
     """
     Simplified query function for quick LLM interactions without agent overhead.
-    
+
     This function bypasses the agent's complex routing and tool execution,
     providing direct access to the LLM for simple queries. It uses brain.step
     with route='raw' to avoid additional processing.
-    
+
     Args:
         agent: MinionCodeAgent instance to use for the query
         user_prompt: The user's message/question
@@ -74,10 +73,10 @@ async def query_quick(
         assistant_prompt: Optional assistant prompt to prefill the response
         enable_prompt_caching: Whether to enable prompt caching (default: False)
         llm: Optional LLM model to use (defaults to agent's quick LLM)
-    
+
     Returns:
         The LLM's response as a string
-    
+
     Example:
         >>> agent = await MinionCodeAgent.create(name="Assistant", llm="sonnet")
         >>> response = await query_quick(
@@ -91,17 +90,14 @@ async def query_quick(
     # Use quick LLM by default
     if llm is None:
         llm = agent.get_llm_for_task("quick")
-    
+
     # Build messages list
     messages = [{"role": "user", "content": user_prompt}]
-    
+
     # Add assistant prefill if provided
     if assistant_prompt:
-        messages.append({
-            "role": "assistant",
-            "content": assistant_prompt
-        })
-    
+        messages.append({"role": "assistant", "content": assistant_prompt})
+
     # Build system prompt list
     system_messages = []
     if system_prompt:
@@ -109,50 +105,51 @@ async def query_quick(
             system_messages = system_prompt
         else:
             system_messages = [system_prompt]
-    
+
     # Create a minimal state with empty history
     state = AgentState(history=History())
-    
+
     # Prepare kwargs for brain.step
     step_kwargs = {
-        'messages': messages,
-        'route': 'raw',  # Use raw route to bypass agent processing and avoid extra overhead
+        "messages": messages,
+        "route": "raw",  # Use raw route to bypass agent processing and avoid extra overhead
     }
-    
+
     # Add system prompt if provided
     if system_messages:
-        step_kwargs['system_prompt'] = system_messages
-    
+        step_kwargs["system_prompt"] = system_messages
+
     # Add LLM if specified
     if llm:
-        step_kwargs['llm'] = llm
-    
+        step_kwargs["llm"] = llm
+
     # Add prompt caching if enabled
     if enable_prompt_caching:
-        step_kwargs['enable_prompt_caching'] = enable_prompt_caching
-    
+        step_kwargs["enable_prompt_caching"] = enable_prompt_caching
+
     # Call brain.step with route='raw' to bypass agent processing
     try:
         response = await agent.brain.step(state=state, **step_kwargs)
-        
+
         # Extract the text response
-        if hasattr(response, 'answer'):
+        if hasattr(response, "answer"):
             return response.answer
-        elif hasattr(response, 'content'):
+        elif hasattr(response, "content"):
             return response.content
         else:
             return str(response)
-            
+
     except Exception as e:
         logger.error(f"Error in query_quick: {e}")
         raise
+
 
 # Todo reminder constants
 INITIAL_REMINDER = (
     '<reminder source="system" topic="todos">'
     "System message: complex work should be tracked with the Todo tool. "
     "Do not respond to this reminder and do not mention it to the user."
-    '</reminder>'
+    "</reminder>"
 )
 
 NAG_REMINDER = (
@@ -160,18 +157,19 @@ NAG_REMINDER = (
     "System notice: more than ten rounds passed without Todo usage. "
     "Update the Todo board if the task still requires multiple steps. "
     "Do not reply to or mention this reminder to the user."
-    '</reminder>'
+    "</reminder>"
 )
+
 
 @dataclass
 class MinionCodeAgent(CodeAgent):
     """
     Enhanced CodeAgent with pre-configured minion_code tools.
-    
+
     This class wraps the Minion CodeAgent with all minion_code tools
     and provides optimized system prompts for coding tasks.
     """
-    
+
     DEFAULT_SYSTEM_PROMPT = (
         "You are Minion Code, an interactive CLI coding agent that helps users with software engineering tasks.\n"
         "Use the instructions below and the tools available to you to assist the user.\n"
@@ -260,7 +258,7 @@ class MinionCodeAgent(CodeAgent):
         super().__post_init__()
         self.conversation_history = []
         # Note: Auto-compact is handled by minion's BaseAgent
-    
+
     async def pre_step(self, input_data, kwargs):
         """Override pre_step to track iterations without todo usage.
 
@@ -271,7 +269,7 @@ class MinionCodeAgent(CodeAgent):
         result = await super().pre_step(input_data, kwargs)
 
         # Initialize metadata if not exists
-        if not hasattr(self.state, 'metadata'):
+        if not hasattr(self.state, "metadata"):
             self.state.metadata = {}
         if "iteration_without_todos" not in self.state.metadata:
             self.state.metadata["iteration_without_todos"] = 0
@@ -281,15 +279,12 @@ class MinionCodeAgent(CodeAgent):
 
         # Add nag reminder if more than 10 iterations without todo usage
         if self.state.metadata["iteration_without_todos"] > 10:
-            self.state.history.append({
-                'role': 'user',
-                'content': NAG_REMINDER
-            })
+            self.state.history.append({"role": "user", "content": NAG_REMINDER})
             # Reset counter to avoid spamming reminders
             self.state.metadata["iteration_without_todos"] = 0
 
         return result
-    
+
     @classmethod
     async def create(
         cls,
@@ -300,7 +295,7 @@ class MinionCodeAgent(CodeAgent):
         workdir: Optional[Union[str, Path]] = None,
         additional_tools: Optional[List[Any]] = None,
         hooks: Optional["HookConfig"] = None,
-        **kwargs
+        **kwargs,
     ) -> "MinionCodeAgent":
         """
         Create a new MinionCodeAgent with all minion_code tools.
@@ -323,28 +318,29 @@ class MinionCodeAgent(CodeAgent):
             workdir = Path.cwd()
         else:
             workdir = Path(workdir)
-        
+
         # Set up specialized LLMs with fallback to main llm
         if llms is None:
             llms = {}
-        
-        llm_quick = llms.get('quick')
-        llm_task = llms.get('task')
-        llm_reasoning = llms.get('reasoning')
-        
+
+        llm_quick = llms.get("quick")
+        llm_task = llms.get("task")
+        llm_reasoning = llms.get("reasoning")
+
         if llm_quick is None:
             llm_quick = "haiku" if llm == "sonnet" else llm
         if llm_task is None:
             llm_task = "sonnet" if llm != "sonnet" else llm
         if llm_reasoning is None:
             llm_reasoning = "o4-mini" if llm not in ["o4-mini", "o1-mini"] else llm
-        
+
         # Use default system prompt if none provided
         if system_prompt is None:
             system_prompt = cls.DEFAULT_SYSTEM_PROMPT.format(workdir=workdir)
 
         # Append skills prompt if skills are available
         from ..tools.skill_tool import generate_skill_tool_prompt
+
         skills_prompt = generate_skill_tool_prompt()
         if skills_prompt and "<available_skills>" in skills_prompt:
             system_prompt += "\n\n# Skills\n" + skills_prompt
@@ -369,21 +365,24 @@ class MinionCodeAgent(CodeAgent):
             WebFetchTool(),
             WebSearchTool(),
         ]
-        
+
         # Add TaskTool if available (avoid circular import)
         try:
             from ..tools.task_tool import TaskTool
+
             minion_tools.append(TaskTool(workdir=str(workdir)))
         except ImportError:
             pass
-        
+
         # Add any additional tools
         all_tools = minion_tools[:]
         if additional_tools:
             all_tools.extend(additional_tools)
 
         logger.info(f"Creating MinionCodeAgent with {len(all_tools)} tools")
-        logger.info(f"LLM config - main: {llm}, quick: {llm_quick}, task: {llm_task}, reasoning: {llm_reasoning}")
+        logger.info(
+            f"LLM config - main: {llm}, quick: {llm_quick}, task: {llm_task}, reasoning: {llm_reasoning}"
+        )
 
         # Create the underlying CodeAgent (hooks applied in BaseAgent.setup())
         agent = await super().create(
@@ -392,30 +391,27 @@ class MinionCodeAgent(CodeAgent):
             system_prompt=system_prompt,
             tools=all_tools,
             hooks=hooks,  # Pass hooks to parent - applied in BaseAgent.setup()
-            **kwargs
+            **kwargs,
         )
-        
+
         # Store specialized LLM configurations in a dict
         agent.llms = {
-            'main': agent.llm,  # The actual provider object
-            'quick': llm_quick,
-            'task': llm_task,
-            'reasoning': llm_reasoning
+            "main": agent.llm,  # The actual provider object
+            "quick": llm_quick,
+            "task": llm_task,
+            "reasoning": llm_reasoning,
         }
-        
+
         # Initialize todo tracking metadata
-        if not hasattr(agent.state, 'metadata'):
+        if not hasattr(agent.state, "metadata"):
             agent.state.metadata = {}
         agent.state.metadata["iteration_without_todos"] = 0
-        
+
         # Add initial todo reminder to history
-        agent.state.history.append({
-            'role': 'user',
-            'content': INITIAL_REMINDER
-        })
-        
+        agent.state.history.append({"role": "user", "content": INITIAL_REMINDER})
+
         return agent
-    
+
     async def run_async(self, message: str, stream: bool = False, **kwargs) -> Any:
         """
         Run agent asynchronously and track conversation history.
@@ -438,11 +434,15 @@ class MinionCodeAgent(CodeAgent):
                 result = await super().run_async(message, stream=False, **kwargs)
 
                 # Track conversation history for non-streaming
-                self.conversation_history.append({
-                    'user_message': message,
-                    'agent_response': result.answer if hasattr(result, 'answer') else str(result),
-                    'timestamp': asyncio.get_event_loop().time()
-                })
+                self.conversation_history.append(
+                    {
+                        "user_message": message,
+                        "agent_response": (
+                            result.answer if hasattr(result, "answer") else str(result)
+                        ),
+                        "timestamp": asyncio.get_event_loop().time(),
+                    }
+                )
 
                 return result
 
@@ -460,90 +460,98 @@ class MinionCodeAgent(CodeAgent):
 
         # Track conversation history after streaming completes
         if final_response:
-            self.conversation_history.append({
-                'user_message': message,
-                'agent_response': final_response.answer if hasattr(final_response, 'answer') else str(final_response),
-                'timestamp': asyncio.get_event_loop().time()
-            })
-    
+            self.conversation_history.append(
+                {
+                    "user_message": message,
+                    "agent_response": (
+                        final_response.answer
+                        if hasattr(final_response, "answer")
+                        else str(final_response)
+                    ),
+                    "timestamp": asyncio.get_event_loop().time(),
+                }
+            )
+
     def run(self, message: str, **kwargs) -> Any:
         """
         Run agent synchronously.
-        
+
         Args:
             message: User message
             **kwargs: Additional arguments
-        
+
         Returns:
             Agent response
         """
         return asyncio.run(self.run_async(message, **kwargs))
-    
+
     def get_conversation_history(self) -> List[dict]:
         """Get conversation history."""
         return self.conversation_history.copy()
-    
+
     def clear_conversation_history(self):
         """Clear conversation history."""
         self.conversation_history.clear()
-    
+
     def get_tools_info(self) -> List[dict]:
         """
         Get information about available tools.
-        
+
         Returns:
             List of tool information dictionaries
         """
         tools_info = []
         for tool in self.tools:
             readonly_status = getattr(tool, "readonly", None)
-            tools_info.append({
-                'name': tool.name,
-                'description': tool.description,
-                'readonly': readonly_status,
-                'type': type(tool).__name__
-            })
+            tools_info.append(
+                {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "readonly": readonly_status,
+                    "type": type(tool).__name__,
+                }
+            )
         return tools_info
-    
+
     def print_tools_summary(self):
         """Print a summary of available tools."""
         tools_info = self.get_tools_info()
-        
+
         print(f"\n🛠️ Available Tools ({len(tools_info)} total):")
-        
+
         # Group tools by category
         categories = {
-            'File & Directory': ['file', 'read', 'write', 'grep', 'glob', 'ls'],
-            'System & Execution': ['bash', 'python', 'calc', 'system'],
-            'Web & Search': ['web', 'search', 'wikipedia', 'visit'],
-            'Other': []
+            "File & Directory": ["file", "read", "write", "grep", "glob", "ls"],
+            "System & Execution": ["bash", "python", "calc", "system"],
+            "Web & Search": ["web", "search", "wikipedia", "visit"],
+            "Other": [],
         }
-        
+
         categorized_tools = {cat: [] for cat in categories}
-        
+
         for tool in tools_info:
             categorized = False
             for category, keywords in categories.items():
-                if category == 'Other':
+                if category == "Other":
                     continue
-                if any(keyword in tool['name'].lower() for keyword in keywords):
+                if any(keyword in tool["name"].lower() for keyword in keywords):
                     categorized_tools[category].append(tool)
                     categorized = True
                     break
-            
+
             if not categorized:
-                categorized_tools['Other'].append(tool)
-        
+                categorized_tools["Other"].append(tool)
+
         # Print categorized tools
         for category, tools in categorized_tools.items():
             if tools:
                 print(f"\n📁 {category} Tools:")
                 for tool in tools:
-                    readonly_icon = "🔒" if tool['readonly'] else "✏️"
+                    readonly_icon = "🔒" if tool["readonly"] else "✏️"
                     print(f"  {readonly_icon} {tool['name']}: {tool['description']}")
-        
+
         print(f"\n🔒 = readonly tool, ✏️ = read/write tool")
-    
+
     def get_context_stats(self) -> dict:
         """Get current context usage statistics.
 
@@ -551,33 +559,45 @@ class MinionCodeAgent(CodeAgent):
         delegates to the parent class if available.
         """
         # Delegate to parent class (BaseAgent) methods
-        if hasattr(self, '_calculate_current_tokens') and hasattr(self, '_get_context_window_limit'):
-            if not hasattr(self.state, 'history') or not self.state.history:
+        if hasattr(self, "_calculate_current_tokens") and hasattr(
+            self, "_get_context_window_limit"
+        ):
+            if not hasattr(self.state, "history") or not self.state.history:
                 context_limit = self._get_context_window_limit()
                 return {
-                    'total_tokens': 0,
-                    'usage_percentage': 0.0,
-                    'needs_compacting': False,
-                    'remaining_tokens': context_limit
+                    "total_tokens": 0,
+                    "usage_percentage": 0.0,
+                    "needs_compacting": False,
+                    "remaining_tokens": context_limit,
                 }
 
             current_tokens = self._calculate_current_tokens(self.state.history)
             context_limit = self._get_context_window_limit()
-            usage_percentage = current_tokens / context_limit if context_limit > 0 else 0.0
+            usage_percentage = (
+                current_tokens / context_limit if context_limit > 0 else 0.0
+            )
 
             return {
-                'total_tokens': current_tokens,
-                'usage_percentage': usage_percentage,
-                'needs_compacting': self._should_compact(self.state.history) if hasattr(self, '_should_compact') else False,
-                'remaining_tokens': context_limit - current_tokens
+                "total_tokens": current_tokens,
+                "usage_percentage": usage_percentage,
+                "needs_compacting": (
+                    self._should_compact(self.state.history)
+                    if hasattr(self, "_should_compact")
+                    else False
+                ),
+                "remaining_tokens": context_limit - current_tokens,
             }
 
         # Fallback if parent methods not available
         return {
-            'total_tokens': 0,
-            'usage_percentage': 0.0,
-            'needs_compacting': False,
-            'remaining_tokens': self.default_context_window if hasattr(self, 'default_context_window') else 128000
+            "total_tokens": 0,
+            "usage_percentage": 0.0,
+            "needs_compacting": False,
+            "remaining_tokens": (
+                self.default_context_window
+                if hasattr(self, "default_context_window")
+                else 128000
+            ),
         }
 
     async def force_compact_history(self) -> bool:
@@ -585,7 +605,7 @@ class MinionCodeAgent(CodeAgent):
 
         Note: Delegates to minion's BaseAgent.compact_now() method.
         """
-        if hasattr(self, 'compact_now'):
+        if hasattr(self, "compact_now"):
             await self.compact_now()
             logger.info("Manual compaction triggered via BaseAgent.compact_now()")
             return True
@@ -596,60 +616,62 @@ class MinionCodeAgent(CodeAgent):
     def get_llm_for_task(self, task_type: str = "main"):
         """
         Get the appropriate LLM for a specific task type.
-        
+
         Args:
             task_type: Type of task - "main", "quick", "task", or "reasoning"
-        
+
         Returns:
             LLM model name or provider for the specified task type
         """
-        if not hasattr(self, 'llms'):
+        if not hasattr(self, "llms"):
             return self.llm
-        
+
         return self.llms.get(task_type, self.llm)
-    
+
     def get_llm_config(self) -> dict:
         """
         Get all LLM configurations.
-        
+
         Returns:
             Dictionary with all LLM configurations
         """
-        if not hasattr(self, 'llms'):
+        if not hasattr(self, "llms"):
             return {
-                'main': self.llm,
-                'quick': self.llm,
-                'task': self.llm,
-                'reasoning': self.llm
+                "main": self.llm,
+                "quick": self.llm,
+                "task": self.llm,
+                "reasoning": self.llm,
             }
-        
+
         return self.llms.copy()
-    
+
     def update_llm_config(self, **kwargs) -> None:
         """
         Update LLM configurations dynamically.
-        
+
         Args:
             **kwargs: LLM configurations to update (quick, task, reasoning)
-        
+
         Example:
             agent.update_llm_config(quick='haiku', reasoning='o1-mini')
         """
-        if not hasattr(self, 'llms'):
+        if not hasattr(self, "llms"):
             self.llms = {
-                'main': self.llm,
-                'quick': self.llm,
-                'task': self.llm,
-                'reasoning': self.llm
+                "main": self.llm,
+                "quick": self.llm,
+                "task": self.llm,
+                "reasoning": self.llm,
             }
-        
+
         for key, value in kwargs.items():
-            if key in ['quick', 'task', 'reasoning']:
+            if key in ["quick", "task", "reasoning"]:
                 self.llms[key] = value
                 logger.info(f"Updated LLM config: {key} = {value}")
             else:
-                logger.warning(f"Invalid LLM config key: {key}. Valid keys: quick, task, reasoning")
-    
+                logger.warning(
+                    f"Invalid LLM config key: {key}. Valid keys: quick, task, reasoning"
+                )
+
     async def query_quick(
         self,
         user_prompt: str,
@@ -660,20 +682,20 @@ class MinionCodeAgent(CodeAgent):
     ) -> str:
         """
         Quick query method for simple LLM interactions without agent overhead.
-        
+
         This is a convenience wrapper around the query_quick function that uses
         this agent instance. It bypasses tool execution and complex routing.
-        
+
         Args:
             user_prompt: The user's message/question
             system_prompt: Optional system prompt(s) - can be a string or list of strings
             assistant_prompt: Optional assistant prompt to prefill the response
             enable_prompt_caching: Whether to enable prompt caching (default: False)
             llm: Optional LLM model to use (defaults to agent's quick LLM)
-        
+
         Returns:
             The LLM's response as a string
-        
+
         Example:
             >>> agent = await MinionCodeAgent.create(name="Assistant", llm="sonnet")
             >>> response = await agent.query_quick(
@@ -695,18 +717,16 @@ class MinionCodeAgent(CodeAgent):
 
 # Convenience function for quick setup
 async def create_minion_code_agent(
-    name: str = "Minion Code Assistant",
-    llm: str = "claude-sonnet-4-5",
-    **kwargs
+    name: str = "Minion Code Assistant", llm: str = "claude-sonnet-4-5", **kwargs
 ) -> MinionCodeAgent:
     """
     Convenience function to create a MinionCodeAgent.
-    
+
     Args:
         name: Agent name
         llm: LLM model to use
         **kwargs: Additional arguments passed to MinionCodeAgent.create()
-    
+
     Returns:
         Configured MinionCodeAgent instance
     """

@@ -32,7 +32,9 @@ class PermissionStore:
         """
         cwd_hash = hashlib.md5(cwd.encode()).hexdigest()[:8]
         project_name = Path(cwd).name
-        self.config_dir = Path.home() / ".minion" / "sessions" / f"{project_name}-{cwd_hash}"
+        self.config_dir = (
+            Path.home() / ".minion" / "sessions" / f"{project_name}-{cwd_hash}"
+        )
         self.permissions_file = self.config_dir / "permissions.json"
 
         # Permission sets
@@ -109,7 +111,7 @@ class PermissionStore:
             return
 
         try:
-            with open(self.permissions_file, 'r') as f:
+            with open(self.permissions_file, "r") as f:
                 data = json.load(f)
 
             self._allow_always = set(data.get("allow_always", []))
@@ -129,7 +131,7 @@ class PermissionStore:
                 "reject_always": sorted(self._reject_always),
             }
 
-            with open(self.permissions_file, 'w') as f:
+            with open(self.permissions_file, "w") as f:
                 json.dump(data, f, indent=2)
 
             logger.debug(f"Saved permissions to {self.permissions_file}")

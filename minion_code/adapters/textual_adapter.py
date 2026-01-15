@@ -18,6 +18,7 @@ from .output_adapter import OutputAdapter
 @dataclass
 class PendingInteraction:
     """Represents a user interaction waiting for response"""
+
     type: str  # "confirm", "choice", "input"
     data: Dict[str, Any]
     future: asyncio.Future
@@ -63,33 +64,26 @@ class TextualOutputAdapter(OutputAdapter):
 
     def panel(self, content: str, title: str = "", border_style: str = "blue") -> None:
         """Send panel output to TUI."""
-        self.on_output("panel", {
-            "content": content,
-            "title": title,
-            "border_style": border_style
-        })
+        self.on_output(
+            "panel", {"content": content, "title": title, "border_style": border_style}
+        )
 
     def table(self, headers: List[str], rows: List[List[str]], title: str = "") -> None:
         """Send table output to TUI."""
-        self.on_output("table", {
-            "headers": headers,
-            "rows": rows,
-            "title": title
-        })
+        self.on_output("table", {"headers": headers, "rows": rows, "title": title})
 
     def text(self, content: str, style: str = "") -> None:
         """Send text output to TUI."""
-        self.on_output("text", {
-            "content": content,
-            "style": style
-        })
+        self.on_output("text", {"content": content, "style": style})
 
-    async def confirm(self,
-                     message: str,
-                     title: str = "Confirm",
-                     default: bool = False,
-                     ok_text: str = "Yes",
-                     cancel_text: str = "No") -> bool:
+    async def confirm(
+        self,
+        message: str,
+        title: str = "Confirm",
+        default: bool = False,
+        ok_text: str = "Yes",
+        cancel_text: str = "No",
+    ) -> bool:
         """
         Request user confirmation (non-blocking).
 
@@ -107,20 +101,23 @@ class TextualOutputAdapter(OutputAdapter):
                 "title": title,
                 "default": default,
                 "ok_text": ok_text,
-                "cancel_text": cancel_text
+                "cancel_text": cancel_text,
             },
-            future=future
+            future=future,
         )
 
         # Notify TUI to display confirmation dialog
-        self.on_output("confirm", {
-            "interaction_id": interaction_id,
-            "message": message,
-            "title": title,
-            "default": default,
-            "ok_text": ok_text,
-            "cancel_text": cancel_text
-        })
+        self.on_output(
+            "confirm",
+            {
+                "interaction_id": interaction_id,
+                "message": message,
+                "title": title,
+                "default": default,
+                "ok_text": ok_text,
+                "cancel_text": cancel_text,
+            },
+        )
 
         # Wait for TUI to resolve this interaction
         try:
@@ -130,11 +127,13 @@ class TextualOutputAdapter(OutputAdapter):
             # Clean up
             self._pending_interactions.pop(interaction_id, None)
 
-    async def choice(self,
-                    message: str,
-                    choices: List[str],
-                    title: str = "Select",
-                    default_index: int = 0) -> int:
+    async def choice(
+        self,
+        message: str,
+        choices: List[str],
+        title: str = "Select",
+        default_index: int = 0,
+    ) -> int:
         """
         Request user choice selection (non-blocking).
 
@@ -149,18 +148,21 @@ class TextualOutputAdapter(OutputAdapter):
                 "message": message,
                 "choices": choices,
                 "title": title,
-                "default_index": default_index
+                "default_index": default_index,
             },
-            future=future
+            future=future,
         )
 
-        self.on_output("choice", {
-            "interaction_id": interaction_id,
-            "message": message,
-            "choices": choices,
-            "title": title,
-            "default_index": default_index
-        })
+        self.on_output(
+            "choice",
+            {
+                "interaction_id": interaction_id,
+                "message": message,
+                "choices": choices,
+                "title": title,
+                "default_index": default_index,
+            },
+        )
 
         try:
             result = await future
@@ -168,11 +170,13 @@ class TextualOutputAdapter(OutputAdapter):
         finally:
             self._pending_interactions.pop(interaction_id, None)
 
-    async def input(self,
-                   message: str,
-                   title: str = "Input",
-                   default: str = "",
-                   placeholder: str = "") -> Optional[str]:
+    async def input(
+        self,
+        message: str,
+        title: str = "Input",
+        default: str = "",
+        placeholder: str = "",
+    ) -> Optional[str]:
         """
         Request user text input (non-blocking).
 
@@ -187,18 +191,21 @@ class TextualOutputAdapter(OutputAdapter):
                 "message": message,
                 "title": title,
                 "default": default,
-                "placeholder": placeholder
+                "placeholder": placeholder,
             },
-            future=future
+            future=future,
         )
 
-        self.on_output("input", {
-            "interaction_id": interaction_id,
-            "message": message,
-            "title": title,
-            "default": default,
-            "placeholder": placeholder
-        })
+        self.on_output(
+            "input",
+            {
+                "interaction_id": interaction_id,
+                "message": message,
+                "title": title,
+                "default": default,
+                "placeholder": placeholder,
+            },
+        )
 
         try:
             result = await future

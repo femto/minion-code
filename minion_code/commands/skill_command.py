@@ -76,6 +76,7 @@ def create_skill_command(skill) -> type:
     Returns:
         SkillCommand subclass configured for the skill
     """
+
     class DynamicSkillCommand(SkillCommand):
         name = skill.name
         description = skill.description

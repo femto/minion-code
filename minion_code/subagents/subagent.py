@@ -28,7 +28,9 @@ class SubagentConfig:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_yaml(cls, yaml_path: Path, location: str = "project") -> Optional["SubagentConfig"]:
+    def from_yaml(
+        cls, yaml_path: Path, location: str = "project"
+    ) -> Optional["SubagentConfig"]:
         """
         Parse a SUBAGENT.yaml file and create a SubagentConfig instance.
 
@@ -43,7 +45,7 @@ class SubagentConfig:
             return None
 
         try:
-            content = yaml_path.read_text(encoding='utf-8')
+            content = yaml_path.read_text(encoding="utf-8")
             data = yaml.safe_load(content)
         except (yaml.YAMLError, IOError):
             return None
@@ -51,19 +53,23 @@ class SubagentConfig:
         if not data:
             return None
 
-        name = data.get('name')
-        description = data.get('description')
-        when_to_use = data.get('when_to_use')
+        name = data.get("name")
+        description = data.get("description")
+        when_to_use = data.get("when_to_use")
 
         if not name or not description or not when_to_use:
             return None
 
         # Load system_prompt from separate file if specified
-        system_prompt = data.get('system_prompt')
-        if system_prompt and isinstance(system_prompt, str) and system_prompt.startswith('file:'):
+        system_prompt = data.get("system_prompt")
+        if (
+            system_prompt
+            and isinstance(system_prompt, str)
+            and system_prompt.startswith("file:")
+        ):
             prompt_file = yaml_path.parent / system_prompt[5:]
             if prompt_file.exists():
-                system_prompt = prompt_file.read_text(encoding='utf-8')
+                system_prompt = prompt_file.read_text(encoding="utf-8")
             else:
                 system_prompt = None
 
@@ -71,13 +77,13 @@ class SubagentConfig:
             name=name,
             description=description,
             when_to_use=when_to_use,
-            tools=data.get('tools', ['*']),
+            tools=data.get("tools", ["*"]),
             system_prompt=system_prompt,
-            model_name=data.get('model_name', 'inherit'),
+            model_name=data.get("model_name", "inherit"),
             path=yaml_path.parent,
             location=location,
-            readonly=data.get('readonly', False),
-            metadata=data.get('metadata', {}),
+            readonly=data.get("readonly", False),
+            metadata=data.get("metadata", {}),
         )
 
     def to_xml(self) -> str:

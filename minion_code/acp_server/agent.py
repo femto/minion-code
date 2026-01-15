@@ -67,7 +67,13 @@ class MinionACPAgent:
     to communicate with ACP clients over stdio.
     """
 
-    def __init__(self, skip_permissions: bool = False, config: Optional[Dict] = None, cwd: Optional[str] = None, model: Optional[str] = None):
+    def __init__(
+        self,
+        skip_permissions: bool = False,
+        config: Optional[Dict] = None,
+        cwd: Optional[str] = None,
+        model: Optional[str] = None,
+    ):
         self.client: Optional[Client] = None
         self.sessions: Dict[str, "ACPSession"] = {}
         self._cancel_events: Dict[str, asyncio.Event] = {}
@@ -116,7 +122,9 @@ class MinionACPAgent:
         # Use CLI-provided cwd as fallback if client doesn't provide one
         if not cwd:
             cwd = self.cwd
-        logger.info(f"[PID={pid}] Creating session #{session_count}: {session_id} in {cwd}")
+        logger.info(
+            f"[PID={pid}] Creating session #{session_count}: {session_id} in {cwd}"
+        )
 
         # Create session
         session = ACPSession(
@@ -248,7 +256,9 @@ class MinionACPAgent:
         self,
         cwd: str,
         session_id: str,
-        mcp_servers: Optional[List[HttpMcpServer | SseMcpServer | McpServerStdio]] = None,
+        mcp_servers: Optional[
+            List[HttpMcpServer | SseMcpServer | McpServerStdio]
+        ] = None,
         **kwargs: Any,
     ) -> ForkSessionResponse:
         """Fork an existing session."""
@@ -274,7 +284,9 @@ class MinionACPAgent:
         self,
         cwd: str,
         session_id: str,
-        mcp_servers: Optional[List[HttpMcpServer | SseMcpServer | McpServerStdio]] = None,
+        mcp_servers: Optional[
+            List[HttpMcpServer | SseMcpServer | McpServerStdio]
+        ] = None,
         **kwargs: Any,
     ) -> ResumeSessionResponse:
         """Resume an existing session."""
@@ -411,7 +423,7 @@ class ACPSession:
         if isinstance(chunk, StreamChunk):
             chunk_type = chunk.chunk_type
             content = chunk.content
-            metadata = getattr(chunk, 'metadata', {}) or {}
+            metadata = getattr(chunk, "metadata", {}) or {}
 
             if chunk_type == "thinking":
                 # LLM reasoning/thinking - send as thought chunk
@@ -444,7 +456,9 @@ class ACPSession:
                         content=[
                             ContentToolCallContent(
                                 type="content",
-                                content=TextContentBlock(type="text", text=f"```python\n{content}\n```"),
+                                content=TextContentBlock(
+                                    type="text", text=f"```python\n{content}\n```"
+                                ),
                             )
                         ],
                     ),
@@ -463,7 +477,14 @@ class ACPSession:
                             content=[
                                 ContentToolCallContent(
                                     type="content",
-                                    content=TextContentBlock(type="text", text=content if content else "Executed successfully"),
+                                    content=TextContentBlock(
+                                        type="text",
+                                        text=(
+                                            content
+                                            if content
+                                            else "Executed successfully"
+                                        ),
+                                    ),
                                 )
                             ],
                         ),
@@ -507,7 +528,7 @@ class ACPSession:
                     update=update_agent_message_text(chunk.answer),
                 )
 
-        elif hasattr(chunk, 'answer') and chunk.answer:
+        elif hasattr(chunk, "answer") and chunk.answer:
             # Fallback for objects with answer attribute
             await self.client.session_update(
                 session_id=self.session_id,

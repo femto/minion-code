@@ -17,7 +17,11 @@ class LsTool(BaseTool):
     description = "List directory contents"
     readonly = True  # Read-only tool, does not modify system state
     inputs = {
-        "path": {"type": "string", "description": "Directory path to list", "nullable": True},
+        "path": {
+            "type": "string",
+            "description": "Directory path to list",
+            "nullable": True,
+        },
         "recursive": {
             "type": "boolean",
             "description": "Whether to list recursively",

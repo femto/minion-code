@@ -16,20 +16,22 @@ from pathlib import Path
 from typing import Optional
 
 # ============ 配置常量 ============
-MAX_OUTPUT_SIZE = 400 * 1024      # 400KB - 内置工具输出截断阈值
-MAX_FILE_SIZE = 1_000_000         # 1MB - 文件读取大小阈值
-MAX_TOKEN_LIMIT = 100_000         # MCP 工具 token 限制
-CACHE_DIR = Path.home() / '.minion-code' / 'cache'  # 大输出缓存目录
+MAX_OUTPUT_SIZE = 400 * 1024  # 400KB - 内置工具输出截断阈值
+MAX_FILE_SIZE = 1_000_000  # 1MB - 文件读取大小阈值
+MAX_TOKEN_LIMIT = 100_000  # MCP 工具 token 限制
+CACHE_DIR = Path.home() / ".minion-code" / "cache"  # 大输出缓存目录
 
 
 # ============ 异常类 ============
 class OutputTooLargeError(Exception):
     """内置工具输出过大"""
+
     pass
 
 
 class MCPContentTooLargeError(Exception):
     """MCP 工具内容过大"""
+
     def __init__(self, message: str, token_count: Optional[int] = None):
         self.token_count = token_count
         super().__init__(message)
@@ -37,12 +39,13 @@ class MCPContentTooLargeError(Exception):
 
 class FileTooLargeError(Exception):
     """文件过大，建议使用专用工具"""
+
     def __init__(
         self,
         message: str,
         file_path: str,
         file_size: int,
-        suggested_tool: Optional[str] = None
+        suggested_tool: Optional[str] = None,
     ):
         self.file_path = file_path
         self.file_size = file_size
@@ -68,7 +71,7 @@ def save_large_output(content: str, tool_name: str = "unknown") -> str:
     filename = f"tool-output-{tool_name}-{file_id}.txt"
     file_path = CACHE_DIR / filename
 
-    file_path.write_text(content, encoding='utf-8')
+    file_path.write_text(content, encoding="utf-8")
     return str(file_path)
 
 
@@ -100,10 +103,7 @@ def cleanup_cache(max_age_hours: int = 24) -> int:
 
 
 # ============ 执行前检查 ============
-def check_file_size_before_read(
-    file_path: str,
-    max_size: int = MAX_FILE_SIZE
-) -> None:
+def check_file_size_before_read(file_path: str, max_size: int = MAX_FILE_SIZE) -> None:
     """
     Read 工具执行前检查文件大小
 
@@ -125,20 +125,20 @@ def check_file_size_before_read(
 
         # 根据文件类型建议专用工具
         tool_suggestions = {
-            '.pdf': 'pdf 工具',
-            '.xlsx': 'xlsx 工具',
-            '.xls': 'xlsx 工具',
-            '.docx': 'docx 工具',
-            '.doc': 'docx 工具',
-            '.pptx': 'pptx 工具',
+            ".pdf": "pdf 工具",
+            ".xlsx": "xlsx 工具",
+            ".xls": "xlsx 工具",
+            ".docx": "docx 工具",
+            ".doc": "docx 工具",
+            ".pptx": "pptx 工具",
         }
-        suggested = tool_suggestions.get(suffix, '分页读取 (offset/limit 参数)')
+        suggested = tool_suggestions.get(suffix, "分页读取 (offset/limit 参数)")
 
         raise FileTooLargeError(
             f"文件过大 ({size_mb:.1f}MB > {max_size/1_000_000:.1f}MB)，请使用 {suggested}",
             file_path=str(path),
             file_size=file_size,
-            suggested_tool=suggested
+            suggested_tool=suggested,
         )
 
 
@@ -161,7 +161,7 @@ def truncate_output(
     Returns:
         截断后的输出（如果需要截断则添加提示和文件引用）
     """
-    output_bytes = output.encode('utf-8')
+    output_bytes = output.encode("utf-8")
     if len(output_bytes) <= max_size:
         return output
 
@@ -175,7 +175,7 @@ def truncate_output(
 
     # 截断到 max_size 字节，确保不截断 UTF-8 字符
     truncated_bytes = output_bytes[:max_size]
-    truncated = truncated_bytes.decode('utf-8', errors='ignore')
+    truncated = truncated_bytes.decode("utf-8", errors="ignore")
 
     total_size = len(output_bytes)
     size_kb = total_size / 1024
@@ -194,10 +194,7 @@ def truncate_output(
     return truncated
 
 
-def check_mcp_output(
-    output: str,
-    max_tokens: int = MAX_TOKEN_LIMIT
-) -> str:
+def check_mcp_output(output: str, max_tokens: int = MAX_TOKEN_LIMIT) -> str:
     """
     检查 MCP 工具输出，超过 token 限制则抛异常
 
@@ -217,7 +214,7 @@ def check_mcp_output(
     if estimated_tokens > max_tokens:
         raise MCPContentTooLargeError(
             f"MCP 工具输出过大 (约 {estimated_tokens} tokens > {max_tokens} 限制)",
-            token_count=estimated_tokens
+            token_count=estimated_tokens,
         )
 
     return output
@@ -226,11 +223,11 @@ def check_mcp_output(
 def _get_tool_hint(tool_name: str) -> str:
     """根据工具名返回获取完整内容的提示"""
     hints = {
-        'bash': "提示: 使用 `| head -n N` 或 `| tail -n N` 限制输出行数",
-        'grep': "提示: 使用 `head_limit` 参数，或更精确的搜索模式",
-        'glob': "提示: 使用更具体的 pattern 缩小匹配范围",
-        'ls': "提示: 避免递归模式，或指定更具体的子目录",
-        'file_read': "提示: 使用 `offset` 和 `limit` 参数分页读取",
-        'python': "提示: 在代码中控制 print 输出量",
+        "bash": "提示: 使用 `| head -n N` 或 `| tail -n N` 限制输出行数",
+        "grep": "提示: 使用 `head_limit` 参数，或更精确的搜索模式",
+        "glob": "提示: 使用更具体的 pattern 缩小匹配范围",
+        "ls": "提示: 避免递归模式，或指定更具体的子目录",
+        "file_read": "提示: 使用 `offset` 和 `limit` 参数分页读取",
+        "python": "提示: 在代码中控制 print 输出量",
     }
     return hints.get(tool_name, "提示: 使用更精确的参数缩小输出范围")

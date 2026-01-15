@@ -16,6 +16,7 @@ from ..utils.output_truncator import (
 
 try:
     from PIL import Image
+
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
@@ -78,7 +79,16 @@ class FileReadTool(BaseTool):
                 return f"Error: Path is not a file - {file_path}"
 
             # Check if it's an image file
-            image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".svg"}
+            image_extensions = {
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".gif",
+                ".bmp",
+                ".webp",
+                ".tiff",
+                ".svg",
+            }
             if path.suffix.lower() in image_extensions:
                 return self._read_image(path)
 
@@ -98,7 +108,9 @@ class FileReadTool(BaseTool):
     def _read_image(self, path: Path) -> Union[Any, str]:
         """Read image file and return PIL.Image object"""
         if not HAS_PIL:
-            return f"Error: PIL (Pillow) is not installed. Cannot read image file: {path}"
+            return (
+                f"Error: PIL (Pillow) is not installed. Cannot read image file: {path}"
+            )
 
         try:
             image = Image.open(path)
@@ -111,7 +123,9 @@ class FileReadTool(BaseTool):
         except Exception as e:
             return f"Error opening image file {path}: {str(e)}"
 
-    def _read_text(self, path: Path, offset: Optional[int] = None, limit: Optional[int] = None) -> str:
+    def _read_text(
+        self, path: Path, offset: Optional[int] = None, limit: Optional[int] = None
+    ) -> str:
         """Read text file and return content"""
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             lines = f.readlines()
@@ -160,16 +174,16 @@ class FileReadTool(BaseTool):
 
         try:
             # Convert image to RGB if necessary (for PNG with transparency, etc.)
-            if image.mode not in ('RGB', 'L'):
-                image = image.convert('RGB')
+            if image.mode not in ("RGB", "L"):
+                image = image.convert("RGB")
 
             # Save image to bytes buffer
             buffer = io.BytesIO()
-            image.save(buffer, format='PNG')
+            image.save(buffer, format="PNG")
             buffer.seek(0)
 
             # Encode as base64
-            img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+            img_base64 = base64.b64encode(buffer.read()).decode("utf-8")
 
             # Format for LLM observation
             result = f"Image file: {self._last_file_path}\n"

@@ -18,7 +18,10 @@ class GrepTool(BaseTool):
     description = "Search for text patterns in files"
     readonly = True  # Read-only tool, does not modify system state
     inputs = {
-        "pattern": {"type": "string", "description": "Regular expression pattern to search for"},
+        "pattern": {
+            "type": "string",
+            "description": "Regular expression pattern to search for",
+        },
         "path": {"type": "string", "description": "Search path (file or directory)"},
         "include": {
             "type": "string",
@@ -75,7 +78,7 @@ class GrepTool(BaseTool):
         head_limit: Optional[int] = None,
         after_context: Optional[int] = None,
         before_context: Optional[int] = None,
-        context: Optional[int] = None
+        context: Optional[int] = None,
     ) -> str:
         """Search for text pattern"""
         try:
@@ -100,19 +103,31 @@ class GrepTool(BaseTool):
 
             if search_path.is_file():
                 # Search single file
-                matches.extend(self._search_file(search_path, pattern, before_context, after_context))
+                matches.extend(
+                    self._search_file(
+                        search_path, pattern, before_context, after_context
+                    )
+                )
             else:
                 # Search directory
                 if include:
                     # Filter using file pattern
                     for file_path in search_path.rglob(include):
                         if file_path.is_file():
-                            matches.extend(self._search_file(file_path, pattern, before_context, after_context))
+                            matches.extend(
+                                self._search_file(
+                                    file_path, pattern, before_context, after_context
+                                )
+                            )
                 else:
                     # Search all text files
                     for file_path in search_path.rglob("*"):
                         if file_path.is_file() and self._is_text_file(file_path):
-                            matches.extend(self._search_file(file_path, pattern, before_context, after_context))
+                            matches.extend(
+                                self._search_file(
+                                    file_path, pattern, before_context, after_context
+                                )
+                            )
 
             if not matches:
                 return f"No content found matching pattern '{pattern}'"
@@ -123,7 +138,9 @@ class GrepTool(BaseTool):
             elif output_mode == "count":
                 result = self._format_count(matches, pattern, head_limit)
             else:  # content mode
-                result = self._format_content(matches, pattern, head_limit, before_context, after_context)
+                result = self._format_content(
+                    matches, pattern, head_limit, before_context, after_context
+                )
 
             return self.format_for_observation(result)
 
@@ -136,7 +153,7 @@ class GrepTool(BaseTool):
         pattern: str,
         head_limit: Optional[int],
         before_context: Optional[int] = None,
-        after_context: Optional[int] = None
+        after_context: Optional[int] = None,
     ) -> str:
         """Format matches as content with line numbers and optional context"""
         result = f"Search results for pattern '{pattern}':\n\n"
@@ -183,7 +200,9 @@ class GrepTool(BaseTool):
         result += f"\nTotal {len(matches)} matches found"
         return result
 
-    def _format_files_with_matches(self, matches: List[tuple], pattern: str, head_limit: Optional[int]) -> str:
+    def _format_files_with_matches(
+        self, matches: List[tuple], pattern: str, head_limit: Optional[int]
+    ) -> str:
         """Format matches as list of unique file paths"""
         # Get unique file paths
         unique_files = []
@@ -204,7 +223,9 @@ class GrepTool(BaseTool):
         result += f"\nTotal {len(seen)} files with matches"
         return result
 
-    def _format_count(self, matches: List[tuple], pattern: str, head_limit: Optional[int]) -> str:
+    def _format_count(
+        self, matches: List[tuple], pattern: str, head_limit: Optional[int]
+    ) -> str:
         """Format matches as count per file"""
         # Count matches per file
         file_counts = {}
@@ -220,7 +241,9 @@ class GrepTool(BaseTool):
             result += f"{file_path}: {match_count} matches\n"
             count += 1
 
-        result += f"\nTotal {sum(file_counts.values())} matches in {len(file_counts)} files"
+        result += (
+            f"\nTotal {sum(file_counts.values())} matches in {len(file_counts)} files"
+        )
         return result
 
     def _search_file(
@@ -228,7 +251,7 @@ class GrepTool(BaseTool):
         file_path: Path,
         pattern: str,
         before_context: Optional[int] = None,
-        after_context: Optional[int] = None
+        after_context: Optional[int] = None,
     ) -> List[tuple]:
         """Search pattern in a single file with optional context lines"""
         matches = []
@@ -254,7 +277,9 @@ class GrepTool(BaseTool):
                             for i in range(line_num, end):
                                 after_lines.append((i + 1, lines[i]))
 
-                        matches.append((str(file_path), line_num, line, before_lines, after_lines))
+                        matches.append(
+                            (str(file_path), line_num, line, before_lines, after_lines)
+                        )
                     else:
                         matches.append((str(file_path), line_num, line))
         except Exception:

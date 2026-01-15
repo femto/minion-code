@@ -25,10 +25,10 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 class ChatRequest(BaseModel):
     """Request body for chat endpoint."""
+
     message: str = Field(..., description="User message content")
     history_mode: Optional[HistoryMode] = Field(
-        default=None,
-        description="Override session's history mode for this request"
+        default=None, description="Override session's history mode for this request"
     )
 
 
@@ -44,9 +44,7 @@ def format_sse_done() -> str:
 
 
 async def process_chat_stream(
-    session_id: str,
-    message: str,
-    history_mode: Optional[HistoryMode] = None
+    session_id: str, message: str, history_mode: Optional[HistoryMode] = None
 ) -> AsyncGenerator[str, None]:
     """
     Process chat message and yield SSE events.
@@ -61,10 +59,12 @@ async def process_chat_stream(
     # Get session
     session = await session_manager.get_session(session_id)
     if not session:
-        yield format_sse_event(SSEEvent(
-            type="error",
-            data={"message": "Session not found", "code": "SESSION_NOT_FOUND"}
-        ))
+        yield format_sse_event(
+            SSEEvent(
+                type="error",
+                data={"message": "Session not found", "code": "SESSION_NOT_FOUND"},
+            )
+        )
         yield format_sse_done()
         return
 
@@ -82,22 +82,26 @@ async def process_chat_stream(
     try:
         # Emit task started
         await session.adapter.emit_task_status(TaskState.SUBMITTED)
-        yield format_sse_event(SSEEvent(
-            type="task_status",
-            data={"state": TaskState.SUBMITTED.value, "task_id": task_id},
-            task_id=task_id
-        ))
+        yield format_sse_event(
+            SSEEvent(
+                type="task_status",
+                data={"state": TaskState.SUBMITTED.value, "task_id": task_id},
+                task_id=task_id,
+            )
+        )
 
         # Get or create agent
         agent = await session_manager.get_or_create_agent(session)
 
         # Emit working status
         await session.adapter.emit_task_status(TaskState.WORKING)
-        yield format_sse_event(SSEEvent(
-            type="task_status",
-            data={"state": TaskState.WORKING.value, "task_id": task_id},
-            task_id=task_id
-        ))
+        yield format_sse_event(
+            SSEEvent(
+                type="task_status",
+                data={"state": TaskState.WORKING.value, "task_id": task_id},
+                task_id=task_id,
+            )
+        )
 
         # Save user message
         session_manager.save_message(session, "user", message)
@@ -113,33 +117,38 @@ async def process_chat_stream(
                 if session.abort_event.is_set():
                     break
 
-                chunk_type = getattr(chunk, 'chunk_type', 'text')
-                chunk_content = getattr(chunk, 'content', str(chunk))
-                chunk_metadata = getattr(chunk, 'metadata', {})
+                chunk_type = getattr(chunk, "chunk_type", "text")
+                chunk_content = getattr(chunk, "content", str(chunk))
+                chunk_metadata = getattr(chunk, "metadata", {})
 
                 if chunk_type == "step_start":
-                    await session.adapter._emit_event("step_start", {
-                        "content": chunk_content
-                    })
+                    await session.adapter._emit_event(
+                        "step_start", {"content": chunk_content}
+                    )
                 elif chunk_type == "thinking":
                     await session.adapter.emit_thinking(chunk_content)
                 elif chunk_type == "code_start":
-                    await session.adapter._emit_event("code_start", {
-                        "code": chunk_content,
-                        "language": chunk_metadata.get("language", "")
-                    })
+                    await session.adapter._emit_event(
+                        "code_start",
+                        {
+                            "code": chunk_content,
+                            "language": chunk_metadata.get("language", ""),
+                        },
+                    )
                 elif chunk_type == "code_result":
                     await session.adapter.emit_tool_result(
                         success=chunk_metadata.get("success", True),
-                        output=chunk_content
+                        output=chunk_content,
                     )
                 elif chunk_type == "tool_call":
                     await session.adapter.emit_tool_call(
                         name=chunk_metadata.get("tool_name", ""),
-                        args=chunk_metadata.get("args", {})
+                        args=chunk_metadata.get("args", {}),
                     )
                 elif chunk_type in ("final_answer", "agent_response", "completion"):
-                    final_content = getattr(chunk, 'answer', chunk_content) or chunk_content
+                    final_content = (
+                        getattr(chunk, "answer", chunk_content) or chunk_content
+                    )
                     full_response = str(final_content)
                     await session.adapter.emit_content(full_response)
                 else:
@@ -156,8 +165,7 @@ async def process_chat_stream(
                 try:
                     # Try to get event with timeout
                     event = await asyncio.wait_for(
-                        session.adapter.event_queue.get(),
-                        timeout=0.1
+                        session.adapter.event_queue.get(), timeout=0.1
                     )
                     yield format_sse_event(event)
                 except asyncio.TimeoutError:
@@ -179,11 +187,16 @@ async def process_chat_stream(
                 # Check for abort
                 if session.abort_event.is_set():
                     agent_task.cancel()
-                    yield format_sse_event(SSEEvent(
-                        type="task_status",
-                        data={"state": TaskState.CANCELLED.value, "task_id": task_id},
-                        task_id=task_id
-                    ))
+                    yield format_sse_event(
+                        SSEEvent(
+                            type="task_status",
+                            data={
+                                "state": TaskState.CANCELLED.value,
+                                "task_id": task_id,
+                            },
+                            task_id=task_id,
+                        )
+                    )
                     break
 
         except Exception as e:
@@ -196,32 +209,36 @@ async def process_chat_stream(
 
         # Emit completed status
         await session.adapter.emit_task_status(TaskState.COMPLETED)
-        yield format_sse_event(SSEEvent(
-            type="task_status",
-            data={"state": TaskState.COMPLETED.value, "task_id": task_id},
-            task_id=task_id
-        ))
+        yield format_sse_event(
+            SSEEvent(
+                type="task_status",
+                data={"state": TaskState.COMPLETED.value, "task_id": task_id},
+                task_id=task_id,
+            )
+        )
 
     except asyncio.CancelledError:
-        yield format_sse_event(SSEEvent(
-            type="task_status",
-            data={"state": TaskState.CANCELLED.value, "task_id": task_id},
-            task_id=task_id
-        ))
+        yield format_sse_event(
+            SSEEvent(
+                type="task_status",
+                data={"state": TaskState.CANCELLED.value, "task_id": task_id},
+                task_id=task_id,
+            )
+        )
     except Exception as e:
         logger.exception(f"Error processing chat: {e}")
         await session.adapter.emit_error(str(e))
-        yield format_sse_event(SSEEvent(
-            type="error",
-            data={"message": str(e)},
-            task_id=task_id
-        ))
+        yield format_sse_event(
+            SSEEvent(type="error", data={"message": str(e)}, task_id=task_id)
+        )
         await session.adapter.emit_task_status(TaskState.FAILED)
-        yield format_sse_event(SSEEvent(
-            type="task_status",
-            data={"state": TaskState.FAILED.value, "task_id": task_id},
-            task_id=task_id
-        ))
+        yield format_sse_event(
+            SSEEvent(
+                type="task_status",
+                data={"state": TaskState.FAILED.value, "task_id": task_id},
+                task_id=task_id,
+            )
+        )
     finally:
         session.current_task_id = None
         yield format_sse_done()
@@ -256,5 +273,5 @@ async def chat(session_id: str, request: ChatRequest):
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",  # Disable nginx buffering
-        }
+        },
     )

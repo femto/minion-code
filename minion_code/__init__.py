@@ -3,7 +3,7 @@
 """
 Minion Code Tools Package
 
-A collection of tools and enhanced agents for the Minion framework including 
+A collection of tools and enhanced agents for the Minion framework including
 file operations, system commands, web interactions, and specialized agents
 with dynamic system prompts and state management.
 """

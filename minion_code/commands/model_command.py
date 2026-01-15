@@ -29,7 +29,7 @@ class ModelCommand(BaseCommand):
         """Load config from file."""
         if self.CONFIG_FILE.exists():
             try:
-                with open(self.CONFIG_FILE, 'r') as f:
+                with open(self.CONFIG_FILE, "r") as f:
                     return json.load(f)
             except Exception:
                 pass
@@ -38,7 +38,7 @@ class ModelCommand(BaseCommand):
     def _save_config(self, config: dict) -> None:
         """Save config to file."""
         self.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        with open(self.CONFIG_FILE, 'w') as f:
+        with open(self.CONFIG_FILE, "w") as f:
             json.dump(config, f, indent=2)
 
     def _get_available_models(self) -> List[str]:
@@ -53,7 +53,7 @@ class ModelCommand(BaseCommand):
         # First load user config
         if self.MINION_CONFIG_FILE.exists():
             try:
-                with open(self.MINION_CONFIG_FILE, 'r') as f:
+                with open(self.MINION_CONFIG_FILE, "r") as f:
                     config_dict = yaml.safe_load(f) or {}
             except Exception:
                 pass
@@ -61,16 +61,17 @@ class ModelCommand(BaseCommand):
         # Then load base config (MINION_ROOT), which overwrites user config
         try:
             from minion.const import get_minion_root
+
             minion_root = get_minion_root()
             base_config_path = Path(minion_root) / "config" / "config.yaml"
             if base_config_path.exists():
-                with open(base_config_path, 'r') as f:
+                with open(base_config_path, "r") as f:
                     base_config = yaml.safe_load(f) or {}
                 config_dict.update(base_config)  # Overwrite, same as minion
         except Exception:
             pass
 
-        models = list(config_dict.get('models', {}).keys())
+        models = list(config_dict.get("models", {}).keys())
         return sorted(models)
 
     def _update_agent_model(self, model_name: str) -> bool:
@@ -80,13 +81,14 @@ class ModelCommand(BaseCommand):
 
         try:
             from minion.types.llm_types import create_llm_from_model
+
             # Create new LLM provider with the new model
             new_llm = create_llm_from_model(model_name)
             self.agent.llm = new_llm
 
             # Update llms dict if it exists
-            if hasattr(self.agent, 'llms'):
-                self.agent.llms['main'] = new_llm
+            if hasattr(self.agent, "llms"):
+                self.agent.llms["main"] = new_llm
 
             return True
         except Exception as e:
@@ -145,7 +147,7 @@ class ModelCommand(BaseCommand):
             # Get current agent model
             current_agent_model = None
             if self.agent:
-                current_agent_model = getattr(self.agent, 'llm', None)
+                current_agent_model = getattr(self.agent, "llm", None)
 
             # Display current info
             headers = ["Setting", "Value"]
@@ -174,9 +176,7 @@ class ModelCommand(BaseCommand):
 
                 # Ask user to select (returns index, -1 if cancelled)
                 selected_index = await self.output.choice(
-                    message="Select a model:",
-                    choices=choices,
-                    title="Available Models"
+                    message="Select a model:", choices=choices, title="Available Models"
                 )
 
                 if selected_index >= 0 and selected_index < len(models):

@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 # Spinner Controller for CLI
 # ============================================================================
 
+
 class SpinnerController:
     """
     Controller to pause/resume spinners during user prompts.
@@ -90,6 +91,7 @@ class SpinnerController:
 # minion-code Specific Hook Implementations
 # ============================================================================
 
+
 def _format_tool_input(tool_name: str, tool_input: Dict[str, Any]) -> str:
     """Format tool input for display in confirmation dialog."""
     if tool_name == "bash":
@@ -127,7 +129,7 @@ def _format_tool_input(tool_name: str, tool_input: Dict[str, Any]) -> str:
 def create_confirm_writes_hook(
     adapter: Any,  # OutputAdapter
     tools_registry: Optional[Dict[str, Any]] = None,
-    skip_readonly: bool = True
+    skip_readonly: bool = True,
 ) -> PreToolUseHook:
     """
     Create a hook that requests user confirmation for non-readonly tools.
@@ -137,19 +139,31 @@ def create_confirm_writes_hook(
         tools_registry: Optional dict mapping tool names to tool instances
         skip_readonly: If True, auto-accept readonly tools without confirmation
     """
-    async def confirm_writes(tool_name: str, tool_input: Dict[str, Any], tool_use_id: str) -> PreToolUseResult:
+
+    async def confirm_writes(
+        tool_name: str, tool_input: Dict[str, Any], tool_use_id: str
+    ) -> PreToolUseResult:
         # Skip readonly tools
         if skip_readonly:
             # Known readonly tools (hardcoded list)
             # Task is readonly because subagents have their own permission control
-            readonly_tools = {"file_read", "glob", "grep", "ls", "web_fetch", "web_search", "todo_read", "Task"}
+            readonly_tools = {
+                "file_read",
+                "glob",
+                "grep",
+                "ls",
+                "web_fetch",
+                "web_search",
+                "todo_read",
+                "Task",
+            }
             if tool_name in readonly_tools:
                 return PreToolUseResult(decision=PermissionDecision.ACCEPT)
 
             # Check if tool is readonly from registry
             if tools_registry:
                 tool = tools_registry.get(tool_name)
-                if tool and getattr(tool, 'readonly', False):
+                if tool and getattr(tool, "readonly", False):
                     return PreToolUseResult(decision=PermissionDecision.ACCEPT)
 
         # Format tool input for display
@@ -162,21 +176,19 @@ def create_confirm_writes_hook(
                 title="Tool Permission",
                 resource_type="tool",
                 resource_name=tool_name,
-                resource_args=tool_input
+                resource_args=tool_input,
             )
         except Exception as e:
             logger.error(f"Error during confirmation: {e}")
             return PreToolUseResult(
-                decision=PermissionDecision.DENY,
-                reason=f"Confirmation error: {e}"
+                decision=PermissionDecision.DENY, reason=f"Confirmation error: {e}"
             )
 
         if confirmed:
             return PreToolUseResult(decision=PermissionDecision.ACCEPT)
         else:
             return PreToolUseResult(
-                decision=PermissionDecision.DENY,
-                reason="User denied permission"
+                decision=PermissionDecision.DENY, reason="User denied permission"
             )
 
     return confirm_writes
@@ -203,14 +215,26 @@ def create_cli_confirm_hook(
         session_allowed = set()
 
     # Task is readonly because subagents have their own permission control
-    readonly_tools = {"file_read", "glob", "grep", "ls", "web_fetch", "web_search", "todo_read", "Task"}
+    readonly_tools = {
+        "file_read",
+        "glob",
+        "grep",
+        "ls",
+        "web_fetch",
+        "web_search",
+        "todo_read",
+        "Task",
+    }
 
     # Use Rich console if provided, otherwise create one
     if console is None:
         from rich.console import Console
+
         console = Console()
 
-    async def cli_confirm(tool_name: str, tool_input: Dict[str, Any], tool_use_id: str) -> PreToolUseResult:
+    async def cli_confirm(
+        tool_name: str, tool_input: Dict[str, Any], tool_use_id: str
+    ) -> PreToolUseResult:
         # Skip readonly tools
         if tool_name in readonly_tools:
             return PreToolUseResult(decision=PermissionDecision.ACCEPT)
@@ -243,24 +267,22 @@ def create_cli_confirm_hook(
                 response = console.input("[bold]Allow? [y/n/a/A]: [/]").strip()
             except (EOFError, KeyboardInterrupt):
                 return PreToolUseResult(
-                    decision=PermissionDecision.DENY,
-                    reason="User cancelled"
+                    decision=PermissionDecision.DENY, reason="User cancelled"
                 )
 
-            if response.lower() == 'y':
+            if response.lower() == "y":
                 return PreToolUseResult(decision=PermissionDecision.ACCEPT)
-            elif response == 'a':  # Session allow (lowercase only)
+            elif response == "a":  # Session allow (lowercase only)
                 session_allowed.add(tool_name)
                 logger.info(f"Tool '{tool_name}' allowed for this session")
                 return PreToolUseResult(decision=PermissionDecision.ACCEPT)
-            elif response == 'A':  # Permanent allow (uppercase only)
+            elif response == "A":  # Permanent allow (uppercase only)
                 allowed_tools.add(tool_name)
                 logger.info(f"Tool '{tool_name}' permanently allowed")
                 return PreToolUseResult(decision=PermissionDecision.ACCEPT)
             else:
                 return PreToolUseResult(
-                    decision=PermissionDecision.DENY,
-                    reason="User denied permission"
+                    decision=PermissionDecision.DENY, reason="User denied permission"
                 )
         finally:
             # Resume spinner after user responds
@@ -289,10 +311,13 @@ def create_cli_hooks(
     return HookConfig(
         pre_tool_use=[
             HookMatcher("bash", create_dangerous_command_check_hook()),
-            HookMatcher("*", create_cli_confirm_hook(
-                spinner_controller=spinner_controller,
-                console=console,
-            )),
+            HookMatcher(
+                "*",
+                create_cli_confirm_hook(
+                    spinner_controller=spinner_controller,
+                    console=console,
+                ),
+            ),
         ]
     )
 

@@ -61,12 +61,14 @@ class RichOutputAdapter(OutputAdapter):
         else:
             self.console.print(content)
 
-    async def confirm(self,
-                     message: str,
-                     title: str = "Confirm",
-                     default: bool = False,
-                     ok_text: str = "Yes",
-                     cancel_text: str = "No") -> bool:
+    async def confirm(
+        self,
+        message: str,
+        title: str = "Confirm",
+        default: bool = False,
+        ok_text: str = "Yes",
+        cancel_text: str = "No",
+    ) -> bool:
         """
         Display confirmation dialog (blocking).
 
@@ -85,11 +87,13 @@ class RichOutputAdapter(OutputAdapter):
         except KeyboardInterrupt:
             return False
 
-    async def choice(self,
-                    message: str,
-                    choices: List[str],
-                    title: str = "Select",
-                    default_index: int = 0) -> int:
+    async def choice(
+        self,
+        message: str,
+        choices: List[str],
+        title: str = "Select",
+        default_index: int = 0,
+    ) -> int:
         """
         Display choice dialog (blocking).
 
@@ -117,11 +121,11 @@ class RichOutputAdapter(OutputAdapter):
                 choice_input = Prompt.ask(
                     "Select number (or 'c' to cancel)",
                     console=self.console,
-                    default=str(default_index + 1)
+                    default=str(default_index + 1),
                 )
 
                 # Check for cancel
-                if choice_input.lower() in ['c', 'cancel', 'q', 'quit']:
+                if choice_input.lower() in ["c", "cancel", "q", "quit"]:
                     return -1
 
                 # Try to parse as number
@@ -134,11 +138,13 @@ class RichOutputAdapter(OutputAdapter):
             except (ValueError, KeyboardInterrupt):
                 return -1
 
-    async def input(self,
-                   message: str,
-                   title: str = "Input",
-                   default: str = "",
-                   placeholder: str = "") -> Optional[str]:
+    async def input(
+        self,
+        message: str,
+        title: str = "Input",
+        default: str = "",
+        placeholder: str = "",
+    ) -> Optional[str]:
         """
         Display input dialog (blocking).
 

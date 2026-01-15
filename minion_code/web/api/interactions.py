@@ -17,15 +17,19 @@ router = APIRouter(prefix="/api/tasks", tags=["interactions"])
 
 class InteractionResponse(BaseModel):
     """Request body for responding to an interaction."""
-    interaction_id: str = Field(..., description="Interaction ID from input_required event")
+
+    interaction_id: str = Field(
+        ..., description="Interaction ID from input_required event"
+    )
     response: Any = Field(
         ...,
-        description="User's response: bool for permission, int for choice, str for text"
+        description="User's response: bool for permission, int for choice, str for text",
     )
 
 
 class InteractionResult(BaseModel):
     """Response after processing interaction."""
+
     status: str
     interaction_id: str
     task_id: Optional[str] = None
@@ -55,15 +59,14 @@ async def respond_to_interaction(task_id: str, body: InteractionResponse):
     session = session_manager.find_session_by_interaction(body.interaction_id)
     if not session:
         raise HTTPException(
-            status_code=404,
-            detail=f"Interaction {body.interaction_id} not found"
+            status_code=404, detail=f"Interaction {body.interaction_id} not found"
         )
 
     # Verify task_id matches (optional validation)
     if session.current_task_id and session.current_task_id != task_id:
         raise HTTPException(
             status_code=400,
-            detail=f"Task ID mismatch: expected {session.current_task_id}, got {task_id}"
+            detail=f"Task ID mismatch: expected {session.current_task_id}, got {task_id}",
         )
 
     # Resolve the interaction
@@ -71,13 +74,11 @@ async def respond_to_interaction(task_id: str, body: InteractionResponse):
     if not resolved:
         raise HTTPException(
             status_code=400,
-            detail=f"Interaction {body.interaction_id} already resolved or not found"
+            detail=f"Interaction {body.interaction_id} already resolved or not found",
         )
 
     return InteractionResult(
-        status="ok",
-        interaction_id=body.interaction_id,
-        task_id=task_id
+        status="ok", interaction_id=body.interaction_id, task_id=task_id
     )
 
 
@@ -94,22 +95,17 @@ async def cancel_interaction(task_id: str, interaction_id: str):
     session = session_manager.find_session_by_interaction(interaction_id)
     if not session:
         raise HTTPException(
-            status_code=404,
-            detail=f"Interaction {interaction_id} not found"
+            status_code=404, detail=f"Interaction {interaction_id} not found"
         )
 
     cancelled = session.adapter.cancel_interaction(interaction_id)
     if not cancelled:
         raise HTTPException(
             status_code=400,
-            detail=f"Interaction {interaction_id} already resolved or not found"
+            detail=f"Interaction {interaction_id} already resolved or not found",
         )
 
-    return {
-        "status": "cancelled",
-        "interaction_id": interaction_id,
-        "task_id": task_id
-    }
+    return {"status": "cancelled", "interaction_id": interaction_id, "task_id": task_id}
 
 
 # Alternative endpoint path for convenience
@@ -123,19 +119,18 @@ async def respond_to_interaction_by_id(interaction_id: str, response: Any):
     session = session_manager.find_session_by_interaction(interaction_id)
     if not session:
         raise HTTPException(
-            status_code=404,
-            detail=f"Interaction {interaction_id} not found"
+            status_code=404, detail=f"Interaction {interaction_id} not found"
         )
 
     resolved = session.adapter.resolve_interaction(interaction_id, response)
     if not resolved:
         raise HTTPException(
             status_code=400,
-            detail=f"Interaction {interaction_id} already resolved or not found"
+            detail=f"Interaction {interaction_id} already resolved or not found",
         )
 
     return {
         "status": "ok",
         "interaction_id": interaction_id,
-        "task_id": session.current_task_id
+        "task_id": session.current_task_id,
     }

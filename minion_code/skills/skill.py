@@ -29,7 +29,9 @@ class Skill:
     location: str = "project"  # project, user, managed
 
     @classmethod
-    def from_skill_md(cls, skill_md_path: Path, location: str = "project") -> Optional["Skill"]:
+    def from_skill_md(
+        cls, skill_md_path: Path, location: str = "project"
+    ) -> Optional["Skill"]:
         """
         Parse a SKILL.md file and create a Skill instance.
 
@@ -43,14 +45,14 @@ class Skill:
         if not skill_md_path.exists():
             return None
 
-        content = skill_md_path.read_text(encoding='utf-8')
+        content = skill_md_path.read_text(encoding="utf-8")
         frontmatter, body = cls._parse_frontmatter(content)
 
         if not frontmatter:
             return None
 
-        name = frontmatter.get('name')
-        description = frontmatter.get('description')
+        name = frontmatter.get("name")
+        description = frontmatter.get("description")
 
         if not name or not description:
             return None
@@ -60,9 +62,9 @@ class Skill:
             description=description,
             content=body.strip(),
             path=skill_md_path.parent,
-            license=frontmatter.get('license'),
-            allowed_tools=frontmatter.get('allowed-tools', []) or [],
-            metadata=frontmatter.get('metadata', {}) or {},
+            license=frontmatter.get("license"),
+            allowed_tools=frontmatter.get("allowed-tools", []) or [],
+            metadata=frontmatter.get("metadata", {}) or {},
             location=location,
         )
 
@@ -78,7 +80,7 @@ class Skill:
             Tuple of (frontmatter dict, body content)
         """
         # Match YAML frontmatter pattern: starts with ---, ends with ---
-        pattern = r'^---\s*\n(.*?)\n---\s*\n(.*)$'
+        pattern = r"^---\s*\n(.*?)\n---\s*\n(.*)$"
         match = re.match(pattern, content, re.DOTALL)
 
         if not match:

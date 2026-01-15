@@ -6,7 +6,16 @@ Simulates React-like component structure as documented in AGENTS.md
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
-from textual.widgets import Input, RichLog, Button, Static, Header, Footer, Label, TextArea
+from textual.widgets import (
+    Input,
+    RichLog,
+    Button,
+    Static,
+    Header,
+    Footer,
+    Label,
+    TextArea,
+)
 from textual.reactive import reactive, var
 from textual import on, work
 from textual.screen import Screen
@@ -24,9 +33,13 @@ from pathlib import Path
 
 # Session storage imports
 from ..utils.session_storage import (
-    Session, create_session, save_session, load_session,
-    get_latest_session_id, add_message as session_add_message,
-    restore_agent_history
+    Session,
+    create_session,
+    save_session,
+    load_session,
+    get_latest_session_id,
+    add_message as session_add_message,
+    restore_agent_history,
 )
 
 # No logging in UI components to reduce noise
@@ -34,40 +47,54 @@ from ..utils.session_storage import (
 
 # Import shared types
 from ..type_defs import (
-    MessageType, InputMode, MessageContent, Message as MessageData,
-    ToolUseConfirm, BinaryFeedbackContext, ToolJSXContext,
-    REPLConfig, ModelInfo
+    MessageType,
+    InputMode,
+    MessageContent,
+    Message as MessageData,
+    ToolUseConfirm,
+    BinaryFeedbackContext,
+    ToolJSXContext,
+    REPLConfig,
+    ModelInfo,
 )
 
 
 class Logo(Static):
     """Logo component equivalent to React Logo component"""
-    
-    def __init__(self, mcp_clients=None, is_default_model=True, update_banner_version=None, **kwargs):
+
+    def __init__(
+        self,
+        mcp_clients=None,
+        is_default_model=True,
+        update_banner_version=None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.mcp_clients = mcp_clients or []
         self.is_default_model = is_default_model
         self.update_banner_version = update_banner_version
-    
+
     def render(self) -> str:
         logo_text = "🤖 Minion Code Assistant"
         if self.update_banner_version:
             logo_text += f" (Update available: {self.update_banner_version})"
         return logo_text
 
+
 class ModeIndicator(Static):
     """Mode indicator component"""
-    
+
     def __init__(self, mode: InputMode = InputMode.PROMPT, **kwargs):
         super().__init__(**kwargs)
         self.mode = mode
-    
+
     def render(self) -> str:
         return f"Mode: {self.mode.value.upper()}"
 
+
 class Spinner(Static):
     """Simple loading spinner - just one line of animated text"""
-    
+
     DEFAULT_CSS = """
     Spinner {
         color: $primary;
@@ -77,49 +104,58 @@ class Spinner(Static):
         padding: 0 1;
     }
     """
-    
+
     def __init__(self, message: str = "Processing", **kwargs):
         super().__init__("⠋ Processing...", **kwargs)
         self.base_message = message
         self.spinner_chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
         self.spinner_index = 0
         self._timer = None
-    
+
     def on_mount(self):
         self._timer = self.set_interval(0.1, self.update_spinner)
-    
+
     def on_unmount(self):
         if self._timer:
             self._timer.stop()
-    
+
     def update_spinner(self):
         self.spinner_index = (self.spinner_index + 1) % len(self.spinner_chars)
         self.update(f"{self.spinner_chars[self.spinner_index]} {self.base_message}...")
-    
+
     def set_message(self, message: str):
         """Update the spinner message"""
         self.base_message = message
 
+
 class MessageWidget(Container):
     """Individual message display widget with streaming support"""
-    
-    def __init__(self, message: MessageData, verbose: bool = False, debug: bool = False, **kwargs):
+
+    def __init__(
+        self, message: MessageData, verbose: bool = False, debug: bool = False, **kwargs
+    ):
         super().__init__(**kwargs)
         self.message = message
         self.verbose = verbose
         self.debug = debug
-        self.is_streaming = message.options.get("streaming", False) if message.options else False
-        self.is_error = message.options.get("error", False) if message.options else False
-    
+        self.is_streaming = (
+            message.options.get("streaming", False) if message.options else False
+        )
+        self.is_error = (
+            message.options.get("error", False) if message.options else False
+        )
+
     def compose(self) -> ComposeResult:
         content_text = self._get_content_text()
-        
+
         if self.message.type == MessageType.USER:
             yield Static(f"👤 User:", classes="user-label")
             yield Static(content_text, classes="user-message")
         elif self.message.type == MessageType.ASSISTANT:
             if self.is_streaming:
-                yield Static(f"🤖 Assistant: ⠋ Thinking...", classes="assistant-streaming")
+                yield Static(
+                    f"🤖 Assistant: ⠋ Thinking...", classes="assistant-streaming"
+                )
             elif self.is_error:
                 yield Static(f"❌ Assistant:", classes="assistant-error-label")
                 yield Static(content_text, classes="assistant-error")
@@ -128,13 +164,14 @@ class MessageWidget(Container):
                 # Handle markdown content
                 if "```" in content_text or content_text.startswith("#"):
                     from rich.markdown import Markdown
+
                     yield Static(Markdown(content_text), classes="assistant-message")
                 else:
                     yield Static(content_text, classes="assistant-message")
         elif self.message.type == MessageType.PROGRESS:
             yield Static(f"⚙️ Progress:", classes="progress-label")
             yield Static(content_text, classes="progress-message")
-    
+
     def _get_content_text(self) -> str:
         if isinstance(self.message.message.content, str):
             return self.message.message.content
@@ -146,7 +183,7 @@ class MessageWidget(Container):
                     text_parts.append(block.get("text", ""))
             return "\n".join(text_parts)
         return str(self.message.message.content)
-    
+
     def update_streaming_content(self, new_content: str):
         """Update streaming message content"""
         if self.is_streaming:
@@ -159,7 +196,7 @@ class MessageWidget(Container):
                     static_widgets[1].update(new_content)
             except Exception:
                 pass  # Silently handle streaming update errors
-    
+
     def finalize_streaming(self, final_content: str):
         """Finalize streaming message with final content"""
         if self.is_streaming:
@@ -178,21 +215,23 @@ from ..components.ConfirmDialog import ConfirmDialog, ChoiceDialog, InputDialog
 # Import adapters
 from ..adapters.textual_adapter import TextualOutputAdapter
 
+
 class CostThresholdDialog(Container):
     """Cost threshold warning dialog"""
-    
+
     def compose(self) -> ComposeResult:
         yield Static("⚠️ Cost Threshold Warning", classes="dialog-title")
         yield Static("You have exceeded $5 in API costs. Please be mindful of usage.")
         yield Button("Acknowledge", id="acknowledge_btn", variant="primary")
 
+
 class PermissionRequest(Container):
     """Permission request dialog for tool usage"""
-    
+
     def __init__(self, tool_use_confirm: ToolUseConfirm, **kwargs):
         super().__init__(**kwargs)
         self.tool_use_confirm = tool_use_confirm
-    
+
     def compose(self) -> ComposeResult:
         yield Static(f"🔧 Tool Permission Request", classes="dialog-title")
         yield Static(f"Tool: {self.tool_use_confirm.tool_name}")
@@ -200,11 +239,11 @@ class PermissionRequest(Container):
         with Horizontal():
             yield Button("Allow", id="allow_btn", variant="success")
             yield Button("Deny", id="deny_btn", variant="error")
-    
+
     @on(Button.Pressed, "#allow_btn")
     def allow_tool(self):
         self.tool_use_confirm.on_confirm()
-    
+
     @on(Button.Pressed, "#deny_btn")
     def deny_tool(self):
         self.tool_use_confirm.on_abort()
@@ -212,11 +251,11 @@ class PermissionRequest(Container):
 
 class MessageSelector(Container):
     """Message selector for conversation forking"""
-    
+
     def __init__(self, messages: List[MessageData], **kwargs):
         super().__init__(**kwargs)
         self.messages = messages
-    
+
     def compose(self) -> ComposeResult:
         yield Static("📝 Select Message to Fork From", classes="dialog-title")
         with ScrollableContainer():
@@ -224,7 +263,7 @@ class MessageSelector(Container):
                 content = self._get_message_preview(message)
                 yield Button(f"{i}: {content[:50]}...", id=f"msg_{i}")
         yield Button("Cancel", id="cancel_selector", variant="error")
-    
+
     def _get_message_preview(self, message: MessageData) -> str:
         if isinstance(message.message.content, str):
             return message.message.content
@@ -236,7 +275,7 @@ class REPL(Container):
     Main REPL Component - Python equivalent of React REPL component
     Manages the entire conversation interface with AI assistant
     """
-    
+
     DEFAULT_CSS = """
     /* Message styling */
     .user-label {
@@ -402,7 +441,7 @@ class REPL(Container):
     
 
     """
-    
+
     # Reactive properties equivalent to React useState
     fork_number = reactive(0)
     is_loading = reactive(False)  # Recompose when loading state changes
@@ -410,30 +449,36 @@ class REPL(Container):
     input_value = reactive("")
     input_mode = reactive(InputMode.PROMPT)
     submit_count = reactive(0)
-    is_message_selector_visible = reactive(False, recompose=True)  # Recompose when selector visibility changes
-    show_cost_dialog = reactive(False, recompose=True)  # Recompose when dialog visibility changes
+    is_message_selector_visible = reactive(
+        False, recompose=True
+    )  # Recompose when selector visibility changes
+    show_cost_dialog = reactive(
+        False, recompose=True
+    )  # Recompose when dialog visibility changes
     have_shown_cost_dialog = reactive(False)
     should_show_prompt_input = reactive(True, recompose=True)
-    
-    def __init__(self, 
-                 commands=None,
-                 safe_mode=False,
-                 debug=False,
-                 initial_fork_number=0,
-                 initial_prompt=None,
-                 message_log_name="default",
-                 should_show_prompt_input=True,
-                 tools=None,
-                 verbose=False,
-                 initial_messages=None,
-                 mcp_clients=None,
-                 is_default_model=True,
-                 initial_update_version=None,
-                 initial_update_commands=None,
-                 agent=None,  # Agent passed from app level
-                 resume_session_id=None,  # Session ID to resume
-                 continue_last=False,  # Continue most recent session
-                 **kwargs):
+
+    def __init__(
+        self,
+        commands=None,
+        safe_mode=False,
+        debug=False,
+        initial_fork_number=0,
+        initial_prompt=None,
+        message_log_name="default",
+        should_show_prompt_input=True,
+        tools=None,
+        verbose=False,
+        initial_messages=None,
+        mcp_clients=None,
+        is_default_model=True,
+        initial_update_version=None,
+        initial_update_commands=None,
+        agent=None,  # Agent passed from app level
+        resume_session_id=None,  # Session ID to resume
+        continue_last=False,  # Continue most recent session
+        **kwargs,
+    ):
         super().__init__(**kwargs)
 
         # Props equivalent to TypeScript Props interface
@@ -481,29 +526,39 @@ class REPL(Container):
     def _create_test_messages(self) -> List[MessageData]:
         """Create some test messages for development/testing"""
         import time
-        
+
         test_messages = []
-        
+
         # Welcome message from assistant
-        test_messages.append(MessageData(
-            type=MessageType.ASSISTANT,
-            message=MessageContent("👋 Welcome to Minion Code Assistant! I'm here to help you with coding tasks, file operations, and more. What would you like to work on today?"),
-            timestamp=time.time() - 120,
-            options={}
-        ))
-        
+        test_messages.append(
+            MessageData(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(
+                    "👋 Welcome to Minion Code Assistant! I'm here to help you with coding tasks, file operations, and more. What would you like to work on today?"
+                ),
+                timestamp=time.time() - 120,
+                options={},
+            )
+        )
+
         # Example user message
-        test_messages.append(MessageData(
-            type=MessageType.USER,
-            message=MessageContent("Can you help me understand how to use this REPL interface?"),
-            timestamp=time.time() - 100,
-            options={}
-        ))
-        
+        test_messages.append(
+            MessageData(
+                type=MessageType.USER,
+                message=MessageContent(
+                    "Can you help me understand how to use this REPL interface?"
+                ),
+                timestamp=time.time() - 100,
+                options={},
+            )
+        )
+
         # Example assistant response with code
-        test_messages.append(MessageData(
-            type=MessageType.ASSISTANT,
-            message=MessageContent("""Absolutely! Here's how to use the REPL interface:
+        test_messages.append(
+            MessageData(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(
+                    """Absolutely! Here's how to use the REPL interface:
 
 ## Input Modes
 - **Prompt mode** (`>`): Regular conversation with the AI assistant
@@ -528,13 +583,15 @@ class REPL(Container):
 How do I implement error handling in Python?
 ```
 
-Try typing something to get started!"""),
-            timestamp=time.time() - 80,
-            options={}
-        ))
-        
+Try typing something to get started!"""
+                ),
+                timestamp=time.time() - 80,
+                options={},
+            )
+        )
+
         return test_messages
-    
+
     def compose(self) -> ComposeResult:
         """Compose the REPL interface - equivalent to React render method"""
         with Vertical():
@@ -542,23 +599,25 @@ Try typing something to get started!"""),
             yield Logo(
                 mcp_clients=self.mcp_clients,
                 is_default_model=self.is_default_model,
-                update_banner_version=self.initial_update_version
+                update_banner_version=self.initial_update_version,
             )
-            
+
             # Messages container (main content area) - takes remaining space
-            print(f"DEBUG: REPL.compose() creating Messages component with {len(self.messages)} messages")
+            print(
+                f"DEBUG: REPL.compose() creating Messages component with {len(self.messages)} messages"
+            )
             yield Messages(
                 messages=self.messages,
                 tools=self.tools,
                 verbose=self.verbose,
                 debug=self.debug,
-                id="messages_container"
+                id="messages_container",
             )
-            
+
             # Loading indicator - simple one-line text with animation
             if self.is_loading:
                 yield Spinner(message="Assistant is thinking")
-            
+
             # Other dynamic content (dialogs, etc.) - also between Messages and PromptInput
             # Tool JSX (equivalent to {toolJSX ? toolJSX.jsx : null})
             if self.tool_jsx and self.tool_jsx.jsx:
@@ -569,7 +628,11 @@ Try typing something to get started!"""),
                 yield Static("🔄 Binary feedback component would render here")
 
             # Permission request (equivalent to PermissionRequest component)
-            if self.tool_use_confirm and not self.is_message_selector_visible and not self.binary_feedback_context:
+            if (
+                self.tool_use_confirm
+                and not self.is_message_selector_visible
+                and not self.binary_feedback_context
+            ):
                 yield PermissionRequest(self.tool_use_confirm)
 
             # Cost dialog (equivalent to CostThresholdDialog component)
@@ -579,7 +642,7 @@ Try typing something to get started!"""),
             # Message selector (equivalent to {isMessageSelectorVisible && <MessageSelector />})
             if self.is_message_selector_visible:
                 yield MessageSelector(messages=self.messages)
-            
+
             # PromptInput component at the bottom (dock: bottom)
             if self.should_show_prompt_input:
                 prompt_input = PromptInput(
@@ -596,25 +659,33 @@ Try typing something to get started!"""),
                     mode=self.input_mode,
                     submit_count=self.submit_count,
                     read_file_timestamps=self.read_file_timestamps,
-                    abort_controller=self.abort_controller
+                    abort_controller=self.abort_controller,
                 )
 
                 # Set up callbacks
                 prompt_input.on_query = self.on_query_from_prompt
-                prompt_input.on_add_user_message = self.on_add_user_message_from_prompt  # New immediate display callback
+                prompt_input.on_add_user_message = (
+                    self.on_add_user_message_from_prompt
+                )  # New immediate display callback
                 prompt_input.on_input_change = self.on_input_change_from_prompt
                 prompt_input.on_mode_change = self.on_mode_change_from_prompt
-                prompt_input.on_submit_count_change = self.on_submit_count_change_from_prompt
+                prompt_input.on_submit_count_change = (
+                    self.on_submit_count_change_from_prompt
+                )
                 prompt_input.set_is_loading = self.set_loading_from_prompt
-                prompt_input.set_abort_controller = self.set_abort_controller_from_prompt
+                prompt_input.set_abort_controller = (
+                    self.set_abort_controller_from_prompt
+                )
                 prompt_input.on_show_message_selector = self.show_message_selector
                 prompt_input.set_fork_convo_with_messages = self.set_fork_convo_messages
                 prompt_input.on_model_change = self.on_model_change_from_prompt
                 prompt_input.set_tool_jsx = self.set_tool_jsx_from_prompt
-                prompt_input.on_execute_command = self.on_execute_command_from_prompt  # Command execution callback
+                prompt_input.on_execute_command = (
+                    self.on_execute_command_from_prompt
+                )  # Command execution callback
 
                 yield prompt_input
-    
+
     def on_mount(self):
         """Component lifecycle - equivalent to React useEffect(() => { onInit() }, [])"""
         # Initialize session
@@ -631,18 +702,24 @@ Try typing something to get started!"""),
         if self.resume_session_id:
             self.session = load_session(self.resume_session_id)
             if self.session:
-                print(f"DEBUG: Restored session {self.resume_session_id} with {len(self.session.messages)} messages")
+                print(
+                    f"DEBUG: Restored session {self.resume_session_id} with {len(self.session.messages)} messages"
+                )
                 # Restore messages to UI
                 self._restore_ui_messages_from_session()
             else:
-                print(f"DEBUG: Session {self.resume_session_id} not found, creating new")
+                print(
+                    f"DEBUG: Session {self.resume_session_id} not found, creating new"
+                )
                 self.session = create_session(current_project)
         elif self.continue_last:
             latest_id = get_latest_session_id(project_path=current_project)
             if latest_id:
                 self.session = load_session(latest_id)
                 if self.session:
-                    print(f"DEBUG: Continuing session {latest_id} with {len(self.session.messages)} messages")
+                    print(
+                        f"DEBUG: Continuing session {latest_id} with {len(self.session.messages)} messages"
+                    )
                     # Restore messages to UI
                     self._restore_ui_messages_from_session()
                 else:
@@ -666,9 +743,7 @@ Try typing something to get started!"""),
         for msg in self.session.messages:
             msg_type = MessageType.USER if msg.role == "user" else MessageType.ASSISTANT
             ui_message = MessageData(
-                type=msg_type,
-                message=MessageContent(msg.content),
-                options={}
+                type=msg_type, message=MessageContent(msg.content), options={}
             )
             self.messages.append(ui_message)
 
@@ -679,8 +754,10 @@ Try typing something to get started!"""),
         if self.session:
             session_add_message(self.session, role, content, auto_save=True)
             if self.verbose:
-                print(f"DEBUG: Saved {role} message to session {self.session.metadata.session_id}")
-    
+                print(
+                    f"DEBUG: Saved {role} message to session {self.session.metadata.session_id}"
+                )
+
     def _set_focus_to_input(self):
         """Set focus to the main input widget"""
         try:
@@ -699,7 +776,7 @@ Try typing something to get started!"""),
                         inputs[0].focus()
             except Exception:
                 pass  # Silently handle focus errors
-    
+
     async def on_init(self):
         """Initialize REPL - equivalent to React onInit function"""
         # Initial prompt processing moved to set_agent to ensure agent is ready
@@ -713,7 +790,9 @@ Try typing something to get started!"""),
 
     async def _process_initial_prompt(self):
         """Process the initial prompt after agent is ready."""
-        print(f"DEBUG _process_initial_prompt called: prompt={self.initial_prompt}, agent={self.agent}")
+        print(
+            f"DEBUG _process_initial_prompt called: prompt={self.initial_prompt}, agent={self.agent}"
+        )
         if not self.initial_prompt or not self.agent:
             print("DEBUG: Skipping - no prompt or no agent")
             return
@@ -727,8 +806,7 @@ Try typing something to get started!"""),
             print(f"DEBUG: Processing prompt: {prompt_to_process}")
             # Process initial prompt (equivalent to processUserInput)
             new_messages = await self.process_user_input(
-                prompt_to_process,
-                self.input_mode
+                prompt_to_process, self.input_mode
             )
             print(f"DEBUG: Got {len(new_messages) if new_messages else 0} new messages")
 
@@ -741,7 +819,9 @@ Try typing something to get started!"""),
 
                 # Update UI
                 try:
-                    messages_component = self.query_one("#messages_container", expect_type=Messages)
+                    messages_component = self.query_one(
+                        "#messages_container", expect_type=Messages
+                    )
                     messages_component.update_messages(self.messages)
                 except Exception:
                     self.refresh()
@@ -754,27 +834,29 @@ Try typing something to get started!"""),
         except Exception as e:
             print(f"DEBUG: Error processing initial prompt: {e}")
             import traceback
+
             traceback.print_exc()
         finally:
             self.is_loading = False
-    
-    async def process_user_input(self, input_text: str, mode: InputMode) -> List[MessageData]:
+
+    async def process_user_input(
+        self, input_text: str, mode: InputMode
+    ) -> List[MessageData]:
         """Process user input - equivalent to processUserInput function"""
-        
+
         # Create user message
         user_message = MessageData(
             type=MessageType.USER,
             message=MessageContent(input_text),
-            options={"isKodingRequest": mode == InputMode.KODING}
+            options={"isKodingRequest": mode == InputMode.KODING},
         )
-        
+
         # Handle different input modes
         if mode == InputMode.BASH:
             # Handle bash command
             result = await self.execute_bash_command(input_text)
             assistant_message = MessageData(
-                type=MessageType.ASSISTANT,
-                message=MessageContent(result)
+                type=MessageType.ASSISTANT, message=MessageContent(result)
             )
             return [user_message, assistant_message]
         elif mode == InputMode.KODING:
@@ -783,17 +865,14 @@ Try typing something to get started!"""),
         else:
             # Handle regular prompt
             return [user_message]
-    
+
     async def execute_bash_command(self, command: str) -> str:
         """Execute bash command - simplified version"""
         try:
             import subprocess
+
             result = subprocess.run(
-                command, 
-                shell=True, 
-                capture_output=True, 
-                text=True, 
-                timeout=30
+                command, shell=True, capture_output=True, text=True, timeout=30
             )
             if result.returncode == 0:
                 return result.stdout or "Command executed successfully"
@@ -801,13 +880,13 @@ Try typing something to get started!"""),
                 return f"Error: {result.stderr}"
         except Exception as e:
             return f"Error executing command: {str(e)}"
-    
+
     def set_agent(self, agent):
         """Set agent from app level and bind output adapter"""
         print(f"DEBUG set_agent: agent={agent}, initial_prompt={self.initial_prompt}")
         self.agent = agent
         # Bind output adapter to agent if it supports confirmation
-        if hasattr(agent, 'set_output_adapter'):
+        if hasattr(agent, "set_output_adapter"):
             agent.set_output_adapter(self.output_adapter)
 
         # Restore agent history from session if resuming
@@ -837,11 +916,15 @@ Try typing something to get started!"""),
 
     def display_panel_output(self, data: dict):
         """Display panel output as a message"""
-        content = f"{data.get('title', '')}\n\n{data['content']}" if data.get('title') else data['content']
+        content = (
+            f"{data.get('title', '')}\n\n{data['content']}"
+            if data.get("title")
+            else data["content"]
+        )
         message = MessageData(
             type=MessageType.ASSISTANT,
             message=MessageContent(content),
-            options={"border_style": data.get('border_style', 'blue')}
+            options={"border_style": data.get("border_style", "blue")},
         )
         self.messages = [*self.messages, message]
         self._refresh_messages()
@@ -849,9 +932,9 @@ Try typing something to get started!"""),
     def display_table_output(self, data: dict):
         """Display table output as formatted text"""
         # Format table as text
-        headers = data.get('headers', [])
-        rows = data.get('rows', [])
-        title = data.get('title', '')
+        headers = data.get("headers", [])
+        rows = data.get("rows", [])
+        title = data.get("title", "")
 
         lines = []
         if title:
@@ -866,9 +949,7 @@ Try typing something to get started!"""),
 
         content = "\n".join(lines)
         message = MessageData(
-            type=MessageType.ASSISTANT,
-            message=MessageContent(content),
-            options={}
+            type=MessageType.ASSISTANT, message=MessageContent(content), options={}
         )
         self.messages = [*self.messages, message]
         self._refresh_messages()
@@ -877,8 +958,8 @@ Try typing something to get started!"""),
         """Display plain text output"""
         message = MessageData(
             type=MessageType.ASSISTANT,
-            message=MessageContent(data['content']),
-            options={"style": data.get('style', '')}
+            message=MessageContent(data["content"]),
+            options={"style": data.get("style", "")},
         )
         self.messages = [*self.messages, message]
         self._refresh_messages()
@@ -894,7 +975,7 @@ Try typing something to get started!"""),
             title=data.get("title", "Confirm"),
             ok_text=data.get("ok_text", "Yes"),
             cancel_text=data.get("cancel_text", "No"),
-            on_result=self.handle_confirm_result
+            on_result=self.handle_confirm_result,
         )
         self.mount(self.active_dialog)
 
@@ -908,7 +989,7 @@ Try typing something to get started!"""),
             message=data["message"],
             choices=data["choices"],
             title=data.get("title", "Select"),
-            on_result=self.handle_choice_result
+            on_result=self.handle_choice_result,
         )
         self.mount(self.active_dialog)
 
@@ -923,7 +1004,7 @@ Try typing something to get started!"""),
             title=data.get("title", "Input"),
             default=data.get("default", ""),
             placeholder=data.get("placeholder", ""),
-            on_result=self.handle_input_result
+            on_result=self.handle_input_result,
         )
         self.mount(self.active_dialog)
 
@@ -949,13 +1030,13 @@ Try typing something to get started!"""),
             messages_component.update_messages(self.messages)
         except Exception:
             self.refresh()
-    
+
     async def query_api(self, new_messages: List[MessageData]):
         """Query the AI API with streaming support - equivalent to query function"""
-        
+
         if not new_messages or new_messages[-1].type != MessageType.USER:
             return
-        
+
         user_content = new_messages[-1].message.content
 
         # Check if agent is available
@@ -963,43 +1044,47 @@ Try typing something to get started!"""),
             error_message = MessageData(
                 type=MessageType.ASSISTANT,
                 message=MessageContent("❌ Agent not initialized yet. Please wait..."),
-                options={"error": True}
+                options={"error": True},
             )
             self.messages = [*self.messages, error_message]
             return
-        
+
         try:
             # Set loading state with immediate UI feedback
             self.is_loading = True
-            
+
             # Add a temporary "thinking" message to show immediate feedback
             thinking_message = MessageData(
                 type=MessageType.ASSISTANT,
                 message=MessageContent("🤔 Thinking..."),
-                options={"streaming": True, "temporary": True}
+                options={"streaming": True, "temporary": True},
             )
             self.messages = [*self.messages, thinking_message]
-            
+
             # Update Messages component immediately
             try:
-                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                messages_component = self.query_one(
+                    "#messages_container", expect_type=Messages
+                )
                 messages_component.update_messages(self.messages)
             except Exception:
                 self.refresh()  # Fallback to full refresh
-            
+
             # Process with agent - check if it supports streaming
             try:
-                if hasattr(self.agent, 'run_async'):
+                if hasattr(self.agent, "run_async"):
                     # Try to use streaming if supported
                     try:
                         # Attempt streaming response with granular event handling
                         response_content = ""
                         current_status = ""
 
-                        async for chunk in (await self.agent.run_async(user_content, stream=True)):
-                            chunk_type = getattr(chunk, 'chunk_type', 'text')
-                            chunk_content = getattr(chunk, 'content', str(chunk))
-                            chunk_metadata = getattr(chunk, 'metadata', {})
+                        async for chunk in await self.agent.run_async(
+                            user_content, stream=True
+                        ):
+                            chunk_type = getattr(chunk, "chunk_type", "text")
+                            chunk_content = getattr(chunk, "content", str(chunk))
+                            chunk_metadata = getattr(chunk, "metadata", {})
 
                             # Handle different chunk types
                             if chunk_type == "step_start":
@@ -1008,7 +1093,7 @@ Try typing something to get started!"""),
                                 status_message = MessageData(
                                     type=MessageType.PROGRESS,
                                     message=MessageContent(current_status),
-                                    options={"streaming": True, "step_start": True}
+                                    options={"streaming": True, "step_start": True},
                                 )
                                 self.messages = [*self.messages[:-1], status_message]
 
@@ -1017,45 +1102,66 @@ Try typing something to get started!"""),
                                 response_content += chunk_content
                                 streaming_message = MessageData(
                                     type=MessageType.ASSISTANT,
-                                    message=MessageContent(f"{current_status}\n\n{response_content}" if current_status else response_content),
-                                    options={"streaming": True}
+                                    message=MessageContent(
+                                        f"{current_status}\n\n{response_content}"
+                                        if current_status
+                                        else response_content
+                                    ),
+                                    options={"streaming": True},
                                 )
                                 self.messages = [*self.messages[:-1], streaming_message]
 
                             elif chunk_type == "code_start":
                                 # Show code execution indicator
-                                code_preview = chunk_metadata.get('code_preview', chunk_content[:100])
+                                code_preview = chunk_metadata.get(
+                                    "code_preview", chunk_content[:100]
+                                )
                                 exec_status = f"⚙️ Executing code...\n```python\n{code_preview}\n```"
                                 code_message = MessageData(
                                     type=MessageType.PROGRESS,
-                                    message=MessageContent(f"{response_content}\n\n{exec_status}"),
-                                    options={"streaming": True, "code_executing": True}
+                                    message=MessageContent(
+                                        f"{response_content}\n\n{exec_status}"
+                                    ),
+                                    options={"streaming": True, "code_executing": True},
                                 )
                                 self.messages = [*self.messages[:-1], code_message]
 
                             elif chunk_type == "code_result":
                                 # Show code execution result
-                                success = chunk_metadata.get('success', True)
+                                success = chunk_metadata.get("success", True)
                                 if success:
-                                    result_status = f"✅ Code executed:\n{chunk_content}"
+                                    result_status = (
+                                        f"✅ Code executed:\n{chunk_content}"
+                                    )
                                 else:
-                                    result_status = f"❌ Execution error:\n{chunk_content}"
+                                    result_status = (
+                                        f"❌ Execution error:\n{chunk_content}"
+                                    )
 
                                 result_message = MessageData(
                                     type=MessageType.ASSISTANT,
-                                    message=MessageContent(f"{response_content}\n\n{result_status}"),
-                                    options={"streaming": True, "code_result": True}
+                                    message=MessageContent(
+                                        f"{response_content}\n\n{result_status}"
+                                    ),
+                                    options={"streaming": True, "code_result": True},
                                 )
                                 self.messages = [*self.messages[:-1], result_message]
 
-                            elif chunk_type in ("agent_response", "final_answer", "completion"):
+                            elif chunk_type in (
+                                "agent_response",
+                                "final_answer",
+                                "completion",
+                            ):
                                 # Final response - extract answer
-                                final_content = getattr(chunk, 'answer', chunk_content) or chunk_content
+                                final_content = (
+                                    getattr(chunk, "answer", chunk_content)
+                                    or chunk_content
+                                )
                                 response_content = str(final_content)
                                 final_message = MessageData(
                                     type=MessageType.ASSISTANT,
                                     message=MessageContent(response_content),
-                                    options={"streaming": True}
+                                    options={"streaming": True},
                                 )
                                 self.messages = [*self.messages[:-1], final_message]
 
@@ -1065,13 +1171,15 @@ Try typing something to get started!"""),
                                 streaming_message = MessageData(
                                     type=MessageType.ASSISTANT,
                                     message=MessageContent(response_content),
-                                    options={"streaming": True}
+                                    options={"streaming": True},
                                 )
                                 self.messages = [*self.messages[:-1], streaming_message]
 
                             # Update UI
                             try:
-                                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                                messages_component = self.query_one(
+                                    "#messages_container", expect_type=Messages
+                                )
                                 messages_component.update_messages(self.messages)
                             except Exception:
                                 self.refresh()  # Fallback to full refresh
@@ -1080,10 +1188,12 @@ Try typing something to get started!"""),
                         final_message = MessageData(
                             type=MessageType.ASSISTANT,
                             message=MessageContent(response_content),
-                            options={}  # Remove streaming flag
+                            options={},  # Remove streaming flag
                         )
                         self.messages = [*self.messages[:-1], final_message]
-                        messages_component = self.query_one("#messages_container", expect_type=Messages)
+                        messages_component = self.query_one(
+                            "#messages_container", expect_type=Messages
+                        )
                         messages_component.update_messages(self.messages)
 
                         # Save assistant response to session
@@ -1096,72 +1206,82 @@ Try typing something to get started!"""),
                     # Agent doesn't support async, show error
                     error_message = MessageData(
                         type=MessageType.ASSISTANT,
-                        message=MessageContent("❌ Agent does not support async operations"),
-                        options={"error": True}
+                        message=MessageContent(
+                            "❌ Agent does not support async operations"
+                        ),
+                        options={"error": True},
                     )
                     self.messages = [*self.messages[:-1], error_message]
 
                 # Handle Koding mode special case
-                if (new_messages[-1].options and 
-                    new_messages[-1].options.get("isKodingRequest")):
+                if new_messages[-1].options and new_messages[-1].options.get(
+                    "isKodingRequest"
+                ):
                     await self.handle_koding_response(self.messages[-1])
-                    
+
             except Exception as e:
                 # Format error message for UI display
                 error_text = self._format_error_for_ui(e)
-                
+
                 error_message = MessageData(
                     type=MessageType.ASSISTANT,
                     message=MessageContent(error_text),
-                    options={"error": True}
+                    options={"error": True},
                 )
                 # Replace thinking message with error
                 self.messages = [*self.messages[:-1], error_message]
-                
+
                 # Update Messages component
                 try:
-                    messages_component = self.query_one("#messages_container", expect_type=Messages)
+                    messages_component = self.query_one(
+                        "#messages_container", expect_type=Messages
+                    )
                     messages_component.update_messages(self.messages)
                 except Exception:
                     self.refresh()  # Fallback to full refresh
-                
+
         except Exception as e:
             # Show error message to user
             error_text = self._format_error_for_ui(e)
             error_message = MessageData(
                 type=MessageType.ASSISTANT,
                 message=MessageContent(error_text),
-                options={"error": True}
+                options={"error": True},
             )
-            
+
             # Replace thinking/streaming message with error
-            if (self.messages and 
-                (self.messages[-1].options.get("streaming") or 
-                 self.messages[-1].options.get("temporary"))):
+            if self.messages and (
+                self.messages[-1].options.get("streaming")
+                or self.messages[-1].options.get("temporary")
+            ):
                 self.messages = [*self.messages[:-1], error_message]
             else:
                 self.messages = [*self.messages, error_message]
-            
+
             # Update Messages component
             try:
-                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                messages_component = self.query_one(
+                    "#messages_container", expect_type=Messages
+                )
                 messages_component.update_messages(self.messages)
             except Exception:
                 self.refresh()  # Fallback to full refresh
-                
+
         finally:
             self.is_loading = False
-            
+
             # Final UI update to remove loading indicators
             try:
-                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                messages_component = self.query_one(
+                    "#messages_container", expect_type=Messages
+                )
                 messages_component.update_messages(self.messages)
             except Exception:
                 self.refresh()  # Fallback to full refresh
 
     async def handle_koding_response(self, assistant_message: MessageData):
         """Handle Koding mode response - equivalent to handleHashCommand"""
-        
+
         content = assistant_message.message.content
         if isinstance(content, str) and content.strip():
             # Save to AGENTS.md (equivalent to handleHashCommand)
@@ -1169,30 +1289,32 @@ Try typing something to get started!"""),
                 agents_md_path = Path("AGENTS.md")
                 if agents_md_path.exists():
                     with open(agents_md_path, "a") as f:
-                        f.write(f"\n\n## Response - {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                        f.write(
+                            f"\n\n## Response - {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                        )
                         f.write(content)
                         f.write("\n")
             except Exception:
                 pass  # Silently handle file write errors
-    
+
     def add_to_history(self, command: str):
         """Add command to history - equivalent to addToHistory"""
         # This would integrate with the history system
         pass
-    
+
     def on_cancel(self):
         """Cancel current operation - equivalent to onCancel function"""
         if not self.is_loading:
             return
-        
+
         self.is_loading = False
         self.loading = False
-        
+
         if self.tool_use_confirm:
             self.tool_use_confirm.on_abort()
         elif self.abort_controller:
             self.abort_controller.cancel()
-    
+
     # Callback methods for PromptInput component
     def on_add_user_message_from_prompt(self, user_message: MessageData):
         """Handle immediate user message display (synchronous)"""
@@ -1206,82 +1328,94 @@ Try typing something to get started!"""),
 
         # 立即更新UI显示用户消息
         try:
-            messages_component = self.query_one("#messages_container", expect_type=Messages)
+            messages_component = self.query_one(
+                "#messages_container", expect_type=Messages
+            )
             messages_component.update_messages(self.messages)
         except Exception:
             self.refresh()  # Fallback to full refresh
-    
-    async def on_query_from_prompt(self, messages: List[MessageData], abort_controller=None):
+
+    async def on_query_from_prompt(
+        self, messages: List[MessageData], abort_controller=None
+    ):
         """Handle AI query processing (user message already displayed)"""
         # 用户消息已经通过 on_add_user_message_from_prompt 显示了
         # 这里只处理AI响应
-        self.run_worker(self._process_ai_response(messages, abort_controller), exclusive=False)
-    
-    async def _process_ai_response(self, user_messages: List[MessageData], abort_controller=None):
+        self.run_worker(
+            self._process_ai_response(messages, abort_controller), exclusive=False
+        )
+
+    async def _process_ai_response(
+        self, user_messages: List[MessageData], abort_controller=None
+    ):
         """Process AI response in background worker"""
         try:
             # Use passed AbortController or create new one
-            controller_to_use = abort_controller or asyncio.create_task(asyncio.sleep(0))
+            controller_to_use = abort_controller or asyncio.create_task(
+                asyncio.sleep(0)
+            )
             if not abort_controller:
                 self.abort_controller = controller_to_use
-            
+
             # Query API for AI response (query_api handles its own loading state)
             await self.query_api(user_messages)
-            
+
         except Exception as e:
             # Handle errors in background processing
             error_message = MessageData(
                 type=MessageType.ASSISTANT,
                 message=MessageContent(f"❌ Error processing request: {str(e)}"),
-                options={"error": True}
+                options={"error": True},
             )
             self.messages = [*self.messages, error_message]
-            
+
             # Update UI with error
             try:
-                messages_component = self.query_one("#messages_container", expect_type=Messages)
+                messages_component = self.query_one(
+                    "#messages_container", expect_type=Messages
+                )
                 messages_component.update_messages(self.messages)
             except Exception:
                 self.refresh()
-            
+
             # Clear loading state on error
             self.is_loading = False
-    
+
     def on_input_change_from_prompt(self, value: str):
         """Handle input change from PromptInput"""
         self.input_value = value
-    
+
     def on_mode_change_from_prompt(self, mode: InputMode):
         """Handle mode change from PromptInput"""
         self.input_mode = mode
-    
+
     def on_submit_count_change_from_prompt(self, updater):
         """Handle submit count change from PromptInput"""
         if callable(updater):
             self.submit_count = updater(self.submit_count)
         else:
             self.submit_count = updater
-    
+
     def set_loading_from_prompt(self, is_loading: bool):
         """Set loading state from PromptInput"""
         self.is_loading = is_loading
-    
+
     def set_abort_controller_from_prompt(self, controller):
         """Set abort controller from PromptInput"""
         self.abort_controller = controller
-    
+
     def show_message_selector(self):
         """Show message selector from PromptInput"""
         self.is_message_selector_visible = True
-    
+
     def set_fork_convo_messages(self, messages: List[MessageData]):
         """Set fork conversation messages from PromptInput"""
         self.fork_convo_with_messages_on_next_render = messages
-    
+
     def on_model_change_from_prompt(self):
         """Handle model change from PromptInput"""
         self.fork_number += 1
-    
+
     def set_tool_jsx_from_prompt(self, tool_jsx):
         """Set tool JSX from PromptInput"""
         self.tool_jsx = tool_jsx
@@ -1303,16 +1437,18 @@ Try typing something to get started!"""),
             # Unknown command - show error
             error_message = MessageData(
                 type=MessageType.ASSISTANT,
-                message=MessageContent(f"❌ Unknown command: /{command_name}\n💡 Use '/help' to see available commands"),
-                options={"error": True}
+                message=MessageContent(
+                    f"❌ Unknown command: /{command_name}\n💡 Use '/help' to see available commands"
+                ),
+                options={"error": True},
             )
             self.messages = [*self.messages, error_message]
             self._refresh_messages()
             return
 
         # Handle different command types
-        command_type = getattr(command_class, 'command_type', CommandType.LOCAL)
-        is_skill = getattr(command_class, 'is_skill', False)
+        command_type = getattr(command_class, "command_type", CommandType.LOCAL)
+        is_skill = getattr(command_class, "is_skill", False)
 
         if command_type == CommandType.PROMPT:
             # PROMPT type: Replace user input and send to LLM
@@ -1325,7 +1461,7 @@ Try typing something to get started!"""),
                 user_message = MessageData(
                     type=MessageType.USER,
                     message=MessageContent(expanded_prompt),
-                    options={"from_command": command_name}
+                    options={"from_command": command_name},
                 )
                 self.messages = [*self.messages, user_message]
                 self._refresh_messages()
@@ -1336,8 +1472,10 @@ Try typing something to get started!"""),
             except Exception as e:
                 error_message = MessageData(
                     type=MessageType.ASSISTANT,
-                    message=MessageContent(f"❌ Error expanding /{command_name}: {str(e)}"),
-                    options={"error": True}
+                    message=MessageContent(
+                        f"❌ Error expanding /{command_name}: {str(e)}"
+                    ),
+                    options={"error": True},
                 )
                 self.messages = [*self.messages, error_message]
                 self._refresh_messages()
@@ -1353,7 +1491,7 @@ Try typing something to get started!"""),
         status_message = MessageData(
             type=MessageType.PROGRESS,
             message=MessageContent(status_text),
-            options={"command": True}
+            options={"command": True},
         )
         self.messages = [*self.messages, status_message]
         self._refresh_messages()
@@ -1380,7 +1518,7 @@ Try typing something to get started!"""),
             error_message = MessageData(
                 type=MessageType.ASSISTANT,
                 message=MessageContent(f"❌ Error executing /{command_name}: {str(e)}"),
-                options={"error": True}
+                options={"error": True},
             )
             # Replace status message with error
             self.messages = [*self.messages[:-1], error_message]
@@ -1389,103 +1527,105 @@ Try typing something to get started!"""),
     def show_prompt_input(self):
         """Show the prompt input component"""
         self.should_show_prompt_input = True
-    
+
     def hide_prompt_input(self):
         """Hide the prompt input component"""
         self.should_show_prompt_input = False
-    
+
     def toggle_prompt_input(self):
         """Toggle the prompt input component visibility"""
         self.should_show_prompt_input = not self.should_show_prompt_input
-    
+
     @on(Button.Pressed, "#acknowledge_btn")
     def acknowledge_cost_dialog(self):
         """Acknowledge cost threshold dialog"""
         self.show_cost_dialog = False
         self.have_shown_cost_dialog = True
         self.config.has_acknowledged_cost_threshold = True
-    
+
     def normalize_messages(self) -> List[MessageData]:
         """Normalize messages - equivalent to normalizeMessages function"""
         # Filter out empty messages and normalize structure
         return [msg for msg in self.messages if self.is_not_empty_message(msg)]
-    
+
     def is_not_empty_message(self, message: MessageData) -> bool:
         """Check if message is not empty - equivalent to isNotEmptyMessage"""
         if isinstance(message.message.content, str):
             return bool(message.message.content.strip())
         return bool(message.message.content)
-    
+
     def get_unresolved_tool_use_ids(self) -> Set[str]:
         """Get unresolved tool use IDs - equivalent to getUnresolvedToolUseIDs"""
         # This would analyze messages for unresolved tool uses
         return set()
-    
+
     def get_in_progress_tool_use_ids(self) -> Set[str]:
         """Get in-progress tool use IDs - equivalent to getInProgressToolUseIDs"""
         # This would analyze messages for in-progress tool uses
         return set()
-    
+
     def get_errored_tool_use_ids(self) -> Set[str]:
         """Get errored tool use IDs - equivalent to getErroredToolUseMessages"""
         # This would analyze messages for errored tool uses
         return set()
-    
+
     def _format_error_for_ui(self, error: Exception) -> str:
         """Format error message for UI display with appropriate context"""
         error_type = type(error).__name__
         error_msg = str(error)
-        
+
         # Handle common error types with user-friendly messages
         if "ImportError" in error_type or "ModuleNotFoundError" in error_type:
             return f"❌ Module Error: {error_msg}\n💡 Try installing missing dependencies or check your environment setup."
-        
+
         elif "ConnectionError" in error_type or "TimeoutError" in error_type:
             return f"❌ Connection Error: {error_msg}\n💡 Check your internet connection or API configuration."
-        
+
         elif "PermissionError" in error_type:
             return f"❌ Permission Error: {error_msg}\n💡 Check file permissions or run with appropriate privileges."
-        
+
         elif "FileNotFoundError" in error_type:
             return f"❌ File Not Found: {error_msg}\n💡 Verify the file path exists and is accessible."
-        
+
         elif "ValueError" in error_type or "TypeError" in error_type:
             return f"❌ Input Error: {error_msg}\n💡 Please check your input format and try again."
-        
+
         else:
             # Generic error with helpful context
             return f"❌ {error_type}: {error_msg}\n💡 If this error persists, please check the logs for more details."
-    
+
     # Reactive property watchers (equivalent to React useEffect)
     def watch_fork_number(self, fork_number: int):
         """Watch fork number changes"""
         pass
-    
+
     def watch_is_loading(self, is_loading: bool):
         """Watch loading state changes"""
         pass
-    
+
     def watch_should_show_prompt_input(self, should_show: bool):
         """Watch prompt input visibility changes"""
         # This will trigger recomposition when the property changes
         pass
-    
+
     def watch_messages(self, messages: List[MessageData]):
         """Watch messages changes - equivalent to useEffect([messages], ...)"""
         pass
-        
+
         # Check cost threshold (equivalent to cost threshold useEffect)
         total_cost = self.get_total_cost()
-        if (total_cost >= 5.0 and 
-            not self.show_cost_dialog and 
-            not self.have_shown_cost_dialog):
+        if (
+            total_cost >= 5.0
+            and not self.show_cost_dialog
+            and not self.have_shown_cost_dialog
+        ):
             self.show_cost_dialog = True
-    
+
     def get_total_cost(self) -> float:
         """Get total API cost - equivalent to getTotalCost"""
         # This would calculate actual API costs
         return len(self.messages) * 0.01  # Mock cost calculation
-    
+
     def _get_mode_prefix(self) -> str:
         """Get the mode prefix character"""
         if self.input_mode == InputMode.BASH:
@@ -1494,58 +1634,57 @@ Try typing something to get started!"""),
             return "#"
         else:
             return ">"
-    
+
     # Simplified event handlers for debugging
     @on(Input.Changed, "#simple_input")
     def on_simple_input_changed(self, event):
         """Handle simple input changes"""
         self.input_value = event.value
-    
+
     @on(Input.Submitted, "#simple_input")
     @on(Button.Pressed, "#simple_send")
     async def on_simple_submit(self, event):
         """Handle simple input submission"""
         input_widget = self.query_one("#simple_input", expect_type=Input)
         input_text = input_widget.value.strip()
-        
+
         if not input_text:
             return
-        
+
         # Add user message to display
         user_message = MessageData(
             type=MessageType.USER,
             message=MessageContent(input_text),
-            options={"mode": self.input_mode.value}
+            options={"mode": self.input_mode.value},
         )
         self.messages = [*self.messages, user_message]
-        
+
         # Create simple response
         response_text = f"Received: {input_text} (mode: {self.input_mode.value})"
         assistant_message = MessageData(
-            type=MessageType.ASSISTANT,
-            message=MessageContent(response_text)
+            type=MessageType.ASSISTANT, message=MessageContent(response_text)
         )
         self.messages = [*self.messages, assistant_message]
-        
+
         # Clear input
         input_widget.value = ""
         self.input_value = ""
-        
+
         # Keep focus
         input_widget.focus()
-    
+
     @on(Button.Pressed, "#simple_mode")
     def on_simple_mode_change(self):
         """Handle mode change"""
         modes = list(InputMode)
         current_index = modes.index(self.input_mode)
         self.input_mode = modes[(current_index + 1) % len(modes)]
-        
+
         # Update mode indicator
         try:
             mode_indicator = self.query_one("#mode_indicator", expect_type=Static)
             mode_indicator.update(f" {self._get_mode_prefix()} ")
-            
+
             # Update input placeholder
             input_widget = self.query_one("#simple_input", expect_type=Input)
             input_widget.placeholder = f"Enter {self.input_mode.value} command..."
@@ -1558,7 +1697,7 @@ class REPLApp(App):
     Main REPL Application - equivalent to the main App wrapper in React
     Provides the application context, agent management, and styling
     """
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Initialize with default props (equivalent to React props)
@@ -1578,13 +1717,13 @@ class REPLApp(App):
             "initial_update_version": None,
             "initial_update_commands": None,
             "resume_session_id": None,
-            "continue_last": False
+            "continue_last": False,
         }
-        
+
         # App-level agent management
         self.agent = None
         self.agent_ready = False
-    
+
     def compose(self) -> ComposeResult:
         """Compose the main application - equivalent to React App render"""
         yield Header(show_clock=False)
@@ -1593,13 +1732,13 @@ class REPLApp(App):
         repl_props_with_agent = {**repl_props_filtered, "agent": self.agent}
         yield REPL(**repl_props_with_agent)
         yield Footer()
-    
+
     def on_mount(self):
         """Application mount lifecycle"""
         self.title = "Minion Code Assistant"
         # Initialize agent at app level
         self.run_worker(self._initialize_agent())
-    
+
     async def _initialize_agent(self):
         """Initialize the MinionCodeAgent at app level"""
         try:
@@ -1617,10 +1756,15 @@ class REPLApp(App):
                 repl_component = self.query_one(REPL)
                 output_adapter = repl_component.output_adapter
                 hooks = create_default_hooks(output_adapter)
-                logger.info("Created hooks with TextualOutputAdapter for permission dialogs")
+                logger.info(
+                    "Created hooks with TextualOutputAdapter for permission dialogs"
+                )
             except Exception as e:
-                logger.warning(f"Could not get output adapter, using autonomous hooks: {e}")
+                logger.warning(
+                    f"Could not get output adapter, using autonomous hooks: {e}"
+                )
                 from minion_code.agents.hooks import create_autonomous_hooks
+
                 hooks = create_autonomous_hooks()
 
             logger.info(f"Initializing agent with LLM: {default_llm}")
@@ -1644,18 +1788,17 @@ class REPLApp(App):
                 logger.info("Agent set on REPL component")
             except Exception as e:
                 logger.warning(f"Could not set agent on REPL: {e}")
-                
+
         except Exception as e:
             from minion_code.utils.logs import logger
+
             logger.error(f"Failed to initialize agent: {e}")
             self.agent_ready = False
 
 
 # Utility functions equivalent to TypeScript utility functions
 def should_render_statically(
-    message: MessageData,
-    messages: List[MessageData],
-    unresolved_tool_use_ids: Set[str]
+    message: MessageData, messages: List[MessageData], unresolved_tool_use_ids: Set[str]
 ) -> bool:
     """
     Determine if message should render statically
@@ -1668,6 +1811,7 @@ def should_render_statically(
         # Progress messages depend on tool use resolution
         return len(unresolved_tool_use_ids) == 0
     return True
+
 
 def intersects(set_a: Set[str], set_b: Set[str]) -> bool:
     """Check if two sets intersect - equivalent to intersects function"""
@@ -1683,7 +1827,7 @@ def create_repl(
     verbose=False,
     resume_session_id=None,
     continue_last=False,
-    **kwargs
+    **kwargs,
 ) -> REPLApp:
     """
     Create a configured REPL application
@@ -1691,34 +1835,46 @@ def create_repl(
     """
     print(f"DEBUG create_repl: initial_prompt={initial_prompt}")
     app = REPLApp()
-    app.repl_props.update({
-        "commands": commands or [],
-        "safe_mode": safe_mode,
-        "debug": debug,
-        "initial_prompt": initial_prompt,
-        "verbose": verbose,
-        "resume_session_id": resume_session_id,
-        "continue_last": continue_last,
-        **kwargs
-    })
+    app.repl_props.update(
+        {
+            "commands": commands or [],
+            "safe_mode": safe_mode,
+            "debug": debug,
+            "initial_prompt": initial_prompt,
+            "verbose": verbose,
+            "resume_session_id": resume_session_id,
+            "continue_last": continue_last,
+            **kwargs,
+        }
+    )
     print(f"DEBUG create_repl: repl_props={app.repl_props}")
     return app
 
 
-def run(initial_prompt=None, debug=False, verbose=False, resume_session_id=None, continue_last=False, model=None):
+def run(
+    initial_prompt=None,
+    debug=False,
+    verbose=False,
+    resume_session_id=None,
+    continue_last=False,
+    model=None,
+):
     """Run the REPL application with optional configuration"""
     # File-based logging for TUI debugging
     import logging
+
     logging.basicConfig(
-        filename='/tmp/minion_repl_debug.log',
+        filename="/tmp/minion_repl_debug.log",
         level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        force=True  # Override any existing config
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        force=True,  # Override any existing config
     )
     logging.debug(f"=== REPL run() called ===")
     logging.debug(f"initial_prompt: {repr(initial_prompt)}")
     logging.debug(f"debug: {debug}, verbose: {verbose}, model: {model}")
-    logging.debug(f"resume_session_id: {resume_session_id}, continue_last: {continue_last}")
+    logging.debug(
+        f"resume_session_id: {resume_session_id}, continue_last: {continue_last}"
+    )
 
     app = create_repl(
         initial_prompt=initial_prompt,
@@ -1726,7 +1882,7 @@ def run(initial_prompt=None, debug=False, verbose=False, resume_session_id=None,
         verbose=verbose,
         resume_session_id=resume_session_id,
         continue_last=continue_last,
-        model=model
+        model=model,
     )
     logging.debug(f"app.repl_props: {app.repl_props}")
     app.run()
@@ -1734,12 +1890,12 @@ def run(initial_prompt=None, debug=False, verbose=False, resume_session_id=None,
 
 if __name__ == "__main__":
     import sys
-    
+
     # Parse command line arguments (basic implementation)
     initial_prompt = None
     debug = False
     verbose = False
-    
+
     if len(sys.argv) > 1:
         if "--debug" in sys.argv:
             debug = True
@@ -1749,5 +1905,5 @@ if __name__ == "__main__":
             prompt_index = sys.argv.index("--prompt")
             if prompt_index + 1 < len(sys.argv):
                 initial_prompt = sys.argv[prompt_index + 1]
-    
+
     run(initial_prompt=initial_prompt, debug=debug, verbose=verbose)

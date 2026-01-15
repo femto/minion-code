@@ -22,7 +22,7 @@ class ToolsCommand(BaseCommand):
             self.output.panel(
                 "❌ No tools available or agent not initialized",
                 title="Error",
-                border_style="red"
+                border_style="red",
             )
             return
 
@@ -31,15 +31,18 @@ class ToolsCommand(BaseCommand):
 
         # Filter tools if filter text provided
         if filter_text:
-            tools = [tool for tool in tools
-                    if filter_text in tool.name.lower() or
-                       filter_text in tool.description.lower()]
+            tools = [
+                tool
+                for tool in tools
+                if filter_text in tool.name.lower()
+                or filter_text in tool.description.lower()
+            ]
 
         if not tools:
             self.output.panel(
                 f"❌ No tools found matching '{filter_text}'",
                 title="No Results",
-                border_style="yellow"
+                border_style="yellow",
             )
             return
 
@@ -48,23 +51,33 @@ class ToolsCommand(BaseCommand):
         rows = []
 
         for tool in tools:
-            tool_type = "Read-only" if getattr(tool, 'readonly', False) else "Read-write"
+            tool_type = (
+                "Read-only" if getattr(tool, "readonly", False) else "Read-write"
+            )
 
             # Get input parameters
-            inputs = getattr(tool, 'inputs', {})
+            inputs = getattr(tool, "inputs", {})
             input_names = list(inputs.keys()) if inputs else []
             input_str = ", ".join(input_names[:3])  # Show first 3 inputs
             if len(input_names) > 3:
                 input_str += f" (+{len(input_names) - 3} more)"
 
-            rows.append([
-                tool.name,
-                tool.description[:50] + "..." if len(tool.description) > 50 else tool.description,
-                tool_type,
-                input_str or "-"
-            ])
+            rows.append(
+                [
+                    tool.name,
+                    (
+                        tool.description[:50] + "..."
+                        if len(tool.description) > 50
+                        else tool.description
+                    ),
+                    tool_type,
+                    input_str or "-",
+                ]
+            )
 
-        title = f"🛠️ Available Tools{f' (filtered: {filter_text})' if filter_text else ''}"
+        title = (
+            f"🛠️ Available Tools{f' (filtered: {filter_text})' if filter_text else ''}"
+        )
         self.output.table(headers, rows, title=title)
 
         # Show summary

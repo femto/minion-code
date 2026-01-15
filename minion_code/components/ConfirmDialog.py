@@ -56,14 +56,16 @@ class ConfirmDialog(Container):
     }
     """
 
-    def __init__(self,
-                 interaction_id: str,
-                 message: str,
-                 title: str = "Confirm",
-                 ok_text: str = "Yes",
-                 cancel_text: str = "No",
-                 on_result: Optional[Callable[[str, bool], None]] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        interaction_id: str,
+        message: str,
+        title: str = "Confirm",
+        ok_text: str = "Yes",
+        cancel_text: str = "No",
+        on_result: Optional[Callable[[str, bool], None]] = None,
+        **kwargs,
+    ):
         """
         Initialize confirmation dialog.
 
@@ -176,13 +178,15 @@ class ChoiceDialog(Container):
     }
     """
 
-    def __init__(self,
-                 interaction_id: str,
-                 message: str,
-                 choices: List[str],
-                 title: str = "Select",
-                 on_result: Optional[Callable[[str, int], None]] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        interaction_id: str,
+        message: str,
+        choices: List[str],
+        title: str = "Select",
+        on_result: Optional[Callable[[str, int], None]] = None,
+        **kwargs,
+    ):
         """
         Initialize choice dialog.
 
@@ -207,11 +211,18 @@ class ChoiceDialog(Container):
             yield Static(self.title, classes="dialog-title")
             if self.message:
                 yield Static(self.message, classes="dialog-message")
-            yield Static("Use ↑↓/jk to navigate, Enter to select, Esc to cancel", classes="dialog-hint")
+            yield Static(
+                "Use ↑↓/jk to navigate, Enter to select, Esc to cancel",
+                classes="dialog-hint",
+            )
             with VerticalScroll(classes="choice-scroll"):
                 for i, choice in enumerate(self.choices):
-                    yield Button(f"{i+1}. {choice}", id=f"choice_{i}", variant="primary")
-            yield Button("Cancel", id="choice_cancel", variant="error", classes="cancel-button")
+                    yield Button(
+                        f"{i+1}. {choice}", id=f"choice_{i}", variant="primary"
+                    )
+            yield Button(
+                "Cancel", id="choice_cancel", variant="error", classes="cancel-button"
+            )
 
     def on_mount(self):
         """Focus first button when dialog appears."""
@@ -346,14 +357,16 @@ class InputDialog(Container):
     }
     """
 
-    def __init__(self,
-                 interaction_id: str,
-                 message: str,
-                 title: str = "Input",
-                 default: str = "",
-                 placeholder: str = "",
-                 on_result: Optional[Callable[[str, Optional[str]], None]] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        interaction_id: str,
+        message: str,
+        title: str = "Input",
+        default: str = "",
+        placeholder: str = "",
+        on_result: Optional[Callable[[str, Optional[str]], None]] = None,
+        **kwargs,
+    ):
         """
         Initialize input dialog.
 
@@ -382,9 +395,7 @@ class InputDialog(Container):
             if self.message:
                 yield Static(self.message, classes="dialog-message")
             yield Input(
-                value=self.default,
-                placeholder=self.placeholder,
-                id="input_field"
+                value=self.default, placeholder=self.placeholder, id="input_field"
             )
             with Horizontal(classes="dialog-buttons"):
                 yield Button("OK", id="input_ok", variant="success")

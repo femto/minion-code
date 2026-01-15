@@ -19,14 +19,20 @@ from typing import Dict, Optional, Literal, List, Any
 
 from ..adapters.web_adapter import WebOutputAdapter, TaskState
 from minion_code.utils.session_storage import (
-    Session, SessionStorage, SessionMessage,
-    create_session, load_session, save_session, add_message,
-    restore_agent_history
+    Session,
+    SessionStorage,
+    SessionMessage,
+    create_session,
+    load_session,
+    save_session,
+    add_message,
+    restore_agent_history,
 )
 from minion_code.agents.hooks import (
-    HookConfig, HookMatcher,
+    HookConfig,
+    HookMatcher,
     create_confirm_writes_hook,
-    create_dangerous_command_check_hook
+    create_dangerous_command_check_hook,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,6 +43,7 @@ HistoryMode = Literal["full", "incremental"]
 @dataclass
 class WebSession:
     """Web session containing agent and adapter."""
+
     session_id: str
     project_path: str
     adapter: WebOutputAdapter
@@ -76,7 +83,7 @@ class SessionManager:
         self,
         max_sessions: int = 100,
         session_timeout: int = 3600,  # 1 hour
-        default_history_mode: HistoryMode = "full"
+        default_history_mode: HistoryMode = "full",
     ):
         """
         Initialize session manager.
@@ -95,9 +102,7 @@ class SessionManager:
         self._lock = asyncio.Lock()
 
     async def create_session(
-        self,
-        project_path: str = ".",
-        history_mode: Optional[HistoryMode] = None
+        self, project_path: str = ".", history_mode: Optional[HistoryMode] = None
     ) -> WebSession:
         """
         Create a new web session.
@@ -127,7 +132,7 @@ class SessionManager:
                 session_id=session_id,
                 project_path=str(Path(project_path).resolve()),
                 adapter=adapter,
-                history_mode=history_mode or self.default_history_mode
+                history_mode=history_mode or self.default_history_mode,
             )
 
             # Create persistent storage session
@@ -137,7 +142,9 @@ class SessionManager:
             session._storage_session = storage_session
 
             self.sessions[session_id] = session
-            logger.info(f"Created session {session_id} with history_mode={session.history_mode}")
+            logger.info(
+                f"Created session {session_id} with history_mode={session.history_mode}"
+            )
 
             return session
 
@@ -160,7 +167,7 @@ class SessionManager:
         self,
         session_id: Optional[str] = None,
         project_path: str = ".",
-        history_mode: Optional[HistoryMode] = None
+        history_mode: Optional[HistoryMode] = None,
     ) -> WebSession:
         """
         Get existing session or create new one.
@@ -250,6 +257,7 @@ class SessionManager:
         Returns:
             Callback function for on_compaction hook
         """
+
         def sync_compaction(compacted_messages: List[Dict[str, Any]]):
             if session._storage_session:
                 session._storage_session.agent_history = compacted_messages
@@ -322,16 +330,13 @@ class SessionManager:
 
                 # Restore history on first creation (prefers agent_history if available)
                 if session._storage_session:
-                    restore_agent_history(session._agent, session._storage_session, verbose=False)
+                    restore_agent_history(
+                        session._agent, session._storage_session, verbose=False
+                    )
 
             return session._agent
 
-    def save_message(
-        self,
-        session: WebSession,
-        role: str,
-        content: str
-    ):
+    def save_message(self, session: WebSession, role: str, content: str):
         """
         Save a message to session storage.
 
@@ -383,7 +388,8 @@ class SessionManager:
         """Remove expired sessions."""
         current_time = time.time()
         expired = [
-            sid for sid, session in self.sessions.items()
+            sid
+            for sid, session in self.sessions.items()
             if current_time - session.last_activity > self.session_timeout
         ]
         for sid in expired:
@@ -404,7 +410,7 @@ class SessionManager:
                 "history_mode": s.history_mode,
                 "created_at": s.created_at,
                 "last_activity": s.last_activity,
-                "has_pending_interactions": s.adapter.has_pending_interactions()
+                "has_pending_interactions": s.adapter.has_pending_interactions(),
             }
             for s in self.sessions.values()
         ]

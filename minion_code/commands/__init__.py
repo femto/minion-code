@@ -21,9 +21,10 @@ from enum import Enum
 
 class CommandType(Enum):
     """Types of commands based on execution flow."""
-    LOCAL = "local"          # Direct execution, returns result
+
+    LOCAL = "local"  # Direct execution, returns result
     LOCAL_JSX = "local_jsx"  # Requires UI interaction
-    PROMPT = "prompt"        # Replaces user input, sends to LLM
+    PROMPT = "prompt"  # Replaces user input, sends to LLM
 
 
 class BaseCommand(ABC):
@@ -49,7 +50,7 @@ class BaseCommand(ABC):
 
         # Backward compatibility: expose console attribute for Rich adapter
         # This allows old code using self.console to still work
-        if hasattr(output, 'console'):
+        if hasattr(output, "console"):
             self.console = output.console
 
     @abstractmethod
@@ -87,30 +88,34 @@ class CommandRegistry:
     def _load_commands(self):
         """Dynamically load all command modules."""
         import os
+
         commands_dir = os.path.dirname(__file__)
 
         for filename in os.listdir(commands_dir):
-            if filename.endswith('_command.py') and not filename.startswith('_'):
+            if filename.endswith("_command.py") and not filename.startswith("_"):
                 # Skip skill_command.py as it's loaded dynamically
-                if filename == 'skill_command.py':
+                if filename == "skill_command.py":
                     continue
 
                 modname = filename[:-3]  # Remove .py extension
                 try:
-                    module = importlib.import_module(f'minion_code.commands.{modname}')
+                    module = importlib.import_module(f"minion_code.commands.{modname}")
 
                     # Look for command classes in the module
                     for attr_name in dir(module):
                         attr = getattr(module, attr_name)
-                        if (isinstance(attr, type) and
-                            issubclass(attr, BaseCommand) and
-                            attr != BaseCommand and
-                            hasattr(attr, 'name') and attr.name):
+                        if (
+                            isinstance(attr, type)
+                            and issubclass(attr, BaseCommand)
+                            and attr != BaseCommand
+                            and hasattr(attr, "name")
+                            and attr.name
+                        ):
 
                             self.commands[attr.name] = attr
 
                             # Register aliases
-                            for alias in getattr(attr, 'aliases', []):
+                            for alias in getattr(attr, "aliases", []):
                                 self.commands[alias] = attr
 
                 except ImportError as e:
@@ -145,23 +150,28 @@ class CommandRegistry:
     def list_commands(self) -> Dict[str, Type[BaseCommand]]:
         """List all available commands (excluding skills)."""
         # Return only primary commands (not aliases, not skills)
-        return {name: cmd for name, cmd in self.commands.items()
-                if cmd.name == name and not getattr(cmd, 'is_skill', False)}
+        return {
+            name: cmd
+            for name, cmd in self.commands.items()
+            if cmd.name == name and not getattr(cmd, "is_skill", False)
+        }
 
     def list_skills(self) -> Dict[str, Type[BaseCommand]]:
         """List all available skills as commands."""
         # Ensure skills are loaded
         if not self._skills_loaded:
             self._load_skills()
-        return {name: cmd for name, cmd in self.commands.items()
-                if cmd.name == name and getattr(cmd, 'is_skill', False)}
+        return {
+            name: cmd
+            for name, cmd in self.commands.items()
+            if cmd.name == name and getattr(cmd, "is_skill", False)
+        }
 
     def list_all(self) -> Dict[str, Type[BaseCommand]]:
         """List all available commands and skills."""
         if not self._skills_loaded:
             self._load_skills()
-        return {name: cmd for name, cmd in self.commands.items()
-                if cmd.name == name}
+        return {name: cmd for name, cmd in self.commands.items() if cmd.name == name}
 
     def reload_commands(self):
         """Reload all commands."""
@@ -172,8 +182,11 @@ class CommandRegistry:
     def reload_skills(self):
         """Reload skills only."""
         # Remove existing skill commands
-        skills_to_remove = [name for name, cmd in self.commands.items()
-                          if getattr(cmd, 'is_skill', False)]
+        skills_to_remove = [
+            name
+            for name, cmd in self.commands.items()
+            if getattr(cmd, "is_skill", False)
+        ]
         for name in skills_to_remove:
             del self.commands[name]
         self._skills_loaded = False

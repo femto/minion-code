@@ -20,9 +20,7 @@ class ClearCommand(BaseCommand):
         """Execute the clear command."""
         if not self.agent:
             self.output.panel(
-                "❌ Agent not initialized",
-                title="Error",
-                border_style="red"
+                "❌ Agent not initialized", title="Error", border_style="red"
             )
             return
 
@@ -31,7 +29,7 @@ class ClearCommand(BaseCommand):
             self.output.panel(
                 "📝 No conversation history to clear.",
                 title="Info",
-                border_style="blue"
+                border_style="blue",
             )
             return
 
@@ -41,5 +39,5 @@ class ClearCommand(BaseCommand):
         self.output.panel(
             f"🗑️ Successfully cleared {len(history)} messages from history.",
             title="History Cleared",
-            border_style="green"
+            border_style="green",
         )

@@ -43,10 +43,10 @@ Important:
         "properties": {
             "skill": {
                 "type": "string",
-                "description": "The skill name to execute (e.g., 'pdf', 'xlsx', 'docx')"
+                "description": "The skill name to execute (e.g., 'pdf', 'xlsx', 'docx')",
             }
         },
-        "required": ["skill"]
+        "required": ["skill"],
     }
 
     def __init__(self, **kwargs):
@@ -59,6 +59,7 @@ Important:
         if self._registry is None:
             from minion_code.skills import SkillRegistry
             from minion_code.skills.skill_loader import load_skills
+
             self._registry = load_skills()
         return self._registry
 
@@ -94,7 +95,7 @@ Important:
                 "success": False,
                 "error": f"Unknown skill: {skill}",
                 "available_skills": available[:10],  # Show first 10
-                "hint": "Use one of the available skills listed above"
+                "hint": "Use one of the available skills listed above",
             }
 
         # Get the skill prompt
@@ -106,7 +107,9 @@ Important:
             "skill_name": skill_obj.name,
             "skill_description": skill_obj.description,
             "skill_location": skill_obj.location,
-            "skill_path": str(skill_obj.path),  # Absolute path for resolving relative resources
+            "skill_path": str(
+                skill_obj.path
+            ),  # Absolute path for resolving relative resources
             "prompt": prompt,
             "message": f'The "{skill_obj.name}" skill is loading',
             "allowed_tools": skill_obj.allowed_tools,
@@ -139,7 +142,10 @@ Important:
 
         if not self.registry.exists(skill):
             available = [s.name for s in self.registry.list_all()]
-            return False, f"Unknown skill: {skill}. Available: {', '.join(available[:5])}"
+            return (
+                False,
+                f"Unknown skill: {skill}. Available: {', '.join(available[:5])}",
+            )
 
         return True, None
 

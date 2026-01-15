@@ -32,7 +32,8 @@ class VersionCommand(BaseCommand):
         # Rich version
         try:
             import rich
-            version = getattr(rich, '__version__', 'Unknown')
+
+            version = getattr(rich, "__version__", "Unknown")
             rows.append(["Rich", version, "✅ Loaded"])
         except ImportError:
             rows.append(["Rich", "Not installed", "❌ Missing"])
@@ -40,7 +41,8 @@ class VersionCommand(BaseCommand):
         # Textual version
         try:
             import textual
-            version = getattr(textual, '__version__', 'Unknown')
+
+            version = getattr(textual, "__version__", "Unknown")
             rows.append(["Textual", version, "✅ Available"])
         except ImportError:
             rows.append(["Textual", "Not installed", "⚠️ Optional"])
@@ -48,7 +50,10 @@ class VersionCommand(BaseCommand):
         # Minion version
         try:
             import minion
-            rows.append(["Minion", getattr(minion, '__version__', 'Unknown'), "✅ Core"])
+
+            rows.append(
+                ["Minion", getattr(minion, "__version__", "Unknown"), "✅ Core"]
+            )
         except ImportError:
             rows.append(["Minion", "Not found", "❌ Required"])
 
@@ -60,5 +65,5 @@ class VersionCommand(BaseCommand):
             "🔗 Built with Rich for beautiful terminal interfaces\n"
             "🤖 Powered by Minion framework for AI agent capabilities",
             title="About",
-            border_style="green"
+            border_style="green",
         )

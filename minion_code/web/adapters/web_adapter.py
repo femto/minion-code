@@ -18,6 +18,7 @@ from minion_code.adapters.output_adapter import OutputAdapter
 
 class TaskState(str, Enum):
     """Task lifecycle states (A2A style)"""
+
     SUBMITTED = "submitted"
     WORKING = "working"
     INPUT_REQUIRED = "input_required"
@@ -28,6 +29,7 @@ class TaskState(str, Enum):
 
 class InputKind(str, Enum):
     """Types of user input requests"""
+
     PERMISSION = "permission"
     TEXT = "text"
     CHOICE = "choice"
@@ -37,6 +39,7 @@ class InputKind(str, Enum):
 @dataclass
 class PermissionData:
     """Data for permission requests (tool use confirm)"""
+
     resource_type: str  # "tool", "file", "network", "system"
     resource_name: str
     resource_args: Optional[Dict[str, Any]] = None
@@ -46,6 +49,7 @@ class PermissionData:
 @dataclass
 class TextInputData:
     """Data for text input requests"""
+
     placeholder: str = ""
     default_value: str = ""
     multiline: bool = False
@@ -55,6 +59,7 @@ class TextInputData:
 @dataclass
 class ChoiceData:
     """Data for choice requests"""
+
     choices: List[Dict[str, Any]] = field(default_factory=list)
     allow_multiple: bool = False
     default_index: int = 0
@@ -63,6 +68,7 @@ class ChoiceData:
 @dataclass
 class InputRequest:
     """Request for user input (A2A input_required)"""
+
     interaction_id: str
     kind: str  # InputKind value
     title: str
@@ -74,17 +80,14 @@ class InputRequest:
 @dataclass
 class SSEEvent:
     """Server-Sent Event data structure"""
+
     type: str
     data: Dict[str, Any]
     task_id: Optional[str] = None
     timestamp: float = field(default_factory=time.time)
 
     def to_dict(self) -> Dict[str, Any]:
-        result = {
-            "type": self.type,
-            "timestamp": self.timestamp,
-            **self.data
-        }
+        result = {"type": self.type, "timestamp": self.timestamp, **self.data}
         if self.task_id:
             result["task_id"] = self.task_id
         return result
@@ -93,6 +96,7 @@ class SSEEvent:
 @dataclass
 class PendingInteraction:
     """Represents a user interaction waiting for response"""
+
     interaction_id: str
     kind: str
     data: Dict[str, Any]
@@ -117,10 +121,7 @@ class WebOutputAdapter(OutputAdapter):
     """
 
     def __init__(
-        self,
-        session_id: str,
-        task_id: Optional[str] = None,
-        timeout_seconds: int = 300
+        self, session_id: str, task_id: Optional[str] = None, timeout_seconds: int = 300
     ):
         """
         Initialize Web adapter.
@@ -162,20 +163,12 @@ class WebOutputAdapter(OutputAdapter):
 
     async def _emit_event(self, event_type: str, data: Dict[str, Any]):
         """Emit SSE event to queue."""
-        event = SSEEvent(
-            type=event_type,
-            data=data,
-            task_id=self.task_id
-        )
+        event = SSEEvent(type=event_type, data=data, task_id=self.task_id)
         await self.event_queue.put(event)
 
     def _emit_event_sync(self, event_type: str, data: Dict[str, Any]):
         """Emit SSE event synchronously (for non-async methods)."""
-        event = SSEEvent(
-            type=event_type,
-            data=data,
-            task_id=self.task_id
-        )
+        event = SSEEvent(type=event_type, data=data, task_id=self.task_id)
         # Use put_nowait for sync context
         try:
             self.event_queue.put_nowait(event)
@@ -185,35 +178,27 @@ class WebOutputAdapter(OutputAdapter):
     async def emit_task_status(self, state: TaskState):
         """Emit task status change event."""
         self._task_state = state
-        await self._emit_event("task_status", {
-            "state": state.value,
-            "session_id": self.session_id
-        })
+        await self._emit_event(
+            "task_status", {"state": state.value, "session_id": self.session_id}
+        )
 
     # ========== OutputAdapter interface implementation ==========
 
     def panel(self, content: str, title: str = "", border_style: str = "blue") -> None:
         """Send panel output as SSE event."""
-        self._emit_event_sync("panel", {
-            "content": content,
-            "title": title,
-            "style": border_style
-        })
+        self._emit_event_sync(
+            "panel", {"content": content, "title": title, "style": border_style}
+        )
 
     def table(self, headers: List[str], rows: List[List[str]], title: str = "") -> None:
         """Send table output as SSE event."""
-        self._emit_event_sync("table", {
-            "headers": headers,
-            "rows": rows,
-            "title": title
-        })
+        self._emit_event_sync(
+            "table", {"headers": headers, "rows": rows, "title": title}
+        )
 
     def text(self, content: str, style: str = "") -> None:
         """Send text output as SSE event."""
-        self._emit_event_sync("text", {
-            "content": content,
-            "style": style
-        })
+        self._emit_event_sync("text", {"content": content, "style": style})
 
     async def confirm(
         self,
@@ -221,7 +206,7 @@ class WebOutputAdapter(OutputAdapter):
         title: str = "Confirm",
         default: bool = False,
         ok_text: str = "Yes",
-        cancel_text: str = "No"
+        cancel_text: str = "No",
     ) -> bool:
         """
         Request user confirmation via input_required event.
@@ -244,31 +229,34 @@ class WebOutputAdapter(OutputAdapter):
                 "title": title,
                 "default": default,
                 "ok_text": ok_text,
-                "cancel_text": cancel_text
+                "cancel_text": cancel_text,
             },
-            future=future
+            future=future,
         )
 
         # Change state to input_required
         await self.emit_task_status(TaskState.INPUT_REQUIRED)
 
         # Send input_required event
-        await self._emit_event("input_required", {
-            "request": {
-                "interaction_id": interaction_id,
-                "kind": InputKind.PERMISSION.value,
-                "title": title,
-                "message": message,
-                "data": {
-                    "resource_type": "action",
-                    "resource_name": title,
-                    "default": default,
-                    "ok_text": ok_text,
-                    "cancel_text": cancel_text
-                },
-                "timeout_seconds": self.timeout_seconds
-            }
-        })
+        await self._emit_event(
+            "input_required",
+            {
+                "request": {
+                    "interaction_id": interaction_id,
+                    "kind": InputKind.PERMISSION.value,
+                    "title": title,
+                    "message": message,
+                    "data": {
+                        "resource_type": "action",
+                        "resource_name": title,
+                        "default": default,
+                        "ok_text": ok_text,
+                        "cancel_text": cancel_text,
+                    },
+                    "timeout_seconds": self.timeout_seconds,
+                }
+            },
+        )
 
         # Wait for user response
         try:
@@ -286,7 +274,7 @@ class WebOutputAdapter(OutputAdapter):
         message: str,
         choices: List[str],
         title: str = "Select",
-        default_index: int = 0
+        default_index: int = 0,
     ) -> int:
         """
         Request user choice selection via input_required event.
@@ -303,26 +291,31 @@ class WebOutputAdapter(OutputAdapter):
                 "message": message,
                 "choices": choices,
                 "title": title,
-                "default_index": default_index
+                "default_index": default_index,
             },
-            future=future
+            future=future,
         )
 
         await self.emit_task_status(TaskState.INPUT_REQUIRED)
 
-        await self._emit_event("input_required", {
-            "request": {
-                "interaction_id": interaction_id,
-                "kind": InputKind.CHOICE.value,
-                "title": title,
-                "message": message,
-                "data": {
-                    "choices": [{"label": c, "value": i} for i, c in enumerate(choices)],
-                    "default_index": default_index
-                },
-                "timeout_seconds": self.timeout_seconds
-            }
-        })
+        await self._emit_event(
+            "input_required",
+            {
+                "request": {
+                    "interaction_id": interaction_id,
+                    "kind": InputKind.CHOICE.value,
+                    "title": title,
+                    "message": message,
+                    "data": {
+                        "choices": [
+                            {"label": c, "value": i} for i, c in enumerate(choices)
+                        ],
+                        "default_index": default_index,
+                    },
+                    "timeout_seconds": self.timeout_seconds,
+                }
+            },
+        )
 
         try:
             result = await asyncio.wait_for(future, timeout=self.timeout_seconds)
@@ -338,7 +331,7 @@ class WebOutputAdapter(OutputAdapter):
         message: str,
         title: str = "Input",
         default: str = "",
-        placeholder: str = ""
+        placeholder: str = "",
     ) -> Optional[str]:
         """
         Request user text input via input_required event.
@@ -355,26 +348,26 @@ class WebOutputAdapter(OutputAdapter):
                 "message": message,
                 "title": title,
                 "default": default,
-                "placeholder": placeholder
+                "placeholder": placeholder,
             },
-            future=future
+            future=future,
         )
 
         await self.emit_task_status(TaskState.INPUT_REQUIRED)
 
-        await self._emit_event("input_required", {
-            "request": {
-                "interaction_id": interaction_id,
-                "kind": InputKind.TEXT.value,
-                "title": title,
-                "message": message,
-                "data": {
-                    "placeholder": placeholder,
-                    "default_value": default
-                },
-                "timeout_seconds": self.timeout_seconds
-            }
-        })
+        await self._emit_event(
+            "input_required",
+            {
+                "request": {
+                    "interaction_id": interaction_id,
+                    "kind": InputKind.TEXT.value,
+                    "title": title,
+                    "message": message,
+                    "data": {"placeholder": placeholder, "default_value": default},
+                    "timeout_seconds": self.timeout_seconds,
+                }
+            },
+        )
 
         try:
             result = await asyncio.wait_for(future, timeout=self.timeout_seconds)
@@ -429,7 +422,9 @@ class WebOutputAdapter(OutputAdapter):
             return True
         return False
 
-    def get_pending_interaction(self, interaction_id: str) -> Optional[PendingInteraction]:
+    def get_pending_interaction(
+        self, interaction_id: str
+    ) -> Optional[PendingInteraction]:
         """Get a pending interaction by ID."""
         return self._pending_interactions.get(interaction_id)
 
@@ -449,17 +444,11 @@ class WebOutputAdapter(OutputAdapter):
 
     async def emit_tool_call(self, name: str, args: Dict[str, Any]):
         """Emit tool call event."""
-        await self._emit_event("tool_call", {
-            "name": name,
-            "args": args
-        })
+        await self._emit_event("tool_call", {"name": name, "args": args})
 
     async def emit_tool_result(self, success: bool, output: str):
         """Emit tool result event."""
-        await self._emit_event("tool_result", {
-            "success": success,
-            "output": output
-        })
+        await self._emit_event("tool_result", {"success": success, "output": output})
 
     async def emit_error(self, message: str, code: Optional[str] = None):
         """Emit error event."""
@@ -475,10 +464,7 @@ class WebOutputAdapter(OutputAdapter):
     # ========== Tool permission helper ==========
 
     async def confirm_tool_use(
-        self,
-        tool_name: str,
-        tool_args: Dict[str, Any],
-        description: str = ""
+        self, tool_name: str, tool_args: Dict[str, Any], description: str = ""
     ) -> bool:
         """
         Request user permission for tool execution.
@@ -502,28 +488,31 @@ class WebOutputAdapter(OutputAdapter):
             data={
                 "tool_name": tool_name,
                 "tool_args": tool_args,
-                "description": description
+                "description": description,
             },
-            future=future
+            future=future,
         )
 
         await self.emit_task_status(TaskState.INPUT_REQUIRED)
 
-        await self._emit_event("input_required", {
-            "request": {
-                "interaction_id": interaction_id,
-                "kind": InputKind.PERMISSION.value,
-                "title": f"Allow {tool_name}?",
-                "message": description or f"Agent wants to execute {tool_name}",
-                "data": {
-                    "resource_type": "tool",
-                    "resource_name": tool_name,
-                    "resource_args": tool_args,
-                    "risk_level": "medium"
-                },
-                "timeout_seconds": self.timeout_seconds
-            }
-        })
+        await self._emit_event(
+            "input_required",
+            {
+                "request": {
+                    "interaction_id": interaction_id,
+                    "kind": InputKind.PERMISSION.value,
+                    "title": f"Allow {tool_name}?",
+                    "message": description or f"Agent wants to execute {tool_name}",
+                    "data": {
+                        "resource_type": "tool",
+                        "resource_name": tool_name,
+                        "resource_args": tool_args,
+                        "risk_level": "medium",
+                    },
+                    "timeout_seconds": self.timeout_seconds,
+                }
+            },
+        )
 
         try:
             result = await asyncio.wait_for(future, timeout=self.timeout_seconds)

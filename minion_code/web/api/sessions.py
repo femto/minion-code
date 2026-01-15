@@ -17,15 +17,19 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 class CreateSessionRequest(BaseModel):
     """Request body for creating a session."""
-    project_path: str = Field(default=".", description="Working directory for the session")
+
+    project_path: str = Field(
+        default=".", description="Working directory for the session"
+    )
     history_mode: Optional[HistoryMode] = Field(
         default=None,
-        description="History mode: 'full' (stateless) or 'incremental' (stateful)"
+        description="History mode: 'full' (stateless) or 'incremental' (stateful)",
     )
 
 
 class SessionResponse(BaseModel):
     """Response for session operations."""
+
     session_id: str
     project_path: str
     history_mode: str
@@ -35,6 +39,7 @@ class SessionResponse(BaseModel):
 
 class SessionListResponse(BaseModel):
     """Response for listing sessions."""
+
     sessions: List[Dict[str, Any]]
 
 
@@ -47,8 +52,7 @@ async def create_session(request: CreateSessionRequest):
     """
     try:
         session = await session_manager.create_session(
-            project_path=request.project_path,
-            history_mode=request.history_mode
+            project_path=request.project_path, history_mode=request.history_mode
         )
 
         return SessionResponse(
@@ -56,7 +60,7 @@ async def create_session(request: CreateSessionRequest):
             project_path=session.project_path,
             history_mode=session.history_mode,
             created_at=session.created_at,
-            message_count=0
+            message_count=0,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -87,7 +91,7 @@ async def get_session(session_id: str):
         project_path=session.project_path,
         history_mode=session.history_mode,
         created_at=session.created_at,
-        message_count=len(messages)
+        message_count=len(messages),
     )
 
 

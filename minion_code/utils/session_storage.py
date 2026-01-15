@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SessionMessage:
     """A single message in a session."""
+
     role: str  # 'user' or 'assistant'
     content: str
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -29,6 +30,7 @@ class SessionMessage:
 @dataclass
 class SessionMetadata:
     """Metadata for a session."""
+
     session_id: str
     created_at: str
     updated_at: str
@@ -47,6 +49,7 @@ class Session:
         agent_history: Compacted history for agent context (synced after auto-compact)
         compaction_count: Number of times this session has been compacted
     """
+
     metadata: SessionMetadata
     messages: List[SessionMessage] = field(default_factory=list)
     agent_history: List[Dict[str, Any]] = field(default_factory=list)
@@ -63,7 +66,7 @@ class SessionStorage:
             storage_dir: Directory for session files. Defaults to ~/.minion-code/sessions
         """
         if storage_dir is None:
-            storage_dir = Path.home() / '.minion-code' / 'sessions'
+            storage_dir = Path.home() / ".minion-code" / "sessions"
 
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
@@ -91,7 +94,7 @@ class SessionStorage:
         # Set title from first user message if not set
         if not session.metadata.title and session.messages:
             for msg in session.messages:
-                if msg.role == 'user':
+                if msg.role == "user":
                     # Use first 50 chars of first user message as title
                     session.metadata.title = msg.content[:50]
                     if len(msg.content) > 50:
@@ -101,16 +104,18 @@ class SessionStorage:
         try:
             # Convert to dict for JSON serialization
             session_dict = {
-                'metadata': asdict(session.metadata),
-                'messages': [asdict(msg) for msg in session.messages],
-                'agent_history': session.agent_history,  # Already list of dicts
-                'compaction_count': session.compaction_count
+                "metadata": asdict(session.metadata),
+                "messages": [asdict(msg) for msg in session.messages],
+                "agent_history": session.agent_history,  # Already list of dicts
+                "compaction_count": session.compaction_count,
             }
 
-            with open(session_path, 'w', encoding='utf-8') as f:
+            with open(session_path, "w", encoding="utf-8") as f:
                 json.dump(session_dict, f, indent=2, ensure_ascii=False)
 
-            logger.debug(f"Saved session {session.metadata.session_id} to {session_path}")
+            logger.debug(
+                f"Saved session {session.metadata.session_id} to {session_path}"
+            )
         except Exception as e:
             logger.error(f"Failed to save session {session.metadata.session_id}: {e}")
             raise
@@ -131,27 +136,31 @@ class SessionStorage:
             return None
 
         try:
-            with open(session_path, 'r', encoding='utf-8') as f:
+            with open(session_path, "r", encoding="utf-8") as f:
                 session_dict = json.load(f)
 
             # Convert dict back to dataclass
-            metadata = SessionMetadata(**session_dict['metadata'])
-            messages = [SessionMessage(**msg) for msg in session_dict.get('messages', [])]
+            metadata = SessionMetadata(**session_dict["metadata"])
+            messages = [
+                SessionMessage(**msg) for msg in session_dict.get("messages", [])
+            ]
             # Load new fields with backward compatibility (defaults for old sessions)
-            agent_history = session_dict.get('agent_history', [])
-            compaction_count = session_dict.get('compaction_count', 0)
+            agent_history = session_dict.get("agent_history", [])
+            compaction_count = session_dict.get("compaction_count", 0)
 
             return Session(
                 metadata=metadata,
                 messages=messages,
                 agent_history=agent_history,
-                compaction_count=compaction_count
+                compaction_count=compaction_count,
             )
         except Exception as e:
             logger.error(f"Failed to load session {session_id}: {e}")
             return None
 
-    def get_latest_session_id(self, project_path: Optional[str] = None) -> Optional[str]:
+    def get_latest_session_id(
+        self, project_path: Optional[str] = None
+    ) -> Optional[str]:
         """Get the ID of the most recent session.
 
         Args:
@@ -168,9 +177,7 @@ class SessionStorage:
         return sessions[0].session_id
 
     def list_sessions(
-        self,
-        project_path: Optional[str] = None,
-        limit: int = 20
+        self, project_path: Optional[str] = None, limit: int = 20
     ) -> List[SessionMetadata]:
         """List available sessions.
 
@@ -186,10 +193,10 @@ class SessionStorage:
         try:
             for session_file in self.storage_dir.glob("*.json"):
                 try:
-                    with open(session_file, 'r', encoding='utf-8') as f:
+                    with open(session_file, "r", encoding="utf-8") as f:
                         session_dict = json.load(f)
 
-                    metadata = SessionMetadata(**session_dict['metadata'])
+                    metadata = SessionMetadata(**session_dict["metadata"])
 
                     # Filter by project_path if specified
                     if project_path and metadata.project_path != project_path:
@@ -250,17 +257,13 @@ class SessionStorage:
             created_at=now,
             updated_at=now,
             project_path=project_path,
-            message_count=0
+            message_count=0,
         )
 
         return Session(metadata=metadata, messages=[])
 
     def add_message(
-        self,
-        session: Session,
-        role: str,
-        content: str,
-        auto_save: bool = True
+        self, session: Session, role: str, content: str, auto_save: bool = True
     ) -> None:
         """Add a message to a session.
 
@@ -302,12 +305,16 @@ def get_latest_session_id(project_path: Optional[str] = None) -> Optional[str]:
     return session_storage.get_latest_session_id(project_path)
 
 
-def list_sessions(project_path: Optional[str] = None, limit: int = 20) -> List[SessionMetadata]:
+def list_sessions(
+    project_path: Optional[str] = None, limit: int = 20
+) -> List[SessionMetadata]:
     """List available sessions."""
     return session_storage.list_sessions(project_path, limit)
 
 
-def add_message(session: Session, role: str, content: str, auto_save: bool = True) -> None:
+def add_message(
+    session: Session, role: str, content: str, auto_save: bool = True
+) -> None:
     """Add a message to a session."""
     session_storage.add_message(session, role, content, auto_save)
 
@@ -330,7 +337,7 @@ def restore_agent_history(agent, session: Session, verbose: bool = False) -> int
         return 0
 
     # Check if agent has history
-    if not hasattr(agent, 'state') or not hasattr(agent.state, 'history'):
+    if not hasattr(agent, "state") or not hasattr(agent.state, "history"):
         return 0
 
     # Clear existing history first
@@ -342,8 +349,10 @@ def restore_agent_history(agent, session: Session, verbose: bool = False) -> int
             agent.state.history.append(msg)
 
         if verbose:
-            print(f"Restored {len(session.agent_history)} messages from agent_history "
-                  f"(compacted {session.compaction_count} times)")
+            print(
+                f"Restored {len(session.agent_history)} messages from agent_history "
+                f"(compacted {session.compaction_count} times)"
+            )
 
         return len(session.agent_history)
 
@@ -352,10 +361,7 @@ def restore_agent_history(agent, session: Session, verbose: bool = False) -> int
         return 0
 
     for msg in session.messages:
-        agent.state.history.append({
-            'role': msg.role,
-            'content': msg.content
-        })
+        agent.state.history.append({"role": msg.role, "content": msg.content})
 
     if verbose:
         print(f"Restored {len(session.messages)} messages from original history")

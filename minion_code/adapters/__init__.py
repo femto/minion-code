@@ -13,10 +13,10 @@ from .rich_adapter import RichOutputAdapter
 from .textual_adapter import TextualOutputAdapter
 
 __all__ = [
-    'OutputAdapter',
-    'MessageStyle',
-    'ConfirmOptions',
-    'ChoiceOptions',
-    'RichOutputAdapter',
-    'TextualOutputAdapter',
+    "OutputAdapter",
+    "MessageStyle",
+    "ConfirmOptions",
+    "ChoiceOptions",
+    "RichOutputAdapter",
+    "TextualOutputAdapter",
 ]

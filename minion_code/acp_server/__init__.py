@@ -21,11 +21,14 @@ def __getattr__(name):
     """Lazy imports to avoid circular import with external 'acp' package."""
     if name == "MinionACPAgent":
         from .agent import MinionACPAgent
+
         return MinionACPAgent
     elif name == "create_acp_hooks":
         from .hooks import create_acp_hooks
+
         return create_acp_hooks
     elif name == "ACPToolHooks":
         from .hooks import ACPToolHooks
+
         return ACPToolHooks
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
