@@ -47,3 +47,16 @@ mcode-simple = "minion_code.cli_simple:run"
 hi = "minion_code.cli_simple:run"
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
+no_implicit_optional = false
+warn_unused_ignores = false
+check_untyped_defs = false
+disable_error_code = ["var-annotated", "assignment", "arg-type", "attr-defined", "union-attr", "index", "operator", "no-redef", "abstract", "call-arg", "syntax", "import-untyped", "valid-type", "misc"]
+
+[[tool.mypy.overrides]]
+module = ["yaml", "yaml.*", "watchdog", "watchdog.*", "textual", "textual.*", "pydantic", "pydantic.*", "loguru", "loguru.*", "psutil", "minion", "minion.*"]
+ignore_missing_imports = true
+ignore_errors = true
