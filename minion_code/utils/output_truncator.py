@@ -7,8 +7,11 @@ Handles:
 - Built-in tool output truncation (400KB limit)
 - MCP tool output checking (token limit)
 - File size checking before read (with suggested tools for large files)
+- Large output saving to temp files for later retrieval
 """
 
+import time
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +19,7 @@ from typing import Optional
 MAX_OUTPUT_SIZE = 400 * 1024      # 400KB - 内置工具输出截断阈值
 MAX_FILE_SIZE = 1_000_000         # 1MB - 文件读取大小阈值
 MAX_TOKEN_LIMIT = 100_000         # MCP 工具 token 限制
+CACHE_DIR = Path.home() / '.minion-code' / 'cache'  # 大输出缓存目录
 
 
 # ============ 异常类 ============
@@ -44,6 +48,55 @@ class FileTooLargeError(Exception):
         self.file_size = file_size
         self.suggested_tool = suggested_tool
         super().__init__(message)
+
+
+# ============ 大输出缓存 ============
+def save_large_output(content: str, tool_name: str = "unknown") -> str:
+    """
+    Save large output to temp file and return the path.
+
+    Args:
+        content: The full output content to save
+        tool_name: Name of the tool that generated the output
+
+    Returns:
+        Absolute path to the saved file
+    """
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    file_id = str(uuid.uuid4())[:8]
+    filename = f"tool-output-{tool_name}-{file_id}.txt"
+    file_path = CACHE_DIR / filename
+
+    file_path.write_text(content, encoding='utf-8')
+    return str(file_path)
+
+
+def cleanup_cache(max_age_hours: int = 24) -> int:
+    """
+    Clean up old cached tool outputs.
+
+    Args:
+        max_age_hours: Maximum age in hours before file is deleted
+
+    Returns:
+        Number of files deleted
+    """
+    if not CACHE_DIR.exists():
+        return 0
+
+    cutoff = time.time() - (max_age_hours * 3600)
+    deleted = 0
+
+    for f in CACHE_DIR.glob("tool-output-*.txt"):
+        try:
+            if f.stat().st_mtime < cutoff:
+                f.unlink()
+                deleted += 1
+        except OSError:
+            pass  # File may have been deleted by another process
+
+    return deleted
 
 
 # ============ 执行前检查 ============
@@ -94,30 +147,49 @@ def truncate_output(
     output: str,
     max_size: int = MAX_OUTPUT_SIZE,
     tool_name: str = "",
+    save_full: bool = True,
 ) -> str:
     """
-    截断内置工具输出（自动生效）
+    截断内置工具输出，并可选保存完整内容到文件
 
     Args:
         output: 原始输出
         max_size: 最大字节数，默认 400KB
-        tool_name: 工具名，用于生成针对性提示
+        tool_name: 工具名，用于生成针对性提示和文件名
+        save_full: 是否保存完整内容到临时文件 (默认 True)
 
     Returns:
-        截断后的输出（如果需要截断则添加提示）
+        截断后的输出（如果需要截断则添加提示和文件引用）
     """
     output_bytes = output.encode('utf-8')
     if len(output_bytes) <= max_size:
         return output
+
+    # Save full content to file if enabled
+    saved_path = None
+    if save_full:
+        try:
+            saved_path = save_large_output(output, tool_name or "unknown")
+        except Exception:
+            pass  # Silently fail, truncation will still work
 
     # 截断到 max_size 字节，确保不截断 UTF-8 字符
     truncated_bytes = output_bytes[:max_size]
     truncated = truncated_bytes.decode('utf-8', errors='ignore')
 
     total_size = len(output_bytes)
-    hint = _get_tool_hint(tool_name)
+    size_kb = total_size / 1024
+    max_kb = max_size / 1024
 
-    truncated += f"\n\n---\n⚠️ 输出被截断 (显示 {max_size/1024:.0f}KB / {total_size/1024:.0f}KB)\n{hint}"
+    # Build truncation message
+    truncated += f"\n\n---\n⚠️ Output truncated ({size_kb:.0f}KB > {max_kb:.0f}KB limit)"
+
+    if saved_path:
+        truncated += f"\nFull output saved to: {saved_path}"
+        truncated += f"\nUse file_read with offset/limit to read in chunks."
+    else:
+        hint = _get_tool_hint(tool_name)
+        truncated += f"\n{hint}"
 
     return truncated
 
