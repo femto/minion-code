@@ -23,6 +23,7 @@ from typing import List, Optional, Union, Any
 import sys
 
 from minion.agents import CodeAgent
+from minion.main.tool_hooks import HookConfig
 from minion.types import AgentState
 from minion.types.history import History
 
