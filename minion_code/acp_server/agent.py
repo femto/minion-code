@@ -357,6 +357,10 @@ class ACPSession:
         create_kwargs = {
             "hooks": self.hooks,
             "workdir": self.cwd,
+            # History decay: save large outputs to file after N steps
+            "decay_enabled": True,
+            "decay_ttl_steps": 3,
+            "decay_min_size": 100_000,  # 100KB
         }
         if self.model:
             create_kwargs["llm"] = self.model

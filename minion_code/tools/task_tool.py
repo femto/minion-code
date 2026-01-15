@@ -161,7 +161,11 @@ class TaskTool(AsyncBaseTool):
                 llm=effective_model,
                 system_prompt=effective_prompt if subagent_config.system_prompt else None,
                 workdir=workdir,
-                additional_tools=self._get_filtered_tools(subagent_config.tools)
+                additional_tools=self._get_filtered_tools(subagent_config.tools),
+                # History decay: save large outputs to file after N steps
+                decay_enabled=True,
+                decay_ttl_steps=3,
+                decay_min_size=100_000,  # 100KB
             )
 
             # Execute

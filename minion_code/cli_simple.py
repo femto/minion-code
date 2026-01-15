@@ -150,7 +150,11 @@ class InterruptibleCLI:
                 name="CLI Code Assistant",
                 llm=llm_model,
                 additional_tools=self.mcp_tools if self.mcp_tools else None,
-                hooks=hooks
+                hooks=hooks,
+                # History decay: save large outputs to file after N steps
+                decay_enabled=True,
+                decay_ttl_steps=3,
+                decay_min_size=100_000,  # 100KB
             )
             
             progress.update(agent_task, completed=True)

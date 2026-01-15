@@ -287,7 +287,11 @@ class SessionManager:
                 name=f"WebAgent-{session.session_id}",
                 llm="sonnet",
                 workdir=session.project_path,
-                hooks=hooks
+                hooks=hooks,
+                # History decay: save large outputs to file after N steps
+                decay_enabled=True,
+                decay_ttl_steps=3,
+                decay_min_size=100_000,  # 100KB
             )
 
             # Inject on_compaction callback to sync compacted history
@@ -306,7 +310,11 @@ class SessionManager:
                     name=f"WebAgent-{session.session_id}",
                     llm="sonnet",
                     workdir=session.project_path,
-                    hooks=hooks
+                    hooks=hooks,
+                    # History decay: save large outputs to file after N steps
+                    decay_enabled=True,
+                    decay_ttl_steps=3,
+                    decay_min_size=100_000,  # 100KB
                 )
 
                 # Inject on_compaction callback to sync compacted history

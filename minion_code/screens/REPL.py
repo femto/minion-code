@@ -1627,7 +1627,11 @@ class REPLApp(App):
             self.agent = await MinionCodeAgent.create(
                 name="REPL Assistant",
                 llm=default_llm,
-                hooks=hooks
+                hooks=hooks,
+                # History decay: save large outputs to file after N steps
+                decay_enabled=True,
+                decay_ttl_steps=3,
+                decay_min_size=100_000,  # 100KB
             )
             self.agent_ready = True
 
