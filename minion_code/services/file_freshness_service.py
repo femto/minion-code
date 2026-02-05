@@ -14,6 +14,8 @@ from ..utils.todo_file_utils import get_todo_file_path
 logger = logging.getLogger(__name__)
 
 # Try to import watchdog, fall back to polling if not available
+_WATCHDOG_WARNING_LOGGED = True  # Default to True, set to False only if import fails
+
 try:
     from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler, FileModifiedEvent
@@ -29,9 +31,8 @@ except ImportError:
     class Observer:
         pass
 
-    logger.warning(
-        "watchdog library not available, file watching will use polling fallback"
-    )
+    # Note: Warning will be logged when FileFreshnessService is instantiated
+    _WATCHDOG_WARNING_LOGGED = False
 
 
 @dataclass
@@ -193,6 +194,13 @@ class FileFreshnessService:
     """Service for tracking file freshness and changes."""
 
     def __init__(self):
+        global _WATCHDOG_WARNING_LOGGED
+        if not WATCHDOG_AVAILABLE and not _WATCHDOG_WARNING_LOGGED:
+            logger.warning(
+                "watchdog library not available, file watching will use polling fallback"
+            )
+            _WATCHDOG_WARNING_LOGGED = True
+
         self.state = FileFreshnessState(
             read_timestamps={},
             edit_conflicts=set(),
