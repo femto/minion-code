@@ -25,6 +25,7 @@ from acp.schema import (
     AgentThoughtChunk,
     AudioContentBlock,
     AuthenticateResponse,
+    AuthMethod,
     ClientCapabilities,
     ContentToolCallContent,
     EmbeddedResourceContentBlock,
@@ -106,6 +107,14 @@ class MinionACPAgent:
             agent_capabilities=AgentCapabilities(
                 streaming=True,
             ),
+            auth_methods=[
+                AuthMethod(
+                    id="agent-auth",
+                    name="Agent Authentication",
+                    description="Automatic agent authentication for ACP clients",
+                    field_meta={"agent-auth": True},
+                ),
+            ],
         )
 
     async def new_session(
