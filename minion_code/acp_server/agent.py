@@ -49,10 +49,11 @@ from acp.schema import (
     ToolCallProgress,
 )
 
-from ..agents.code_agent import MinionCodeAgent
-from ..agents.hooks import HookConfig, wrap_tools_with_hooks
-from .hooks import create_acp_hooks
-from .permissions import PermissionStore
+# Lazy imports for heavy dependencies - only imported when needed
+# from ..agents.code_agent import MinionCodeAgent
+# from ..agents.hooks import HookConfig, wrap_tools_with_hooks
+# from .hooks import create_acp_hooks
+# from .permissions import PermissionStore
 
 logger = logging.getLogger(__name__)
 
@@ -352,15 +353,21 @@ class ACPSession:
         self.mcp_servers = mcp_servers
         self.skip_permissions = skip_permissions
         self.model = model
-        self.agent: Optional[MinionCodeAgent] = None
-        self.hooks: Optional[HookConfig] = None
-        self.permission_store: Optional[PermissionStore] = None
+        self.agent: Optional[Any] = None  # MinionCodeAgent, lazy imported
+        self.hooks: Optional[Any] = None  # HookConfig, lazy imported
+        self.permission_store: Optional[Any] = None  # PermissionStore, lazy imported
         self._message_history: List[Dict[str, Any]] = []
         # Track current code execution tool call ID for pairing start/result
         self._current_code_call_id: Optional[str] = None
 
     async def initialize(self) -> None:
         """Initialize the session and create the agent."""
+        # Lazy import heavy dependencies - only when session is created
+        from ..agents.code_agent import MinionCodeAgent
+        from ..agents.hooks import HookConfig
+        from .hooks import create_acp_hooks
+        from .permissions import PermissionStore
+
         # Create permission store for this project
         self.permission_store = PermissionStore(cwd=self.cwd)
 
