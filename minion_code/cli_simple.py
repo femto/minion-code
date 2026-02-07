@@ -342,7 +342,7 @@ class InterruptibleCLI:
                 TextColumn("[progress.description]{task.description}"),
                 console=self.console,
             ) as progress:
-                task = progress.add_task("🤖 Processing...", total=None)
+                task = progress.add_task("", total=None)
 
                 # Set progress on spinner controller so hooks can pause/resume it
                 self.spinner_controller.set_progress(progress)
