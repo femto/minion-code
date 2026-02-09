@@ -159,10 +159,24 @@ class InterruptibleCLI:
                 console=self.console,
             )
 
-            # Use model from CLI if provided, otherwise use default
-            llm_model = self.model if self.model else "claude-sonnet-4-5"
-            if self.model and self.verbose:
-                self.console.print(f"[dim]Using model: {self.model}[/dim]")
+            # Use model from CLI if provided, otherwise load from config
+            llm_model = self.model
+            if not llm_model:
+                # Try to load from ~/.minion/minion-code.json
+                config_file = Path.home() / ".minion" / "minion-code.json"
+                if config_file.exists():
+                    try:
+                        import json
+                        with open(config_file, "r") as f:
+                            config = json.load(f)
+                            llm_model = config.get("model")
+                    except Exception:
+                        pass
+            # Fall back to default if still not set
+            if not llm_model:
+                llm_model = "claude-sonnet-4-5"
+            if self.verbose:
+                self.console.print(f"[dim]Using model: {llm_model}[/dim]")
 
             self.agent = await MinionCodeAgent.create(
                 name="CLI Code Assistant",
