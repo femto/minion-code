@@ -60,12 +60,14 @@ logger = logging.getLogger(__name__)
 # Protocol version
 PROTOCOL_VERSION = 1
 
-# Get package version
+# Get package versions
 try:
     from importlib.metadata import version as get_version
     __version__ = get_version("minion-code")
+    __minionx_version__ = get_version("minionx")
 except Exception:
     __version__ = "0.1.0"
+    __minionx_version__ = "unknown"
 
 
 class MinionACPAgent:
@@ -105,6 +107,7 @@ class MinionACPAgent:
     ) -> InitializeResponse:
         """Initialize the agent and negotiate capabilities."""
         logger.info(f"Initializing with protocol version {protocol_version}")
+        logger.info(f"minion-code version: {__version__}, minionx version: {__minionx_version__}")
 
         return InitializeResponse(
             protocol_version=min(protocol_version, PROTOCOL_VERSION),

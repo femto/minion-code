@@ -128,7 +128,15 @@ def main(
     """
     setup_logging(log_level)
     pid = os.getpid()
-    logger.info(f"Starting minion-code ACP agent [PID={pid}]")
+
+    # Log versions at startup for debugging
+    try:
+        from importlib.metadata import version as get_version
+        mc_version = get_version("minion-code")
+        mx_version = get_version("minionx")
+        logger.info(f"Starting minion-code ACP agent [PID={pid}] - minion-code={mc_version}, minionx={mx_version}")
+    except Exception:
+        logger.info(f"Starting minion-code ACP agent [PID={pid}]")
 
     # Resolve working directory
     if cwd:
