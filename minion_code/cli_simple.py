@@ -178,8 +178,7 @@ class InterruptibleCLI:
                 default_model_config = minion_config.models.get("default")
                 if default_model_config:
                     llm_model = default_model_config.model
-                else:
-                    llm_model = "pseudo"
+                # else: leave llm_model as None, MinionCodeAgent will use pseudo provider
             if self.verbose:
                 self.console.print(f"[dim]Using model: {llm_model}[/dim]")
 

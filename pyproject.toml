@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minion-code"
-version = "0.1.15"
+version = "0.1.16"
 description = "A Python project depending on minion"
 authors = [{name = "User", email = "user@example.com"}]
 readme = "README.md"

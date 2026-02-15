@@ -323,8 +323,8 @@ class MinionCodeAgent(CodeAgent):
                 llm = default_model_config.model
                 logger.info(f"Using default model from minion config: {llm}")
             else:
-                llm = "pseudo"
-                logger.info("Using pseudo model (no default configured)")
+                # Leave llm as None - Brain will use pseudo_provider via create_llm_provider(None)
+                logger.info("No default model configured, will use pseudo provider")
 
         if workdir is None:
             workdir = Path.cwd()
