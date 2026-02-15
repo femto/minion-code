@@ -161,7 +161,7 @@ class ModelCommand(BaseCommand):
             else:
                 rows.append(["Config File Model", "(not set - using default)"])
 
-            self.output.table(headers, rows, title="Model Configuration")
+            self.output.table(headers, rows, title="Configuration")
 
             # Get available models and show selection
             models = self._get_available_models()

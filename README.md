@@ -87,7 +87,7 @@ mcode --config mcp.json
 mcode --dir /path/to/project --model gpt-4o --config mcp.json --verbose
 ```
 
-### Model Configuration
+### Configuration
 
 Configure the default LLM model used by minion-code:
 
