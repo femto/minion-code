@@ -323,8 +323,8 @@ class MinionCodeAgent(CodeAgent):
                 llm = default_model_config.model
                 logger.info(f"Using default model from minion config: {llm}")
             else:
-                llm = "claude-sonnet-4-5"
-                logger.info(f"Using fallback default model: {llm}")
+                llm = "pseudo"
+                logger.info("Using pseudo model (no default configured)")
 
         if workdir is None:
             workdir = Path.cwd()

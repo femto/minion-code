@@ -154,7 +154,7 @@ def main(
             model = default_model_config.model
             logger.info(f"Using default model from minion config: {model}")
         else:
-            logger.info("Using default model (from MinionCodeAgent)")
+            logger.info("Using pseudo model (no default configured)")
 
     # Check if permissions should be skipped
     skip_permissions = dangerously_skip_permissions or config.get(

@@ -179,7 +179,7 @@ class InterruptibleCLI:
                 if default_model_config:
                     llm_model = default_model_config.model
                 else:
-                    llm_model = "claude-sonnet-4-5"
+                    llm_model = "pseudo"
             if self.verbose:
                 self.console.print(f"[dim]Using model: {llm_model}[/dim]")
 
