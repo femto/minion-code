@@ -140,14 +140,21 @@ def main(
     # Load config
     config = load_config()
 
-    # Handle model: CLI arg > config file > default
+    # Handle model: CLI arg > config file > minion config default
     if model:
         logger.info(f"Using model from CLI: {model}")
     elif config.get("model"):
         model = config.get("model")
         logger.info(f"Using model from config: {model}")
     else:
-        logger.info("Using default model (from MinionCodeAgent)")
+        # Use minion's default model from config.yaml
+        from minion import config as minion_config
+        default_model_config = minion_config.models.get("default")
+        if default_model_config:
+            model = default_model_config.model
+            logger.info(f"Using default model from minion config: {model}")
+        else:
+            logger.info("Using default model (from MinionCodeAgent)")
 
     # Check if permissions should be skipped
     skip_permissions = dangerously_skip_permissions or config.get(

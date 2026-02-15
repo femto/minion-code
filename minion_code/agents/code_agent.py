@@ -289,7 +289,7 @@ class MinionCodeAgent(CodeAgent):
     async def create(
         cls,
         name: str = "Minion Code Assistant",
-        llm: str = "claude-sonnet-4-5",
+        llm: Optional[str] = None,
         llms: Optional[dict] = None,
         system_prompt: Optional[str] = None,
         workdir: Optional[Union[str, Path]] = None,
@@ -302,7 +302,8 @@ class MinionCodeAgent(CodeAgent):
 
         Args:
             name: Agent name
-            llm: Main LLM model to use (default for all tasks)
+            llm: Main LLM model to use. If None, uses minion config's "default" model,
+                 or falls back to "claude-sonnet-4-5"
             llms: Optional dict with specialized LLMs: {'quick': 'haiku', 'task': 'sonnet', 'reasoning': 'o4-mini'}
                   If not provided, uses smart defaults based on main llm
             system_prompt: Custom system prompt (uses default if None)
@@ -314,6 +315,17 @@ class MinionCodeAgent(CodeAgent):
         Returns:
             Configured MinionCodeAgent instance
         """
+        # Resolve LLM: use minion config's "default" model if not provided
+        if llm is None:
+            from minion import config as minion_config
+            default_model_config = minion_config.models.get("default")
+            if default_model_config:
+                llm = default_model_config.model
+                logger.info(f"Using default model from minion config: {llm}")
+            else:
+                llm = "claude-sonnet-4-5"
+                logger.info(f"Using fallback default model: {llm}")
+
         if workdir is None:
             workdir = Path.cwd()
         else:
@@ -717,14 +729,14 @@ class MinionCodeAgent(CodeAgent):
 
 # Convenience function for quick setup
 async def create_minion_code_agent(
-    name: str = "Minion Code Assistant", llm: str = "claude-sonnet-4-5", **kwargs
+    name: str = "Minion Code Assistant", llm: Optional[str] = None, **kwargs
 ) -> MinionCodeAgent:
     """
     Convenience function to create a MinionCodeAgent.
 
     Args:
         name: Agent name
-        llm: LLM model to use
+        llm: LLM model to use. If None, uses minion config's "default" model
         **kwargs: Additional arguments passed to MinionCodeAgent.create()
 
     Returns:

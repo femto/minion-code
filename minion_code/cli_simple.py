@@ -172,9 +172,14 @@ class InterruptibleCLI:
                             llm_model = config.get("model")
                     except Exception:
                         pass
-            # Fall back to default if still not set
+            # Fall back to minion's default model from config.yaml
             if not llm_model:
-                llm_model = "claude-sonnet-4-5"
+                from minion import config as minion_config
+                default_model_config = minion_config.models.get("default")
+                if default_model_config:
+                    llm_model = default_model_config.model
+                else:
+                    llm_model = "claude-sonnet-4-5"
             if self.verbose:
                 self.console.print(f"[dim]Using model: {llm_model}[/dim]")
 
