@@ -60,6 +60,13 @@ logger = logging.getLogger(__name__)
 # Protocol version
 PROTOCOL_VERSION = 1
 
+# Get package version
+try:
+    from importlib.metadata import version as get_version
+    __version__ = get_version("minion-code")
+except Exception:
+    __version__ = "0.1.0"
+
 
 class MinionACPAgent:
     """
@@ -103,7 +110,7 @@ class MinionACPAgent:
             protocol_version=min(protocol_version, PROTOCOL_VERSION),
             agent_info=Implementation(
                 name="minion-code",
-                version="0.1.0",
+                version=__version__,
             ),
             agent_capabilities=AgentCapabilities(
                 streaming=True,
