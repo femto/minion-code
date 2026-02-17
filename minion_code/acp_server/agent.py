@@ -15,6 +15,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from acp import Client, text_block
+from acp.exceptions import RequestError
 from acp.helpers import (
     update_agent_message_text,
     update_agent_thought_text,
@@ -47,6 +48,15 @@ from acp.schema import (
     TextContentBlock,
     ToolCallStart,
     ToolCallProgress,
+)
+
+# Import authentication module
+from .auth import (
+    credential_store,
+    oauth_flow,
+    is_authenticated,
+    get_credentials,
+    start_authentication,
 )
 
 # Lazy imports for heavy dependencies - only imported when needed
@@ -109,6 +119,10 @@ class MinionACPAgent:
         logger.info(f"Initializing with protocol version {protocol_version}")
         logger.info(f"minion-code version: {__version__}, minionx version: {__minionx_version__}")
 
+        # Check authentication status
+        self._is_authenticated = is_authenticated()
+        logger.info(f"Authentication status: {self._is_authenticated}")
+
         return InitializeResponse(
             protocol_version=min(protocol_version, PROTOCOL_VERSION),
             agent_info=Implementation(
@@ -120,10 +134,10 @@ class MinionACPAgent:
             ),
             auth_methods=[
                 AuthMethod(
-                    id="agent-auth",
-                    name="Agent Authentication",
-                    description="Automatic agent authentication for ACP clients",
-                    field_meta={"agent-auth": True},
+                    id="minion-oauth",
+                    name="Sign in with Nebula",
+                    description="Sign in to access AI models (OpenAI, Anthropic, etc.)",
+                    field_meta={"agent-auth": True},  # Indicates agent-managed OAuth flow
                 ),
             ],
         )
@@ -135,6 +149,17 @@ class MinionACPAgent:
         **kwargs: Any,
     ) -> NewSessionResponse:
         """Create a new session."""
+        # Check if we have valid credentials or API keys
+        credentials = get_credentials()
+        has_nebula_auth = credentials and credentials.is_valid() and credentials.access_token
+        has_env_api_key = bool(os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"))
+
+        if not has_nebula_auth and not has_env_api_key:
+            # No authentication available - raise AUTH_REQUIRED error
+            # This signals to the ACP client to show the Sign-in button
+            logger.warning("No authentication available - returning AUTH_REQUIRED")
+            raise RequestError.auth_required({"message": "Please sign in to use Minion Code."})
+
         session_id = str(uuid.uuid4())
         pid = os.getpid()
         session_count = len(self.sessions) + 1
@@ -211,8 +236,39 @@ class MinionACPAgent:
         method_id: str,
         **kwargs: Any,
     ) -> Optional[AuthenticateResponse]:
-        """Authenticate (not implemented)."""
-        return None
+        """
+        Handle authentication request from ACP client.
+
+        When the user clicks "Sign in" button in the ACP client,
+        this method is called to trigger the OAuth flow.
+        """
+        logger.info(f"Authentication requested with method: {method_id}")
+
+        if method_id != "minion-oauth":
+            logger.warning(f"Unknown auth method: {method_id}")
+            return None  # Return None for failure
+
+        try:
+            # Start OAuth flow - this will:
+            # 1. Start local HTTP server for callback
+            # 2. Open browser to OAuth authorization URL
+            # 3. Wait for callback with auth code
+            # 4. Exchange code for tokens
+            # 5. Store credentials and write minion config.yaml
+            credentials = await start_authentication(timeout=300.0)
+
+            if credentials and credentials.is_valid():
+                self._is_authenticated = True
+                logger.info("Authentication successful")
+                # Return response to indicate success
+                return AuthenticateResponse()
+            else:
+                logger.warning("Authentication failed - no valid credentials")
+                return None
+
+        except Exception as e:
+            logger.error(f"Authentication error: {e}")
+            return None
 
     async def prompt(
         self,
@@ -377,6 +433,7 @@ class ACPSession:
         from ..agents.hooks import HookConfig
         from .hooks import create_acp_hooks
         from .permissions import PermissionStore
+        from .auth import get_credentials
 
         # Create permission store for this project
         self.permission_store = PermissionStore(cwd=self.cwd)
@@ -400,7 +457,26 @@ class ACPSession:
             "decay_ttl_steps": 3,
             "decay_min_size": 100_000,  # 100KB
         }
-        if self.model:
+
+        # Check for Nebula credentials and configure LLM accordingly
+        credentials = get_credentials()
+        if credentials and credentials.is_valid() and credentials.access_token:
+            # Use Nebula API with OAuth token - create LLM provider directly
+            from minion.configs.config import LLMConfig
+            from minion.providers.llm_provider_registry import create_llm_provider
+
+            model_name = self.model or credentials.default_model or "gpt-4o"
+            llm_config = LLMConfig(
+                api_type="openai",
+                base_url=credentials.api_endpoint,
+                api_key=credentials.access_token,
+                model=model_name,
+            )
+            llm_provider = create_llm_provider(llm_config)
+            create_kwargs["llm"] = llm_provider
+            logger.info(f"Using Nebula API: {credentials.api_endpoint} with model: {model_name}")
+        elif self.model:
+            # Fallback to CLI-provided model (uses minion's config.yaml)
             create_kwargs["llm"] = self.model
             logger.info(f"Creating agent with model: {self.model}")
 

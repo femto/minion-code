@@ -470,6 +470,27 @@ def model_cmd(
 
 
 @app.command()
+def logout():
+    """
+    🚪 Log out and clear stored credentials.
+
+    Removes the OAuth credentials stored at ~/.minion/credentials.json.
+    You will need to sign in again next time you use minion-code.
+    """
+    from rich.console import Console
+    from minion_code.acp_server.auth import logout as auth_logout, CREDENTIALS_FILE
+
+    console_obj = Console()
+
+    if CREDENTIALS_FILE.exists():
+        auth_logout()
+        console_obj.print("✅ [green]Successfully logged out.[/green]")
+        console_obj.print(f"📁 [dim]Removed: {CREDENTIALS_FILE}[/dim]")
+    else:
+        console_obj.print("ℹ️  [dim]No credentials found. You are not logged in.[/dim]")
+
+
+@app.command()
 def serve(
     host: str = typer.Option(
         "0.0.0.0", "--host", "-H", help="Host to bind the server to"
@@ -589,6 +610,7 @@ def _maybe_insert_main_command():
         "serve",
         "acp",
         "model",
+        "logout",
         "--help",
         "-h",
     }
