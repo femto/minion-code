@@ -465,7 +465,7 @@ class ACPSession:
             from minion.configs.config import LLMConfig
             from minion.providers.llm_provider_registry import create_llm_provider
 
-            model_name = self.model or credentials.default_model or "anthropic/claude-sonnet-4"
+            model_name = self.model or credentials.default_model or "qwen/qwen3-30b-a3b:free"
             llm_config = LLMConfig(
                 api_type="openai",  # OpenRouter is OpenAI-compatible
                 base_url=credentials.api_endpoint,

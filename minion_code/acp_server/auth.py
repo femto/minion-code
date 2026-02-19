@@ -62,7 +62,8 @@ class Credentials:
         # API endpoint - OpenRouter is OpenAI-compatible
         self.api_endpoint = api_endpoint or DEFAULT_API_ENDPOINT
         # Default model to use (OpenRouter format: provider/model)
-        self.default_model = default_model or "anthropic/claude-sonnet-4"
+        # Using free model by default - user can change via mcode model <model>
+        self.default_model = default_model or "qwen/qwen3-30b-a3b:free"
 
     def is_valid(self) -> bool:
         """Check if credentials are valid (have OpenRouter API key or legacy API keys)."""
@@ -437,7 +438,7 @@ class OAuthFlow:
                         access_token=api_key,  # Store as access_token for compatibility
                         provider="openrouter",
                         api_endpoint=DEFAULT_API_ENDPOINT,
-                        default_model="anthropic/claude-sonnet-4",
+                        default_model="qwen/qwen3-30b-a3b:free",
                     )
         except Exception as e:
             logger.error(f"API key exchange error: {e}")
