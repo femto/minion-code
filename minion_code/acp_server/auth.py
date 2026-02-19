@@ -3,7 +3,8 @@
 """
 OAuth authentication module for minion-code ACP agent.
 
-Handles OAuth flow with minion-code's authentication server.
+Handles OAuth PKCE flow with OpenRouter for user authentication.
+Users sign in with their own OpenRouter account and use their own credits.
 """
 
 import asyncio
@@ -24,35 +25,30 @@ logger = logging.getLogger(__name__)
 MINION_AUTH_DIR = Path.home() / ".minion"
 CREDENTIALS_FILE = MINION_AUTH_DIR / "credentials.json"
 
-# OAuth server configuration (Zitadel)
-DEFAULT_OAUTH_SERVER = os.environ.get(
-    "MINION_OAUTH_SERVER",
-    "https://femto-xlvir4.us1.zitadel.cloud"
-)
-# API endpoint (OpenAI-compatible proxy)
+# OpenRouter OAuth configuration
+# OpenRouter uses a simple OAuth PKCE flow - no client_id required
+OPENROUTER_AUTH_URL = "https://openrouter.ai/auth"
+OPENROUTER_TOKEN_URL = "https://openrouter.ai/api/v1/auth/keys"
+# API endpoint (OpenRouter is OpenAI-compatible)
 DEFAULT_API_ENDPOINT = os.environ.get(
     "MINION_API_ENDPOINT",
-    "https://api.nebulame.com/v1"
+    "https://openrouter.ai/api/v1"
 )
-OAUTH_CLIENT_ID = os.environ.get("MINION_OAUTH_CLIENT_ID", "360392740430792958")
-OAUTH_CALLBACK_PORT = int(os.environ.get("MINION_OAUTH_CALLBACK_PORT", "19284"))
-
-# OAuth endpoint paths (Zitadel uses /oauth/v2/)
-OAUTH_AUTHORIZE_PATH = os.environ.get("MINION_OAUTH_AUTHORIZE_PATH", "/oauth/v2/authorize")
-OAUTH_TOKEN_PATH = os.environ.get("MINION_OAUTH_TOKEN_PATH", "/oauth/v2/token")
+# OpenRouter only allows localhost:3000 or https for callbacks
+OAUTH_CALLBACK_PORT = int(os.environ.get("MINION_OAUTH_CALLBACK_PORT", "3000"))
 
 
 class Credentials:
-    """Stores authentication credentials."""
+    """Stores authentication credentials (OpenRouter API key)."""
 
     def __init__(
         self,
-        access_token: Optional[str] = None,
-        refresh_token: Optional[str] = None,
+        access_token: Optional[str] = None,  # OpenRouter API key (sk-or-...)
+        refresh_token: Optional[str] = None,  # Not used by OpenRouter
         token_type: str = "Bearer",
         expires_at: Optional[int] = None,
-        provider: str = "minion",
-        api_keys: Optional[Dict[str, str]] = None,
+        provider: str = "openrouter",
+        api_keys: Optional[Dict[str, str]] = None,  # Legacy fallback
         api_endpoint: Optional[str] = None,
         default_model: Optional[str] = None,
     ):
@@ -63,13 +59,13 @@ class Credentials:
         self.provider = provider
         # For direct API key storage (fallback)
         self.api_keys = api_keys or {}
-        # API endpoint for proxy
+        # API endpoint - OpenRouter is OpenAI-compatible
         self.api_endpoint = api_endpoint or DEFAULT_API_ENDPOINT
-        # Default model to use
-        self.default_model = default_model or "gpt-4o"
+        # Default model to use (OpenRouter format: provider/model)
+        self.default_model = default_model or "anthropic/claude-sonnet-4"
 
     def is_valid(self) -> bool:
-        """Check if credentials are valid (have token or API keys)."""
+        """Check if credentials are valid (have OpenRouter API key or legacy API keys)."""
         if self.access_token:
             return True
         if self.api_keys:
@@ -95,7 +91,7 @@ class Credentials:
             refresh_token=data.get("refresh_token"),
             token_type=data.get("token_type", "Bearer"),
             expires_at=data.get("expires_at"),
-            provider=data.get("provider", "minion"),
+            provider=data.get("provider", "openrouter"),
             api_keys=data.get("api_keys", {}),
             api_endpoint=data.get("api_endpoint"),
             default_model=data.get("default_model"),
@@ -273,17 +269,13 @@ class OAuthCallbackHandler(BaseHTTPRequestHandler):
 
 
 class OAuthFlow:
-    """Handles the OAuth authentication flow with PKCE."""
+    """Handles the OpenRouter OAuth PKCE authentication flow."""
 
     def __init__(
         self,
-        oauth_server: str = DEFAULT_OAUTH_SERVER,
-        client_id: str = OAUTH_CLIENT_ID,
         callback_port: int = OAUTH_CALLBACK_PORT,
         credential_store: Optional[CredentialStore] = None,
     ):
-        self.oauth_server = oauth_server
-        self.client_id = client_id
         self.callback_port = callback_port
         self.credential_store = credential_store or CredentialStore()
         self._http_server: Optional[HTTPServer] = None
@@ -305,29 +297,27 @@ class OAuthFlow:
 
         return code_verifier, code_challenge
 
-    def get_authorization_url(self, state: str, code_challenge: str) -> str:
-        """Generate the OAuth authorization URL with PKCE."""
+    def get_authorization_url(self, code_challenge: str) -> str:
+        """Generate the OpenRouter OAuth authorization URL with PKCE."""
+        from urllib.parse import urlencode
+
         callback_url = f"http://localhost:{self.callback_port}/callback"
-        return (
-            f"{self.oauth_server}{OAUTH_AUTHORIZE_PATH}"
-            f"?client_id={self.client_id}"
-            f"&redirect_uri={callback_url}"
-            f"&response_type=code"
-            f"&state={state}"
-            f"&scope=openid profile email"
-            f"&code_challenge={code_challenge}"
-            f"&code_challenge_method=S256"
-        )
+        params = {
+            "callback_url": callback_url,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+        }
+        return f"{OPENROUTER_AUTH_URL}?{urlencode(params)}"
 
     async def start_auth_flow(self, timeout: float = 300.0) -> Optional[Credentials]:
         """
-        Start the OAuth flow with PKCE.
+        Start the OpenRouter OAuth PKCE flow.
 
         1. Generate PKCE code_verifier and code_challenge
         2. Start local HTTP server for callback
-        3. Open browser to authorization URL
+        3. Open browser to OpenRouter authorization URL
         4. Wait for callback with authorization code
-        5. Exchange code for tokens (with code_verifier)
+        5. Exchange code for API key (with code_verifier)
         6. Store and return credentials
 
         Args:
@@ -336,9 +326,6 @@ class OAuthFlow:
         Returns:
             Credentials if successful, None otherwise
         """
-        # Generate state for CSRF protection
-        state = secrets.token_urlsafe(32)
-
         # Generate PKCE pair
         self._code_verifier, code_challenge = self._generate_pkce_pair()
 
@@ -346,7 +333,7 @@ class OAuthFlow:
         OAuthCallbackHandler.auth_code = None
         OAuthCallbackHandler.auth_state = None
         OAuthCallbackHandler.error = None
-        OAuthCallbackHandler.event_loop = asyncio.get_running_loop()  # Save current event loop
+        OAuthCallbackHandler.event_loop = asyncio.get_running_loop()
         OAuthCallbackHandler.received_event = asyncio.Event()
 
         # Start local HTTP server
@@ -362,7 +349,8 @@ class OAuthFlow:
         # Run server in background thread - handle multiple requests until we get the callback
         def serve_until_callback():
             while not OAuthCallbackHandler.auth_code and not OAuthCallbackHandler.error:
-                self._http_server.handle_request()
+                if self._http_server:
+                    self._http_server.handle_request()
 
         self._server_thread = Thread(target=serve_until_callback)
         self._server_thread.daemon = True
@@ -371,14 +359,13 @@ class OAuthFlow:
         logger.info(f"Started OAuth callback server on port {self.callback_port}")
 
         # Open browser with PKCE code_challenge
-        auth_url = self.get_authorization_url(state, code_challenge)
-        logger.info(f"Opening browser for authentication: {auth_url}")
+        auth_url = self.get_authorization_url(code_challenge)
+        logger.info(f"Opening browser for OpenRouter authentication: {auth_url}")
 
         try:
             webbrowser.open(auth_url)
         except Exception as e:
             logger.warning(f"Failed to open browser: {e}")
-            # Return the URL so client can show it
             logger.info(f"Please open this URL manually: {auth_url}")
 
         # Wait for callback
@@ -399,70 +386,61 @@ class OAuthFlow:
             logger.error(f"OAuth error: {OAuthCallbackHandler.error}")
             return None
 
-        # Verify state
-        if OAuthCallbackHandler.auth_state != state:
-            logger.error("OAuth state mismatch - possible CSRF attack")
-            return None
-
-        # Exchange code for tokens
+        # Exchange code for API key
         auth_code = OAuthCallbackHandler.auth_code
         if not auth_code:
             logger.error("No authorization code received")
             return None
 
-        credentials = await self._exchange_code_for_tokens(auth_code)
+        credentials = await self._exchange_code_for_api_key(auth_code)
 
         if credentials:
             self.credential_store.save(credentials)
 
         return credentials
 
-    async def _exchange_code_for_tokens(self, code: str) -> Optional[Credentials]:
-        """Exchange authorization code for access tokens using PKCE."""
+    async def _exchange_code_for_api_key(self, code: str) -> Optional[Credentials]:
+        """Exchange authorization code for OpenRouter API key using PKCE."""
         import aiohttp
-
-        callback_url = f"http://localhost:{self.callback_port}/callback"
-        token_url = f"{self.oauth_server}{OAUTH_TOKEN_PATH}"
 
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    token_url,
-                    data={
-                        "grant_type": "authorization_code",
+                    OPENROUTER_TOKEN_URL,
+                    json={
                         "code": code,
-                        "redirect_uri": callback_url,
-                        "client_id": self.client_id,
-                        "code_verifier": self._code_verifier,  # PKCE
+                        "code_verifier": self._code_verifier,
+                        "code_challenge_method": "S256",
                     },
                     headers={
                         "Accept": "application/json",
-                        "Content-Type": "application/x-www-form-urlencoded",
+                        "Content-Type": "application/json",
                     },
                 ) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        logger.error(f"Token exchange failed: {response.status} - {error_text}")
+                        logger.error(f"API key exchange failed: {response.status} - {error_text}")
                         return None
 
                     data = await response.json()
-                    logger.info(f"Token response: {list(data.keys())}")
+                    logger.info(f"OpenRouter response keys: {list(data.keys())}")
 
-                    # Zitadel returns standard OIDC tokens
-                    # We'll use the access_token for API calls
+                    # OpenRouter returns: { "key": "sk-or-..." }
+                    api_key = data.get("key")
+                    if not api_key:
+                        logger.error("No API key in OpenRouter response")
+                        return None
+
+                    logger.info("Successfully obtained OpenRouter API key")
+
                     return Credentials(
-                        access_token=data.get("access_token"),
-                        refresh_token=data.get("refresh_token"),
-                        token_type=data.get("token_type", "Bearer"),
-                        expires_at=data.get("expires_at"),
-                        provider="zitadel",
-                        api_keys=data.get("api_keys", {}),
-                        # Server can specify API endpoint and default model
-                        api_endpoint=data.get("api_endpoint", DEFAULT_API_ENDPOINT),
-                        default_model=data.get("default_model", "gpt-4o"),
+                        access_token=api_key,  # Store as access_token for compatibility
+                        provider="openrouter",
+                        api_endpoint=DEFAULT_API_ENDPOINT,
+                        default_model="anthropic/claude-sonnet-4",
                     )
         except Exception as e:
-            logger.error(f"Token exchange error: {e}")
+            logger.error(f"API key exchange error: {e}")
             return None
 
     def _cleanup_server(self) -> None:

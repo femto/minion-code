@@ -134,9 +134,9 @@ class MinionACPAgent:
             ),
             auth_methods=[
                 AuthMethod(
-                    id="minion-oauth",
-                    name="Sign in with Nebula",
-                    description="Sign in to access AI models (OpenAI, Anthropic, etc.)",
+                    id="openrouter-oauth",
+                    name="Sign in with OpenRouter",
+                    description="Sign in with your OpenRouter account to use AI models (Claude, GPT-4, etc.)",
                     field_meta={"agent-auth": True},  # Indicates agent-managed OAuth flow
                 ),
             ],
@@ -151,10 +151,10 @@ class MinionACPAgent:
         """Create a new session."""
         # Check if we have valid credentials or API keys
         credentials = get_credentials()
-        has_nebula_auth = credentials and credentials.is_valid() and credentials.access_token
-        has_env_api_key = bool(os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"))
+        has_openrouter_auth = credentials and credentials.is_valid() and credentials.access_token
+        has_env_api_key = bool(os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENROUTER_API_KEY"))
 
-        if not has_nebula_auth and not has_env_api_key:
+        if not has_openrouter_auth and not has_env_api_key:
             # No authentication available - raise AUTH_REQUIRED error
             # This signals to the ACP client to show the Sign-in button
             logger.warning("No authentication available - returning AUTH_REQUIRED")
@@ -239,22 +239,22 @@ class MinionACPAgent:
         """
         Handle authentication request from ACP client.
 
-        When the user clicks "Sign in" button in the ACP client,
-        this method is called to trigger the OAuth flow.
+        When the user clicks "Sign in with OpenRouter" button in the ACP client,
+        this method is called to trigger the OAuth PKCE flow.
         """
         logger.info(f"Authentication requested with method: {method_id}")
 
-        if method_id != "minion-oauth":
+        if method_id != "openrouter-oauth":
             logger.warning(f"Unknown auth method: {method_id}")
             return None  # Return None for failure
 
         try:
-            # Start OAuth flow - this will:
-            # 1. Start local HTTP server for callback
-            # 2. Open browser to OAuth authorization URL
+            # Start OpenRouter OAuth PKCE flow - this will:
+            # 1. Start local HTTP server for callback on port 3000
+            # 2. Open browser to OpenRouter authorization URL
             # 3. Wait for callback with auth code
-            # 4. Exchange code for tokens
-            # 5. Store credentials and write minion config.yaml
+            # 4. Exchange code for user's API key
+            # 5. Store credentials
             credentials = await start_authentication(timeout=300.0)
 
             if credentials and credentials.is_valid():
@@ -458,23 +458,23 @@ class ACPSession:
             "decay_min_size": 100_000,  # 100KB
         }
 
-        # Check for Nebula credentials and configure LLM accordingly
+        # Check for OpenRouter credentials and configure LLM accordingly
         credentials = get_credentials()
         if credentials and credentials.is_valid() and credentials.access_token:
-            # Use Nebula API with OAuth token - create LLM provider directly
+            # Use OpenRouter API with user's API key - create LLM provider directly
             from minion.configs.config import LLMConfig
             from minion.providers.llm_provider_registry import create_llm_provider
 
-            model_name = self.model or credentials.default_model or "gpt-4o"
+            model_name = self.model or credentials.default_model or "anthropic/claude-sonnet-4"
             llm_config = LLMConfig(
-                api_type="openai",
+                api_type="openai",  # OpenRouter is OpenAI-compatible
                 base_url=credentials.api_endpoint,
                 api_key=credentials.access_token,
                 model=model_name,
             )
             llm_provider = create_llm_provider(llm_config)
             create_kwargs["llm"] = llm_provider
-            logger.info(f"Using Nebula API: {credentials.api_endpoint} with model: {model_name}")
+            logger.info(f"Using OpenRouter API: {credentials.api_endpoint} with model: {model_name}")
         elif self.model:
             # Fallback to CLI-provided model (uses minion's config.yaml)
             create_kwargs["llm"] = self.model
