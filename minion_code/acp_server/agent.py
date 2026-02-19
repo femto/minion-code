@@ -491,7 +491,14 @@ class ACPSession:
             from minion.configs.config import LLMConfig
             from minion.providers.llm_provider_registry import create_llm_provider
 
-            model_name = self.model or credentials.default_model or "openrouter/free"
+            # OpenRouter models use "provider/model" format (e.g., "openai/gpt-4o")
+            # If self.model is set but not in OpenRouter format, ignore it (likely legacy config)
+            if self.model and "/" in self.model:
+                model_name = self.model
+            else:
+                if self.model:
+                    logger.warning(f"Ignoring non-OpenRouter model '{self.model}' - use 'provider/model' format")
+                model_name = credentials.default_model or "openrouter/free"
             llm_config = LLMConfig(
                 api_type="openai",  # OpenRouter is OpenAI-compatible
                 base_url=credentials.api_endpoint,
