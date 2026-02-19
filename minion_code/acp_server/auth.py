@@ -16,7 +16,7 @@ import webbrowser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from threading import Thread
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class Credentials:
         self.api_endpoint = api_endpoint or DEFAULT_API_ENDPOINT
         # Default model to use (OpenRouter format: provider/model)
         # Using free model by default - user can change via mcode model <model>
-        self.default_model = default_model or "qwen/qwen3-30b-a3b:free"
+        self.default_model = default_model or "openrouter/free"
 
     def is_valid(self) -> bool:
         """Check if credentials are valid (have OpenRouter API key or legacy API keys)."""
@@ -438,7 +438,7 @@ class OAuthFlow:
                         access_token=api_key,  # Store as access_token for compatibility
                         provider="openrouter",
                         api_endpoint=DEFAULT_API_ENDPOINT,
-                        default_model="qwen/qwen3-30b-a3b:free",
+                        default_model="openrouter/free",
                     )
         except Exception as e:
             logger.error(f"API key exchange error: {e}")
@@ -483,6 +483,52 @@ def logout() -> None:
     credential_store.clear()
 
 
+async def get_openrouter_models(include_free_only: bool = False) -> List[Dict[str, Any]]:
+    """
+    Fetch available models from OpenRouter API.
+
+    Args:
+        include_free_only: If True, only return free models
+
+    Returns:
+        List of model info dicts with id, name, description, pricing
+    """
+    import aiohttp
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get("https://openrouter.ai/api/v1/models") as response:
+                if response.status != 200:
+                    logger.warning(f"Failed to fetch models: {response.status}")
+                    return []
+
+                data = await response.json()
+                models = data.get("data", [])
+
+                result = []
+                for m in models:
+                    pricing = m.get("pricing", {})
+                    prompt_price = float(pricing.get("prompt", "1") or "1")
+                    completion_price = float(pricing.get("completion", "1") or "1")
+                    is_free = prompt_price == 0 and completion_price == 0
+
+                    if include_free_only and not is_free:
+                        continue
+
+                    result.append({
+                        "id": m.get("id"),
+                        "name": m.get("name"),
+                        "description": m.get("description"),
+                        "context_length": m.get("context_length"),
+                        "is_free": is_free,
+                    })
+
+                return result
+    except Exception as e:
+        logger.error(f"Error fetching models: {e}")
+        return []
+
+
 __all__ = [
     "Credentials",
     "CredentialStore",
@@ -493,4 +539,5 @@ __all__ = [
     "get_credentials",
     "start_authentication",
     "logout",
+    "get_openrouter_models",
 ]

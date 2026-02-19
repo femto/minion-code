@@ -38,10 +38,12 @@ from acp.schema import (
     ListSessionsResponse,
     LoadSessionResponse,
     McpServerStdio,
+    ModelInfo,
     NewSessionResponse,
     PromptResponse,
     ResourceContentBlock,
     ResumeSessionResponse,
+    SessionModelState,
     SetSessionModelResponse,
     SetSessionModeResponse,
     SseMcpServer,
@@ -57,6 +59,7 @@ from .auth import (
     is_authenticated,
     get_credentials,
     start_authentication,
+    get_openrouter_models,
 )
 
 # Lazy imports for heavy dependencies - only imported when needed
@@ -185,7 +188,30 @@ class MinionACPAgent:
         self.sessions[session_id] = session
         self._cancel_events[session_id] = asyncio.Event()
 
-        return NewSessionResponse(session_id=session_id)
+        # Fetch available models from OpenRouter
+        models_state = None
+        if has_openrouter_auth:
+            try:
+                openrouter_models = await get_openrouter_models()
+                if openrouter_models:
+                    available_models = [
+                        ModelInfo(
+                            modelId=m["id"],
+                            name=m["name"],
+                            description=m.get("description") or f"Context: {m.get('context_length', 'N/A')}",
+                        )
+                        for m in openrouter_models[:50]  # Limit to 50 models
+                    ]
+                    current_model = credentials.default_model if credentials else "openrouter/free"
+                    models_state = SessionModelState(
+                        availableModels=available_models,
+                        currentModelId=current_model,
+                    )
+                    logger.info(f"Returning {len(available_models)} models to client")
+            except Exception as e:
+                logger.warning(f"Failed to fetch models: {e}")
+
+        return NewSessionResponse(session_id=session_id, models=models_state)
 
     async def load_session(
         self,
@@ -465,7 +491,7 @@ class ACPSession:
             from minion.configs.config import LLMConfig
             from minion.providers.llm_provider_registry import create_llm_provider
 
-            model_name = self.model or credentials.default_model or "qwen/qwen3-30b-a3b:free"
+            model_name = self.model or credentials.default_model or "openrouter/free"
             llm_config = LLMConfig(
                 api_type="openai",  # OpenRouter is OpenAI-compatible
                 base_url=credentials.api_endpoint,
