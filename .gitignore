@@ -204,3 +204,4 @@ uploads/
 
 minion_example_project
 .mcp.json
+.claude/
