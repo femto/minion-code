@@ -225,7 +225,7 @@ class MinionCodeAgent(CodeAgent):
         "  make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency.\n"
         "- However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call them sequentially.\n"
         "- Never use placeholders or guess missing parameters in tool calls.\n"
-        "- Do not call the `user_input` tool in interactive chat sessions. Ask clarifying questions directly in your assistant response and wait for the user's next message.\n"
+        "- Use `user_input` only when you need structured clarifications (especially multiple fields / choices). For simple clarifications, ask directly in assistant text.\n"
         "- Use specialized tools instead of bash commands when possible. For file operations, use dedicated tools:\n"
         "  file_read for reading files instead of cat/head/tail, file_edit for editing instead of sed/awk,\n"
         "  and file_write for creating files instead of cat with heredoc or echo redirection.\n"
@@ -258,7 +258,12 @@ class MinionCodeAgent(CodeAgent):
         """Initialize the CodeAgent with thinking capabilities and optional state tracking."""
         super().__post_init__()
         self.conversation_history = []
+        self.output_adapter = None
         # Note: Auto-compact is handled by minion's BaseAgent
+
+    def set_output_adapter(self, output_adapter: Any) -> None:
+        """Attach a UI output adapter so tools can request structured UI input."""
+        self.output_adapter = output_adapter
 
     async def pre_step(self, input_data, kwargs):
         """Override pre_step to track iterations without todo usage.
@@ -274,6 +279,11 @@ class MinionCodeAgent(CodeAgent):
             self.state.metadata = {}
         if "iteration_without_todos" not in self.state.metadata:
             self.state.metadata["iteration_without_todos"] = 0
+
+        # Expose adapter + protocol for tools that support richer UI rendering.
+        if self.output_adapter is not None:
+            self.state.metadata["output_adapter"] = self.output_adapter
+            self.state.metadata["ui_protocol"] = "a2ui/v1"
 
         # Increment iteration counter
         self.state.metadata["iteration_without_todos"] += 1

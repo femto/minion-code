@@ -382,6 +382,75 @@ class WebOutputAdapter(OutputAdapter):
             self._pending_interactions.pop(interaction_id, None)
             await self.emit_task_status(TaskState.WORKING)
 
+    async def form(
+        self,
+        message: str,
+        fields: List[Dict[str, Any]],
+        title: str = "Form",
+        submit_text: str = "Submit",
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Request structured form input via a single input_required event.
+        """
+        interaction_id = self._generate_interaction_id()
+        future: asyncio.Future[Optional[Dict[str, Any]]] = asyncio.Future()
+
+        ui_schema = {
+            "protocol": "a2ui/v1",
+            "renderer": "json_form",
+            "type": "form",
+            "title": title,
+            "message": message,
+            "submit_text": submit_text,
+            "fields": fields,
+        }
+
+        self._pending_interactions[interaction_id] = PendingInteraction(
+            interaction_id=interaction_id,
+            kind=InputKind.FORM.value,
+            data={
+                "message": message,
+                "title": title,
+                "fields": fields,
+                "submit_text": submit_text,
+                "ui_schema": ui_schema,
+            },
+            future=future,
+        )
+
+        await self.emit_task_status(TaskState.INPUT_REQUIRED)
+
+        await self._emit_event(
+            "input_required",
+            {
+                "request": {
+                    "interaction_id": interaction_id,
+                    "kind": InputKind.FORM.value,
+                    "title": title,
+                    "message": message,
+                    "data": {
+                        "fields": fields,
+                        "submit_text": submit_text,
+                        "ui_schema": ui_schema,
+                    },
+                    "timeout_seconds": self.timeout_seconds,
+                }
+            },
+        )
+
+        try:
+            result = await asyncio.wait_for(future, timeout=self.timeout_seconds)
+            if result is None:
+                return None
+            if not isinstance(result, dict):
+                return {"value": result}
+            return result
+        except asyncio.TimeoutError:
+            return None
+        finally:
+            self._pending_interactions.pop(interaction_id, None)
+            await self.emit_task_status(TaskState.WORKING)
+
     def print(self, *args, **kwargs) -> None:
         """Generic print - converts to text output."""
         content = " ".join(str(arg) for arg in args)
@@ -422,6 +491,8 @@ class WebOutputAdapter(OutputAdapter):
             elif interaction.kind == InputKind.CHOICE.value:
                 interaction.future.set_result(-1)
             elif interaction.kind == InputKind.TEXT.value:
+                interaction.future.set_result(None)
+            elif interaction.kind == InputKind.FORM.value:
                 interaction.future.set_result(None)
             return True
         return False

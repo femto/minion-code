@@ -10,7 +10,7 @@ with dynamic system prompts and state management.
 
 import sys
 
-__version__ = "0.1.40"
+__version__ = "0.1.41"
 __all__ = ["tools", "agents", "MinionCodeAgent", "create_minion_code_agent"]
 
 

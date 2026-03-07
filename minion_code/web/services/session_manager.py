@@ -304,6 +304,8 @@ class SessionManager:
 
             # Inject on_compaction callback to sync compacted history
             agent.on_compaction = self._create_compaction_callback(session)
+            if hasattr(agent, "set_output_adapter"):
+                agent.set_output_adapter(session.adapter)
 
             # Restore history from storage (prefers agent_history if available)
             if session._storage_session:
@@ -327,6 +329,8 @@ class SessionManager:
 
                 # Inject on_compaction callback to sync compacted history
                 session._agent.on_compaction = self._create_compaction_callback(session)
+                if hasattr(session._agent, "set_output_adapter"):
+                    session._agent.set_output_adapter(session.adapter)
 
                 # Restore history on first creation (prefers agent_history if available)
                 if session._storage_session:

@@ -9,7 +9,7 @@ regardless of the underlying UI system (CLI, TUI, etc.).
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from enum import Enum
 from dataclasses import dataclass
 
@@ -201,6 +201,75 @@ class OutputAdapter(ABC):
             User input string, or None if cancelled
         """
         pass
+
+    async def form(
+        self,
+        message: str,
+        fields: List[Dict[str, Any]],
+        title: str = "Form",
+        submit_text: str = "Submit",
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Request structured form input.
+
+        Default implementation falls back to sequential `choice` / `input` prompts,
+        so richer UIs can override this and render the form in one shot.
+        """
+        del submit_text  # May be used by richer adapters
+
+        answers: Dict[str, Any] = {}
+        for index, field in enumerate(fields):
+            field_id = str(field.get("id") or f"field_{index}")
+            label = str(field.get("label") or field_id)
+            field_type = str(field.get("type") or "text").lower()
+            default = field.get("default")
+
+            if field_type == "choice":
+                raw_options = field.get("options") or []
+                options: List[str] = []
+                for option in raw_options:
+                    if isinstance(option, dict):
+                        options.append(str(option.get("label", option.get("value", ""))))
+                    else:
+                        options.append(str(option))
+
+                if not options:
+                    options = [str(default)] if default is not None else []
+                if not options:
+                    return None
+
+                default_index = 0
+                if default is not None:
+                    try:
+                        default_index = options.index(str(default))
+                    except ValueError:
+                        default_index = 0
+
+                selected_index = await self.choice(
+                    message=f"{message}\n\n{label}" if message else label,
+                    choices=options,
+                    title=title,
+                    default_index=default_index,
+                )
+                if selected_index < 0:
+                    return None
+                answers[field_id] = options[selected_index]
+                continue
+
+            placeholder = str(field.get("placeholder") or "")
+            value = await self.input(
+                message=f"{message}\n\n{label}" if message else label,
+                title=title,
+                default=str(default) if default is not None else "",
+                placeholder=placeholder,
+            )
+            if value is None:
+                return None
+            if value == "" and default is not None:
+                value = str(default)
+            answers[field_id] = value
+
+        return answers
 
     @abstractmethod
     def print(self, *args, **kwargs) -> None:

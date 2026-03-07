@@ -192,6 +192,8 @@ class InterruptibleCLI:
                 decay_ttl_steps=3,
                 decay_min_size=100_000,  # 100KB
             )
+            if hasattr(self.agent, "set_output_adapter"):
+                self.agent.set_output_adapter(self.output_adapter)
 
             progress.update(agent_task, completed=True)
 
