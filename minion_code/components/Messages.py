@@ -24,8 +24,8 @@ class Messages(ScrollableContainer):
     Messages {
         height: 1fr;
         width: 100%;
-        margin: 1;
-        padding: 1;
+        margin: 0 1;
+        padding: 0 0 0 1;
         scrollbar-background: $surface-lighten-1;
         scrollbar-color: $primary;
     }
@@ -33,6 +33,8 @@ class Messages(ScrollableContainer):
     .messages-container {
         width: 100%;
         height: auto;
+        border-left: thick $surface-lighten-1;
+        padding-left: 1;
     }
     
     .empty-state {
@@ -45,7 +47,7 @@ class Messages(ScrollableContainer):
     
     .message-item {
         width: 100%;
-        margin-bottom: 1;
+        margin: 0;
     }
     """
 

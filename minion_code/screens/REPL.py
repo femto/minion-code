@@ -278,76 +278,42 @@ class REPL(Container):
 
     DEFAULT_CSS = """
     /* Message styling */
-    .user-label {
-        text-style: bold;
-        color: blue;
-        margin-top: 1;
-        margin-bottom: 0;
-    }
-    
     .user-message {
-        background: blue 20%;
-        color: white;
-        margin: 1;
-        margin-top: 0;
-        padding: 1;
-        border-left: solid blue;
-    }
-    
-    .assistant-label {
-        text-style: bold;
-        color: green;
-        margin-top: 1;
-        margin-bottom: 0;
+        background: $surface-lighten-1;
+        margin: 0 0 1 0;
+        padding: 0 1;
+        border: none;
     }
     
     .assistant-message {
-        background: green 20%;
-        color: white;
-        margin: 1;
-        margin-top: 0;
-        padding: 1;
-        border-left: solid green;
+        background: transparent;
+        margin: 0 0 1 0;
+        padding: 0;
+        border: none;
     }
     
     .assistant-streaming {
-        background: yellow 20%;
-        color: black;
-        margin: 1;
-        padding: 1;
-        border-left: solid yellow;
+        background: transparent;
+        color: $text-muted;
+        margin: 0 0 1 0;
+        padding: 0;
+        border: none;
         text-style: italic;
-    }
-    
-    .assistant-error-label {
-        text-style: bold;
-        color: red;
-        margin-top: 1;
-        margin-bottom: 0;
     }
     
     .assistant-error {
         background: red 20%;
         color: white;
-        margin: 1;
-        margin-top: 0;
-        padding: 1;
+        margin: 0 0 1 0;
+        padding: 0 1;
         border-left: solid red;
     }
     
-    .progress-label {
-        text-style: bold;
-        color: yellow;
-        margin-top: 1;
-        margin-bottom: 0;
-    }
-    
     .progress-message {
-        background: yellow 20%;
-        color: black;
-        margin: 1;
-        margin-top: 0;
-        padding: 1;
+        background: $surface-lighten-1;
+        color: $text;
+        margin: 0 0 1 0;
+        padding: 0 1;
         border-left: solid yellow;
     }
     
@@ -418,7 +384,9 @@ class REPL(Container):
     }
     
     .help-text {
-        margin-right: 2;
+        margin-right: 0;
+        margin-top: 0;
+        margin-bottom: 0;
     }
     
     .help-text.active {

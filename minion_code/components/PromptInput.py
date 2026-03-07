@@ -35,9 +35,11 @@ class CustomTextArea(TextArea):
     CustomTextArea {
         height: auto;
         min-height: 1;
-        max-height: 10;
+        max-height: 8;
         width: 1fr;
-        border: solid white;
+        border: none;
+        background: transparent;
+        padding: 0;
     }
     """
 
@@ -84,9 +86,9 @@ class PromptInput(Container):
     PromptInput {
         dock: bottom;
         height: auto;
-        max-height: 15;
+        max-height: 12;
         margin: 0 1 1 1;
-        padding: 1;
+        padding: 0;
     }
     
     .mode-bash PromptInput {
@@ -100,21 +102,25 @@ class PromptInput(Container):
     .input-row {
         height: auto;
         width: 1fr;
+        background: $surface-lighten-1;
+        padding: 0 1;
     }
     
     #mode_prefix {
-        width: 4;
-        min-width: 4;
-        max-width: 4;
+        width: 3;
+        min-width: 3;
+        max-width: 3;
         content-align: center middle;
         text-style: bold;
-        margin-right: 1;
+        margin-right: 0;
+        color: #7f8599;
     }
     
     .help-text {
         color: gray;
         text-style: dim;
-        margin-bottom: 1;
+        margin-top: 0;
+        margin-bottom: 0;
     }
     
     .model-info {
@@ -128,7 +134,7 @@ class PromptInput(Container):
         width: 1fr;
         height: auto;
         min-height: 1;
-        max-height: 10;
+        max-height: 8;
     }
     """
 
@@ -242,7 +248,7 @@ class PromptInput(Container):
             )
 
         yield Static(
-            "Enter to submit · Ctrl+Enter/Ctrl+J/Tab for new line · ! for bash · # for AGENTS.md",
+            "Enter send · Ctrl+Enter/Ctrl+J/Tab newline · ! bash · # AGENTS.md",
             classes="help-text",
         )
 

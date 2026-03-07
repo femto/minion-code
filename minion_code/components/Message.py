@@ -126,33 +126,36 @@ class Message(Container):
 
     DEFAULT_CSS = """
     Message {
-        width: 80%;
+        width: 100%;
         height: auto;
-        margin-bottom: 1;
+        margin: 0;
     }
 
     .user-message {
-        border-left: thick blue;
-        padding-left: 1;
+        background: $surface-lighten-1;
+        padding: 0 1;
+        margin: 0 0 1 0;
         height: auto;
     }
 
     .assistant-message {
-        border-left: thick green;
-        padding-left: 1;
+        background: transparent;
+        padding: 0;
+        margin: 0 0 1 0;
         height: auto;
     }
 
     .tool-use-message {
         border-left: thick yellow;
-        padding-left: 1;
+        padding: 0 1;
         background: $surface-lighten-1;
+        margin: 0 0 1 0;
         height: auto;
     }
 
     .error-message {
         border-left: thick red;
-        padding-left: 1;
+        padding: 0 1;
         background: $error 10%;
         height: auto;
     }
@@ -160,7 +163,14 @@ class Message(Container):
     .message-content {
         width: 100%;
         height: auto;
-        padding: 1;
+        padding: 0;
+    }
+
+    .user-prompt-line {
+        width: 100%;
+        height: auto;
+        color: $text;
+        text-style: bold;
     }
 
     .message-meta {
@@ -170,16 +180,16 @@ class Message(Container):
     }
 
     .streaming-message {
-        color: $primary;
+        color: $text-muted;
         text-style: italic;
-        background: $primary 10%;
+        background: transparent;
     }
 
     /* Section-specific styles */
     .thought-section {
         background: $primary 15%;
         border-left: thick $primary;
-        padding: 1;
+        padding: 0 1;
         margin-bottom: 1;
     }
 
@@ -192,7 +202,7 @@ class Message(Container):
     .code-section {
         background: $surface-darken-1;
         border-left: thick yellow;
-        padding: 1;
+        padding: 0 1;
         margin-bottom: 1;
     }
 
@@ -205,8 +215,8 @@ class Message(Container):
     .output-section {
         background: green 20%;
         border-left: thick green;
-        padding: 1;
-        margin-top: 1;
+        padding: 0 1;
+        margin: 0 0 1 0;
     }
 
     .output-label {
@@ -272,10 +282,15 @@ class Message(Container):
             # Message content
             content = self.message.message.content
             if isinstance(content, str):
-                yield from self._render_text_content(content)
+                yield from self._render_user_text_content(content)
             elif isinstance(content, list):
                 for item in content:
-                    yield from self._render_content_block(item)
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        yield from self._render_user_text_content(item.get("text", ""))
+                    else:
+                        yield from self._render_content_block(item)
+            else:
+                yield from self._render_user_text_content(str(content))
 
     def _render_assistant_message(self):
         """Render assistant message - equivalent to AssistantMessage component"""
@@ -368,6 +383,16 @@ class Message(Container):
         # Render each section with appropriate styling
         for section_type, content in sections:
             yield from self._render_section(section_type, content)
+
+    def _render_user_text_content(self, text: str):
+        """Render user content as compact prompt-style lines."""
+        if not text.strip():
+            return
+
+        for line in text.splitlines() or [text]:
+            prompt_line = Text("❯ ", style="bold #7f8599")
+            prompt_line.append(line if line else " ")
+            yield Static(prompt_line, classes="user-prompt-line")
 
     def _render_section(self, section_type: str, content: str):
         """Render a specific section with appropriate styling"""
