@@ -19,6 +19,25 @@ import re
 from ..type_defs import Message as MessageType, MessageContent, InputMode
 
 
+def _compact_blank_lines(text: str) -> str:
+    """Collapse excessive vertical whitespace in non-code text blocks."""
+    if not text:
+        return ""
+
+    compact_lines = []
+    blank_count = 0
+    for line in text.splitlines():
+        if line.strip():
+            blank_count = 0
+            compact_lines.append(line.rstrip())
+        else:
+            blank_count += 1
+            if blank_count <= 1:
+                compact_lines.append("")
+
+    return "\n".join(compact_lines).strip()
+
+
 def parse_agent_response(text: str) -> List[Tuple[str, str]]:
     """
     Parse agent response to extract different sections.
@@ -191,6 +210,7 @@ class Message(Container):
         border-left: thick $primary;
         padding: 0 1;
         margin-bottom: 1;
+        height: auto;
     }
 
     .thought-label {
@@ -204,6 +224,7 @@ class Message(Container):
         border-left: thick yellow;
         padding: 0 1;
         margin-bottom: 1;
+        height: auto;
     }
 
     .code-label {
@@ -217,6 +238,7 @@ class Message(Container):
         border-left: thick green;
         padding: 0 1;
         margin: 0 0 1 0;
+        height: auto;
     }
 
     .output-label {
@@ -335,6 +357,7 @@ class Message(Container):
 
     def _render_text_content(self, text: str):
         """Render text content with markdown support and streaming indicators"""
+        text = _compact_blank_lines(text)
         if not text.strip():
             return
 
@@ -386,6 +409,7 @@ class Message(Container):
 
     def _render_user_text_content(self, text: str):
         """Render user content as compact prompt-style lines."""
+        text = _compact_blank_lines(text)
         if not text.strip():
             return
 
@@ -396,6 +420,12 @@ class Message(Container):
 
     def _render_section(self, section_type: str, content: str):
         """Render a specific section with appropriate styling"""
+        if section_type != "code":
+            content = _compact_blank_lines(content)
+
+        if not content:
+            return
+
         if section_type == "thought":
             with Vertical(classes="thought-section"):
                 yield Static("💭 Thought:", classes="thought-label")

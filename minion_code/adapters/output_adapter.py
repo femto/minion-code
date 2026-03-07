@@ -136,6 +136,9 @@ class OutputAdapter(ABC):
         default: bool = False,
         ok_text: str = "Yes",
         cancel_text: str = "No",
+        resource_type: Optional[str] = None,
+        resource_name: Optional[str] = None,
+        resource_args: Optional[dict] = None,
     ) -> bool:
         """
         Display a confirmation dialog and wait for user response.
@@ -146,6 +149,9 @@ class OutputAdapter(ABC):
             default: Default choice
             ok_text: Text for confirmation button
             cancel_text: Text for cancel button
+            resource_type: Optional resource category for richer UIs
+            resource_name: Optional resource identifier for richer UIs
+            resource_args: Optional structured arguments for richer UIs
 
         Returns:
             True if user confirmed, False if cancelled

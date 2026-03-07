@@ -207,6 +207,9 @@ class WebOutputAdapter(OutputAdapter):
         default: bool = False,
         ok_text: str = "Yes",
         cancel_text: str = "No",
+        resource_type: Optional[str] = None,
+        resource_name: Optional[str] = None,
+        resource_args: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Request user confirmation via input_required event.
@@ -247,8 +250,9 @@ class WebOutputAdapter(OutputAdapter):
                     "title": title,
                     "message": message,
                     "data": {
-                        "resource_type": "action",
-                        "resource_name": title,
+                        "resource_type": resource_type or "action",
+                        "resource_name": resource_name or title,
+                        "resource_args": resource_args,
                         "default": default,
                         "ok_text": ok_text,
                         "cancel_text": cancel_text,

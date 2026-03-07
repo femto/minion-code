@@ -39,10 +39,12 @@ class Messages(ScrollableContainer):
     
     .empty-state {
         width: 100%;
-        height: 100%;
-        content-align: center middle;
+        height: auto;
+        content-align: left top;
         color: $text-muted;
         text-style: dim;
+        padding: 0 1;
+        margin: 0;
     }
     
     .message-item {

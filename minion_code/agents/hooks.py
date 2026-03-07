@@ -155,6 +155,7 @@ def create_confirm_writes_hook(
                 "web_fetch",
                 "web_search",
                 "todo_read",
+                "user_input",
                 "Task",
             }
             if tool_name in readonly_tools:
@@ -223,6 +224,7 @@ def create_cli_confirm_hook(
         "web_fetch",
         "web_search",
         "todo_read",
+        "user_input",
         "Task",
     }
 

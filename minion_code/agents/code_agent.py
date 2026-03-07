@@ -225,6 +225,7 @@ class MinionCodeAgent(CodeAgent):
         "  make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency.\n"
         "- However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call them sequentially.\n"
         "- Never use placeholders or guess missing parameters in tool calls.\n"
+        "- Do not call the `user_input` tool in interactive chat sessions. Ask clarifying questions directly in your assistant response and wait for the user's next message.\n"
         "- Use specialized tools instead of bash commands when possible. For file operations, use dedicated tools:\n"
         "  file_read for reading files instead of cat/head/tail, file_edit for editing instead of sed/awk,\n"
         "  and file_write for creating files instead of cat with heredoc or echo redirection.\n"

@@ -83,6 +83,9 @@ class TextualOutputAdapter(OutputAdapter):
         default: bool = False,
         ok_text: str = "Yes",
         cancel_text: str = "No",
+        resource_type: Optional[str] = None,
+        resource_name: Optional[str] = None,
+        resource_args: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Request user confirmation (non-blocking).
@@ -102,6 +105,9 @@ class TextualOutputAdapter(OutputAdapter):
                 "default": default,
                 "ok_text": ok_text,
                 "cancel_text": cancel_text,
+                "resource_type": resource_type,
+                "resource_name": resource_name,
+                "resource_args": resource_args,
             },
             future=future,
         )
@@ -116,6 +122,9 @@ class TextualOutputAdapter(OutputAdapter):
                 "default": default,
                 "ok_text": ok_text,
                 "cancel_text": cancel_text,
+                "resource_type": resource_type,
+                "resource_name": resource_name,
+                "resource_args": resource_args,
             },
         )
 

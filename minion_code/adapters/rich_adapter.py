@@ -68,6 +68,9 @@ class RichOutputAdapter(OutputAdapter):
         default: bool = False,
         ok_text: str = "Yes",
         cancel_text: str = "No",
+        resource_type: Optional[str] = None,
+        resource_name: Optional[str] = None,
+        resource_args: Optional[dict] = None,
     ) -> bool:
         """
         Display confirmation dialog (blocking).

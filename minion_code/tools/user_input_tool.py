@@ -5,6 +5,8 @@ User input tool
 """
 
 from typing import Optional
+import os
+import sys
 from minion.tools import BaseTool
 
 
@@ -27,6 +29,30 @@ class UserInputTool(BaseTool):
     def forward(self, question: str, default_value: Optional[str] = None) -> str:
         """Ask user a question"""
         try:
+            allow_stdin = os.getenv("MINION_CODE_ALLOW_STDIN_USER_INPUT", "").lower() in {
+                "1",
+                "true",
+                "yes",
+            }
+
+            if not allow_stdin:
+                fallback = (
+                    "Interactive user_input is disabled in this UI to avoid blocking. "
+                    "Ask the user directly in your assistant response and wait for their next message."
+                )
+                if default_value:
+                    fallback += f" Default suggestion: {default_value}"
+                return fallback
+
+            if not sys.stdin or not sys.stdin.isatty():
+                fallback = (
+                    "Interactive stdin is not available. "
+                    "Ask the user directly in your assistant response and wait for their next message."
+                )
+                if default_value:
+                    fallback += f" Default suggestion: {default_value}"
+                return fallback
+
             # Build prompt message
             prompt = f"Question: {question}"
             if default_value:
