@@ -858,6 +858,103 @@ Try typing something to get started!"""
         except Exception as e:
             return f"Error executing command: {str(e)}"
 
+    def _get_message_mode(self, message: MessageData) -> InputMode:
+        """Extract the input mode from a user message."""
+        mode_value = (
+            message.options.get("mode")
+            if message.options and isinstance(message.options, dict)
+            else None
+        )
+        if not mode_value:
+            return InputMode.PROMPT
+
+        try:
+            return InputMode(mode_value)
+        except ValueError:
+            return InputMode.PROMPT
+
+    async def _process_special_mode_batch(
+        self, messages: List[MessageData], mode: InputMode
+    ) -> None:
+        """Process bash and memory submissions through the shared message pipeline."""
+        if not messages:
+            return
+
+        user_message = messages[-1]
+        raw_content = user_message.message.content
+        input_text = raw_content if isinstance(raw_content, str) else str(raw_content)
+
+        if mode == InputMode.BASH:
+            command = input_text[1:].strip() if input_text.startswith("!") else input_text
+            result = await self.execute_bash_command(command)
+            assistant_message = MessageData(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(result),
+                options={"mode": mode.value},
+            )
+            self.messages = [*self.messages, assistant_message]
+            self._save_message_to_session("assistant", result)
+            self._refresh_messages()
+            return
+
+        if mode != InputMode.MEMORY:
+            return
+
+        content = input_text[1:].strip() if input_text.startswith("#") else input_text
+        if not content:
+            error_message = MessageData(
+                type=MessageType.ASSISTANT,
+                message=MessageContent("❌ Memory input is empty."),
+                options={"error": True},
+            )
+            self.messages = [*self.messages, error_message]
+            self._save_message_to_session("assistant", "❌ Memory input is empty.")
+            self._refresh_messages()
+            return
+
+        action_words = ["put", "create", "generate", "write", "give", "provide"]
+        if any(word in content.lower() for word in action_words):
+            await self.query_api(
+                [
+                    MessageData(
+                        type=MessageType.USER,
+                        message=MessageContent(content),
+                        options={"isMemoryRequest": True, "mode": mode.value},
+                    )
+                ],
+                manage_loading=False,
+            )
+            return
+
+        try:
+            agents_md_path = Path("AGENTS.md")
+            if not agents_md_path.exists():
+                with open(agents_md_path, "w", encoding="utf-8") as f:
+                    f.write("# Agent Development Guidelines\n\n")
+
+            with open(agents_md_path, "a", encoding="utf-8") as f:
+                f.write(f"\n\n{content}\n")
+
+            result = "✅ Memory added to AGENTS.md"
+            assistant_message = MessageData(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(result),
+                options={"mode": mode.value},
+            )
+            self.messages = [*self.messages, assistant_message]
+            self._save_message_to_session("assistant", result)
+            self._refresh_messages()
+        except Exception as e:
+            error_text = f"❌ Failed to write memory to AGENTS.md: {e}"
+            error_message = MessageData(
+                type=MessageType.ASSISTANT,
+                message=MessageContent(error_text),
+                options={"error": True},
+            )
+            self.messages = [*self.messages, error_message]
+            self._save_message_to_session("assistant", error_text)
+            self._refresh_messages()
+
     def set_agent(self, agent):
         """Set agent from app level and bind output adapter"""
         print(f"DEBUG set_agent: agent={agent}, initial_prompt={self.initial_prompt}")
@@ -1293,7 +1390,17 @@ Try typing something to get started!"""
 
                 while pending_messages:
                     current_messages = pending_messages.pop(0)
-                    await self.query_api(current_messages, manage_loading=False)
+                    last_message = current_messages[-1] if current_messages else None
+                    mode = (
+                        self._get_message_mode(last_message)
+                        if last_message is not None
+                        else InputMode.PROMPT
+                    )
+
+                    if mode in (InputMode.BASH, InputMode.MEMORY):
+                        await self._process_special_mode_batch(current_messages, mode)
+                    else:
+                        await self.query_api(current_messages, manage_loading=False)
 
                     while True:
                         queued_prompt = self.runtime_state.pop_prompt()

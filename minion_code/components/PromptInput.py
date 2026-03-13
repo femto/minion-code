@@ -439,35 +439,22 @@ class PromptInput(Container):
         # 1. 立即清空输入框并重置模式 - 提供即时反馈
         original_mode = self.mode
 
-        if self.is_loading and original_mode in (InputMode.MEMORY, InputMode.BASH):
-            return
-
         with text_area.prevent(TextArea.Changed):
             text_area.text = ""
         self.input_value = ""
         self._prefix_triggered_mode = None
         self._set_mode(InputMode.PROMPT)
 
-        # 2. 根据模式处理输入
-        if original_mode == InputMode.MEMORY:
-            # Memory 模式：直接处理笔记，不走 AI query
-            await self._handle_memory_input(input_text)
-        elif original_mode == InputMode.BASH:
-            # Bash 模式：执行命令
-            await self._handle_bash_input(input_text)
-        else:
-            # Prompt 模式：正常的 AI 对话
-            # 2a. 立即创建用户消息
-            user_message = self._create_user_message(input_text, original_mode)
+        # 2. 统一创建用户消息并交给 REPL 处理
+        user_message = self._create_user_message(input_text, original_mode)
 
-            # 2b. 立即显示用户消息（同步操作，不等待网络）
-            if self.on_add_user_message:
-                self.on_add_user_message(user_message)
+        # 2a. 立即显示用户消息（同步操作，不等待网络）
+        if self.on_add_user_message:
+            self.on_add_user_message(user_message)
 
-            # 2c. 启动后台AI处理 - 让父组件管理 worker
-            if self.on_query:
-                # 直接调用父组件的回调，让父组件管理 worker
-                await self.on_query([user_message])
+        # 2b. 让父组件统一处理 prompt/bash/memory
+        if self.on_query:
+            await self.on_query([user_message])
 
         # 3. 更新提交计数和历史记录
         self.submit_count += 1
