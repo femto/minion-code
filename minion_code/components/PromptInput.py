@@ -18,6 +18,8 @@ import time
 
 # No logging in UI components to reduce noise
 
+from ..utils.history import get_history
+
 # Import shared types
 from ..type_defs import (
     InputMode,
@@ -55,22 +57,38 @@ class CustomTextArea(TextArea):
 
     def on_key(self, event: Key) -> bool:
         """Handle key events and post to parent"""
-        # Post key event to parent for handling
-        self.post_message(self.KeyPressed(event.key))
-
         # Handle Ctrl+Enter, Tab, and Ctrl+J - prevent default, let parent add newline manually
         if event.key in ["tab"]:
+            self.post_message(self.KeyPressed(event.key))
             event.prevent_default()
             event.stop()
             return True
         if event.key in ["ctrl+enter", "ctrl+j"]:
+            self.post_message(self.KeyPressed(event.key))
             return True  # Prevent TextArea from handling, parent will add newline
 
         # Handle Enter - prevent default and let parent handle
         if event.key == "enter":
+            self.post_message(self.KeyPressed(event.key))
             event.prevent_default()
             event.stop()
             return True  # Prevent TextArea from handling
+
+        if event.key == "up" and self.cursor_location[0] == 0:
+            self.post_message(self.KeyPressed(event.key))
+            event.prevent_default()
+            event.stop()
+            return True
+
+        line_count = len(self.text.split("\n")) or 1
+        if event.key == "down" and self.cursor_location[0] >= line_count - 1:
+            self.post_message(self.KeyPressed(event.key))
+            event.prevent_default()
+            event.stop()
+            return True
+
+        # Post key event to parent for handling
+        self.post_message(self.KeyPressed(event.key))
 
         # Let TextArea handle all other keys normally
         return False
@@ -144,6 +162,7 @@ class PromptInput(Container):
     is_disabled = reactive(False)
     is_loading = reactive(False)
     interrupt_armed = reactive(False)
+    history_position = reactive(-1)
     submit_count = reactive(0)
     cursor_offset = reactive(0)
 
@@ -222,6 +241,8 @@ class PromptInput(Container):
         )
         self._interrupt_deadline = 0.0
         self._interrupt_reset_timer = None
+        self._history_draft = ""
+        self._applying_history = False
 
     def on_mount(self):
         """Set focus to input when component mounts"""
@@ -325,6 +346,8 @@ class PromptInput(Container):
                     self.on_mode_change(InputMode.KODING)
 
         self.input_value = value
+        if self.history_position == -1 and not self._applying_history:
+            self._history_draft = value
         if self.on_input_change:
             self.on_input_change(value)
 
@@ -352,6 +375,10 @@ class PromptInput(Container):
                 self.mode = InputMode.PROMPT
                 if self.on_mode_change:
                     self.on_mode_change(InputMode.PROMPT)
+        elif key == "up":
+            self._history_previous()
+        elif key == "down":
+            self._history_next()
         elif key == "escape":
             if self.is_loading:
                 self._handle_loading_escape()
@@ -402,6 +429,7 @@ class PromptInput(Container):
 
             # Update history
             self._add_to_history(input_text)
+            self._reset_history_navigation()
             return
 
         # 1. 立即清空输入框并重置模式 - 提供即时反馈
@@ -445,6 +473,7 @@ class PromptInput(Container):
             self.on_submit_count_change(lambda x: x + 1)
 
         self._add_to_history(input_text)
+        self._reset_history_navigation()
 
     async def _handle_command_input(self, input_text: str):
         """
@@ -719,6 +748,73 @@ class PromptInput(Container):
 
         add_to_history(input_text)
 
+    def _apply_history_value(self, value: str) -> None:
+        """Replace the input text with a history entry and move the cursor to the end."""
+        try:
+            text_area = self.query_one("#main_input", expect_type=CustomTextArea)
+        except Exception:
+            return
+
+        self._applying_history = True
+        try:
+            with text_area.prevent(TextArea.Changed):
+                text_area.text = value
+                lines = value.split("\n") or [""]
+                text_area.cursor_location = (len(lines) - 1, len(lines[-1]))
+            self.input_value = value
+            if self.on_input_change:
+                self.on_input_change(value)
+        finally:
+            self._applying_history = False
+
+    def _reset_history_navigation(self, clear_draft: bool = True) -> None:
+        """Reset prompt history navigation state."""
+        self.history_position = -1
+        if clear_draft:
+            self._history_draft = ""
+
+    def _history_previous(self) -> None:
+        """Load the previous prompt from persistent project history."""
+        history = get_history()
+        if not history:
+            return
+
+        try:
+            text_area = self.query_one("#main_input", expect_type=CustomTextArea)
+        except Exception:
+            return
+
+        if self.history_position == -1:
+            self._history_draft = text_area.text
+            next_position = 0
+        else:
+            next_position = min(self.history_position + 1, len(history) - 1)
+
+        if next_position == self.history_position:
+            return
+
+        self.history_position = next_position
+        self._apply_history_value(history[self.history_position])
+
+    def _history_next(self) -> None:
+        """Load the next prompt from persistent project history or restore the draft."""
+        if self.history_position == -1:
+            return
+
+        history = get_history()
+        if not history:
+            self._reset_history_navigation()
+            return
+
+        if self.history_position <= 0:
+            draft = self._history_draft
+            self._reset_history_navigation(clear_draft=True)
+            self._apply_history_value(draft)
+            return
+
+        self.history_position -= 1
+        self._apply_history_value(history[self.history_position])
+
     def _handle_exit(self):
         """Handle exit command"""
         # This would typically exit the application
@@ -837,6 +933,16 @@ class PromptInput(Container):
         try:
             input_widget = self.query_one("#main_input", expect_type=CustomTextArea)
             if input_widget.text != value:
-                input_widget.text = value
+                with input_widget.prevent(TextArea.Changed):
+                    input_widget.text = value
         except:
             pass
+
+    def watch_history_position(self, history_position: int):
+        """Keep the draft in sync while the user is not browsing history."""
+        if history_position == -1 and not self._applying_history:
+            try:
+                input_widget = self.query_one("#main_input", expect_type=CustomTextArea)
+                self._history_draft = input_widget.text
+            except Exception:
+                self._history_draft = self.input_value
