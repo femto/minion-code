@@ -243,6 +243,7 @@ class PromptInput(Container):
         self._interrupt_reset_timer = None
         self._history_draft = ""
         self._applying_history = False
+        self._prefix_triggered_mode: Optional[InputMode] = None
 
     def on_mount(self):
         """Set focus to input when component mounts"""
@@ -332,24 +333,38 @@ class PromptInput(Container):
     def on_textarea_changed(self, event: TextArea.Changed):
         """Handle TextArea content changes"""
         value = event.text_area.text
-
-        # Handle mode switching based on input prefix
-        if value.startswith("!"):
-            if self.mode != InputMode.BASH:
-                self.mode = InputMode.BASH
-                if self.on_mode_change:
-                    self.on_mode_change(InputMode.BASH)
-        elif value.startswith("#"):
-            if self.mode != InputMode.KODING:
-                self.mode = InputMode.KODING
-                if self.on_mode_change:
-                    self.on_mode_change(InputMode.KODING)
+        self._sync_mode_from_text(value)
 
         self.input_value = value
         if self.history_position == -1 and not self._applying_history:
             self._history_draft = value
         if self.on_input_change:
             self.on_input_change(value)
+
+    def _set_mode(self, mode: InputMode) -> None:
+        """Update mode and notify listeners only when it changes."""
+        if self.mode == mode:
+            return
+
+        self.mode = mode
+        if self.on_mode_change:
+            self.on_mode_change(mode)
+
+    def _sync_mode_from_text(self, value: str) -> None:
+        """Track prefix-triggered modes and exit them once the prefix is removed."""
+        if value.startswith("!"):
+            self._prefix_triggered_mode = InputMode.BASH
+            self._set_mode(InputMode.BASH)
+            return
+
+        if value.startswith("#"):
+            self._prefix_triggered_mode = InputMode.KODING
+            self._set_mode(InputMode.KODING)
+            return
+
+        if self._prefix_triggered_mode is not None:
+            self._prefix_triggered_mode = None
+            self._set_mode(InputMode.PROMPT)
 
     @on(CustomTextArea.KeyPressed)
     def on_custom_textarea_key(self, event: CustomTextArea.KeyPressed):
@@ -365,16 +380,6 @@ class PromptInput(Container):
         elif key in ["ctrl+enter", "ctrl+j"]:
             # Ctrl+Enter, Tab, or Ctrl+J - manually add newline
             self._insert_newline()
-        elif key in ["backspace", "delete"]:
-            # Handle mode reset on empty input
-            if self.mode == InputMode.BASH and not self.input_value:
-                self.mode = InputMode.PROMPT
-                if self.on_mode_change:
-                    self.on_mode_change(InputMode.PROMPT)
-            elif self.mode == InputMode.KODING and not self.input_value:
-                self.mode = InputMode.PROMPT
-                if self.on_mode_change:
-                    self.on_mode_change(InputMode.PROMPT)
         elif key == "up":
             self._history_previous()
         elif key == "down":
@@ -386,9 +391,8 @@ class PromptInput(Container):
                 if self.on_show_message_selector:
                     self.on_show_message_selector()
             else:
-                self.mode = InputMode.PROMPT
-                if self.on_mode_change:
-                    self.on_mode_change(InputMode.PROMPT)
+                self._prefix_triggered_mode = None
+                self._set_mode(InputMode.PROMPT)
         elif key == "shift+m":
             # Handle model switching
             self._handle_quick_model_switch()
@@ -441,10 +445,8 @@ class PromptInput(Container):
         with text_area.prevent(TextArea.Changed):
             text_area.text = ""
         self.input_value = ""
-        self.mode = InputMode.PROMPT
-
-        if self.on_mode_change:
-            self.on_mode_change(InputMode.PROMPT)
+        self._prefix_triggered_mode = None
+        self._set_mode(InputMode.PROMPT)
 
         # 2. 根据模式处理输入
         if original_mode == InputMode.KODING:
@@ -888,13 +890,11 @@ class PromptInput(Container):
 
     def _cycle_mode(self):
         """Cycle through input modes"""
+        self._prefix_triggered_mode = None
         modes = list(InputMode)
         current_index = modes.index(self.mode)
         new_mode = modes[(current_index + 1) % len(modes)]
-        self.mode = new_mode
-
-        if self.on_mode_change:
-            self.on_mode_change(new_mode)
+        self._set_mode(new_mode)
 
     # Reactive property watchers
     def watch_mode(self, mode: InputMode):
