@@ -41,6 +41,7 @@ sys.stdout = sys.stderr
 
 # Now import everything else
 from acp import run_agent
+from acp.stdio import stdio_streams
 
 from .agent import MinionACPAgent
 
@@ -107,6 +108,16 @@ def setup_logging(level: str = "INFO") -> None:
         )
     )
     logging.getLogger().addHandler(file_handler)
+
+
+def configure_acp_stream_logging() -> None:
+    """Keep minion's streaming logger off the ACP JSON-RPC stdout channel."""
+    try:
+        from minion.logs import set_llm_stream_logfunc
+
+        set_llm_stream_logfunc(lambda _msg: None)
+    except Exception as e:
+        logger.debug(f"Failed to override minion stream logger: {e}")
 
 
 def main(
@@ -183,12 +194,19 @@ def main(
         model=model,
     )
 
-    # Restore stdout for ACP communication
-    sys.stdout = _original_stdout
+    configure_acp_stream_logging()
+
+    async def _run_acp_agent() -> None:
+        # Create protocol streams against the original stdout, then immediately
+        # restore global stdout to stderr so stray prints cannot corrupt JSON-RPC.
+        sys.stdout = _original_stdout
+        reader, writer = await stdio_streams()
+        sys.stdout = sys.stderr
+        await run_agent(agent, input_stream=writer, output_stream=reader)
 
     # Run the ACP agent (run_agent is an async function)
     try:
-        asyncio.run(run_agent(agent))
+        asyncio.run(_run_acp_agent())
     except KeyboardInterrupt:
         logger.info("Shutting down ACP agent")
     except Exception as e:
