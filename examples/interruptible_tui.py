@@ -167,9 +167,9 @@ class InterruptibleCLI:
         help_table.add_row("[bold]Input Modes:[/bold]", "")
         help_table.add_row("> [text]", "Prompt mode - Chat with AI assistant")
         help_table.add_row("! [command]", "Bash mode - Execute shell commands")
-        help_table.add_row("# [note]", "Koding mode - Add notes to AGENTS.md")
+        help_table.add_row("# [note]", "Memory mode - Add notes to AGENTS.md")
         help_table.add_row("", "")  # Separator
-        help_table.add_row("[bold]Koding Mode Types:[/bold]", "")
+        help_table.add_row("[bold]Memory Mode Types:[/bold]", "")
         help_table.add_row("# [simple note]", "Direct note (simple write)")
         help_table.add_row("# put/create/generate...", "AI processing with query_quick")
 
@@ -242,8 +242,8 @@ class InterruptibleCLI:
             self.current_mode = InputMode.BASH
             return InputMode.BASH, user_input[1:].strip()
         elif user_input.startswith("#"):
-            self.current_mode = InputMode.KODING
-            return InputMode.KODING, user_input[1:].strip()
+            self.current_mode = InputMode.MEMORY
+            return InputMode.MEMORY, user_input[1:].strip()
         else:
             self.current_mode = InputMode.PROMPT
             return InputMode.PROMPT, user_input
@@ -252,7 +252,7 @@ class InterruptibleCLI:
         """Get colored mode indicator for display."""
         if mode == InputMode.BASH:
             return "[bold yellow]![/bold yellow]"
-        elif mode == InputMode.KODING:
+        elif mode == InputMode.MEMORY:
             return "[bold cyan]#[/bold cyan]"
         else:
             return "[bold green]>[/bold green]"
@@ -321,8 +321,8 @@ class InterruptibleCLI:
             )
             self.console.print(error_panel)
 
-    async def _handle_koding_mode(self, note_content: str):
-        """Handle koding mode input - consistent with REPL logic."""
+    async def _handle_memory_mode(self, note_content: str):
+        """Handle memory mode input - consistent with REPL logic."""
         if not note_content:
             self.console.print("❌ [bold red]Empty note content[/bold red]")
             return
@@ -331,7 +331,7 @@ class InterruptibleCLI:
             # Show what note is being processed
             note_panel = Panel(
                 f"[bold white]{note_content}[/bold white]",
-                title=f"{self._get_mode_indicator(InputMode.KODING)} [bold cyan]Processing Koding Request[/bold cyan]",
+                title=f"{self._get_mode_indicator(InputMode.MEMORY)} [bold cyan]Processing Memory Request[/bold cyan]",
                 border_style="cyan",
             )
             self.console.print(note_panel)
@@ -344,21 +344,21 @@ class InterruptibleCLI:
 
             if is_action_request:
                 # Handle as AI request using query_quick for lightweight processing
-                await self._handle_koding_ai_request(note_content)
+                await self._handle_memory_ai_request(note_content)
             else:
                 # Handle as direct note to AGENTS.md (simple write)
-                await self._handle_koding_note(note_content)
+                await self._handle_memory_note(note_content)
 
         except Exception as e:
             error_panel = Panel(
-                f"❌ [bold red]Error processing koding request: {e}[/bold red]",
-                title="[bold red]Koding Error[/bold red]",
+                f"❌ [bold red]Error processing memory request: {e}[/bold red]",
+                title="[bold red]Memory Error[/bold red]",
                 border_style="red",
             )
             self.console.print(error_panel)
 
-    async def _handle_koding_ai_request(self, content: str):
-        """Handle AI request for koding mode using query_quick for lightweight processing."""
+    async def _handle_memory_ai_request(self, content: str):
+        """Handle AI request for memory mode using query_quick for lightweight processing."""
         if not self.agent:
             self.console.print(
                 "❌ [bold red]Agent not available for AI requests[/bold red]"
@@ -379,7 +379,7 @@ class InterruptibleCLI:
 
             # Create system prompt for AI content generation
             system_prompt = [
-                "The user is using Koding mode. Format your response as a comprehensive,",
+                "The user is using Memory mode. Format your response as a comprehensive,",
                 "well-structured document suitable for adding to AGENTS.md. Use proper",
                 "markdown formatting with headings, lists, code blocks, etc.",
             ]
@@ -432,13 +432,13 @@ class InterruptibleCLI:
             )
             self.console.print(error_panel)
 
-    async def _handle_koding_note(self, content: str):
+    async def _handle_memory_note(self, content: str):
         """Handle direct note to AGENTS.md - simple write without AI processing."""
         try:
             # Show what note is being added
             note_panel = Panel(
                 f"[bold white]{content}[/bold white]",
-                title=f"{self._get_mode_indicator(InputMode.KODING)} [bold cyan]Adding Direct Note[/bold cyan]",
+                title=f"{self._get_mode_indicator(InputMode.MEMORY)} [bold cyan]Adding Direct Note[/bold cyan]",
                 border_style="cyan",
             )
             self.console.print(note_panel)
@@ -532,8 +532,8 @@ class InterruptibleCLI:
         if mode == InputMode.BASH:
             await self._handle_bash_mode(cleaned_input)
             return
-        elif mode == InputMode.KODING:
-            await self._handle_koding_mode(cleaned_input)
+        elif mode == InputMode.MEMORY:
+            await self._handle_memory_mode(cleaned_input)
             return
 
         # Handle prompt mode (regular AI chat)
