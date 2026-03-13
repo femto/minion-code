@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from ..utils.runtime_paths import ensure_minion_root_env
+from ..runtime_paths import ensure_minion_root_env
 
 ensure_minion_root_env()
 

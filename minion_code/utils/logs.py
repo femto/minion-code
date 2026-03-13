@@ -8,7 +8,7 @@ from pathlib import Path
 from loguru import logger as _logger
 from minion.const import MINION_ROOT
 
-from .runtime_paths import ensure_minion_root_env
+from ..runtime_paths import ensure_minion_root_env
 
 _print_level = "INFO"
 

@@ -1,11 +1,14 @@
 """Utilities for todo file path management."""
 
 import os
+from pathlib import Path
 from typing import Optional
+
+from ..runtime_paths import DEFAULT_MINION_ROOT
 
 
 def get_todo_file_path(
-    agent_id: Optional[str] = None, storage_dir: str = ".minion"
+    agent_id: Optional[str] = None, storage_dir: Optional[str] = None
 ) -> str:
     """
     Get the file path for todo storage for a specific agent.
@@ -17,6 +20,9 @@ def get_todo_file_path(
     Returns:
         Full path to the todo file for the agent.
     """
+    if storage_dir is None:
+        storage_dir = get_default_storage_dir()
+
     # Ensure storage directory exists
     os.makedirs(storage_dir, exist_ok=True)
 
@@ -31,7 +37,8 @@ def get_todo_file_path(
 
 def get_default_storage_dir() -> str:
     """Get the default storage directory for todo files."""
-    return ".minion"
+    runtime_root = Path(os.environ.get("MINION_ROOT", DEFAULT_MINION_ROOT)).expanduser()
+    return str(runtime_root / "todos")
 
 
 def ensure_storage_dir_exists(storage_dir: Optional[str] = None) -> str:

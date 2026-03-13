@@ -1,5 +1,7 @@
 """Todo storage utilities for managing todo items."""
 
+from __future__ import annotations
+
 import json
 import os
 from typing import List, Dict, Any, Optional
@@ -123,37 +125,43 @@ class TodoStorage:
         self.set_todos([], agent_id)
 
 
-# Global storage instance
-_storage = TodoStorage()
+_storage: Optional[TodoStorage] = None
+
+
+def _get_storage() -> TodoStorage:
+    global _storage
+    if _storage is None:
+        _storage = TodoStorage()
+    return _storage
 
 
 def get_todos(agent_id: Optional[str] = None) -> List[TodoItem]:
     """Get todos from global storage."""
-    return _storage.get_todos(agent_id)
+    return _get_storage().get_todos(agent_id)
 
 
 def set_todos(todos: List[TodoItem], agent_id: Optional[str] = None) -> None:
     """Set todos in global storage."""
-    _storage.set_todos(todos, agent_id)
+    _get_storage().set_todos(todos, agent_id)
 
 
 def add_todo(todo: TodoItem, agent_id: Optional[str] = None) -> None:
     """Add todo to global storage."""
-    _storage.add_todo(todo, agent_id)
+    _get_storage().add_todo(todo, agent_id)
 
 
 def update_todo(
     todo_id: str, updates: Dict[str, Any], agent_id: Optional[str] = None
 ) -> bool:
     """Update todo in global storage."""
-    return _storage.update_todo(todo_id, updates, agent_id)
+    return _get_storage().update_todo(todo_id, updates, agent_id)
 
 
 def remove_todo(todo_id: str, agent_id: Optional[str] = None) -> bool:
     """Remove todo from global storage."""
-    return _storage.remove_todo(todo_id, agent_id)
+    return _get_storage().remove_todo(todo_id, agent_id)
 
 
 def clear_todos(agent_id: Optional[str] = None) -> None:
     """Clear all todos in global storage."""
-    _storage.clear_todos(agent_id)
+    _get_storage().clear_todos(agent_id)

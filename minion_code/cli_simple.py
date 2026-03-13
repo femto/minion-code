@@ -25,7 +25,7 @@ from rich.prompt import Prompt
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from minion_code.utils.runtime_paths import ensure_minion_root_env
+from minion_code.runtime_paths import ensure_minion_root_env
 
 ensure_minion_root_env()
 

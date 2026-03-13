@@ -10,7 +10,7 @@ with dynamic system prompts and state management.
 
 import sys
 
-from .utils.runtime_paths import ensure_minion_root_env
+from .runtime_paths import ensure_minion_root_env
 
 ensure_minion_root_env()
 
