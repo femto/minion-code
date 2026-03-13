@@ -20,6 +20,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from ..utils.runtime_paths import ensure_minion_root_env
+
+ensure_minion_root_env()
+
 # Save original stdout for ACP communication
 _original_stdout = sys.stdout
 

@@ -8,7 +8,11 @@ from pathlib import Path
 from loguru import logger as _logger
 from minion.const import MINION_ROOT
 
+from .runtime_paths import ensure_minion_root_env
+
 _print_level = "INFO"
+
+ensure_minion_root_env(MINION_ROOT)
 
 
 def define_log_level(print_level="INFO", logfile_level="DEBUG", name: str = None):
@@ -24,7 +28,9 @@ def define_log_level(print_level="INFO", logfile_level="DEBUG", name: str = None
 
     _logger.remove()
     _logger.add(sys.stdout, level=print_level)
-    _logger.add(MINION_ROOT / f"logs/{log_name}.txt", level=logfile_level)
+    logs_dir = MINION_ROOT / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    _logger.add(logs_dir / f"{log_name}.txt", level=logfile_level)
     return _logger
 
 
