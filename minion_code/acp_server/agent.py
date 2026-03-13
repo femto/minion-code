@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from acp import Client, text_block
 from acp.exceptions import RequestError
 from acp.helpers import (
+    update_current_mode,
     update_agent_message_text,
     update_agent_thought_text,
 )
@@ -44,12 +45,18 @@ from acp.schema import (
     ResourceContentBlock,
     ResumeSessionResponse,
     SessionModelState,
+    SessionModeState,
     SetSessionModelResponse,
     SetSessionModeResponse,
     SseMcpServer,
     TextContentBlock,
     ToolCallStart,
     ToolCallProgress,
+)
+from .session_modes import (
+    DEFAULT_MODE_ID,
+    build_session_mode_state,
+    get_session_mode_spec,
 )
 
 # Import authentication module
@@ -182,6 +189,7 @@ class MinionACPAgent:
             mcp_servers=mcp_servers,
             skip_permissions=self.skip_permissions,
             model=self.model,
+            mode_id=DEFAULT_MODE_ID,
         )
         await session.initialize()
 
@@ -211,7 +219,11 @@ class MinionACPAgent:
             except Exception as e:
                 logger.warning(f"Failed to fetch models: {e}")
 
-        return NewSessionResponse(session_id=session_id, models=models_state)
+        return NewSessionResponse(
+            session_id=session_id,
+            models=models_state,
+            modes=build_session_mode_state(session.current_mode_id),
+        )
 
     async def load_session(
         self,
@@ -245,8 +257,27 @@ class MinionACPAgent:
         session_id: str,
         **kwargs: Any,
     ) -> Optional[SetSessionModeResponse]:
-        """Set the session mode (not implemented)."""
-        return None
+        """Set the session mode."""
+        session = self.sessions.get(session_id)
+        if not session:
+            raise RequestError.invalid_params(
+                {"message": f"Session not found: {session_id}"}
+            )
+
+        try:
+            await session.set_mode(mode_id)
+        except KeyError:
+            raise RequestError.invalid_params(
+                {"message": f"Unknown session mode: {mode_id}"}
+            ) from None
+
+        if self.client:
+            await self.client.session_update(
+                session_id=session_id,
+                update=update_current_mode(session.current_mode_id),
+            )
+
+        return SetSessionModeResponse()
 
     async def set_session_model(
         self,
@@ -402,6 +433,7 @@ class MinionACPAgent:
             client=self.client,
             mcp_servers=mcp_servers or [],
             skip_permissions=self.skip_permissions,
+            mode_id=DEFAULT_MODE_ID,
         )
         await session.initialize()
         self.sessions[session_id] = session
@@ -438,6 +470,7 @@ class ACPSession:
         mcp_servers: List[Any],
         skip_permissions: bool = False,
         model: Optional[str] = None,
+        mode_id: str = DEFAULT_MODE_ID,
     ):
         self.session_id = session_id
         self.cwd = cwd
@@ -445,6 +478,7 @@ class ACPSession:
         self.mcp_servers = mcp_servers
         self.skip_permissions = skip_permissions
         self.model = model
+        self.current_mode_id = mode_id
         self.agent: Optional[Any] = None  # MinionCodeAgent, lazy imported
         self.hooks: Optional[Any] = None  # HookConfig, lazy imported
         self.permission_store: Optional[Any] = None  # PermissionStore, lazy imported
@@ -454,12 +488,17 @@ class ACPSession:
 
     async def initialize(self) -> None:
         """Initialize the session and create the agent."""
+        self.agent = await self._create_agent()
+
+    async def _create_agent(self) -> Any:
+        """Create an agent instance for the current mode."""
         # Lazy import heavy dependencies - only when session is created
         from ..agents.code_agent import MinionCodeAgent
         from ..agents.hooks import HookConfig
         from .hooks import create_acp_hooks
         from .permissions import PermissionStore
         from .auth import get_credentials
+        mode_spec = get_session_mode_spec(self.current_mode_id)
 
         # Create permission store for this project
         self.permission_store = PermissionStore(cwd=self.cwd)
@@ -478,6 +517,8 @@ class ACPSession:
         create_kwargs = {
             "hooks": self.hooks,
             "workdir": self.cwd,
+            "readonly_only": mode_spec.readonly_only,
+            "prompt_name": mode_spec.prompt_name,
             # History decay: save large outputs to file after N steps
             "decay_enabled": True,
             "decay_ttl_steps": 3,
@@ -513,7 +554,35 @@ class ACPSession:
             create_kwargs["llm"] = self.model
             logger.info(f"Creating agent with model: {self.model}")
 
-        self.agent = await MinionCodeAgent.create(**create_kwargs)
+        return await MinionCodeAgent.create(**create_kwargs)
+
+    async def set_mode(self, mode_id: str) -> None:
+        """Switch to another session mode while preserving history."""
+        if mode_id == self.current_mode_id and self.agent is not None:
+            return
+
+        get_session_mode_spec(mode_id)
+
+        old_history = None
+        old_conversation_history = None
+        old_metadata = None
+        if self.agent is not None:
+            old_history = self.agent.state.history.copy()
+            old_conversation_history = self.agent.get_conversation_history()
+            old_metadata = dict(getattr(self.agent.state, "metadata", {}) or {})
+
+        self.current_mode_id = mode_id
+        self.agent = await self._create_agent()
+
+        if old_history is not None:
+            self.agent.state.history.clear()
+            self.agent.state.history.extend(old_history.to_list())
+        if old_conversation_history is not None:
+            self.agent.conversation_history = old_conversation_history
+        if old_metadata is not None:
+            self.agent.state.metadata.update(old_metadata)
+        if self.agent.state and not self.agent.state.agent:
+            self.agent.state.agent = self.agent
 
     async def run_prompt(
         self,

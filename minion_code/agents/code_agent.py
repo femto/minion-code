@@ -164,6 +164,36 @@ NAG_REMINDER = (
     "</reminder>"
 )
 
+PLAN_MODE_SYSTEM_PROMPT = (
+    "You are Minion Code operating in Plan Mode.\n"
+    "Use the instructions below and the tools available to you to assist the user.\n"
+    "\n"
+    "Working directory: {workdir}\n"
+    "\n"
+    "Plan Mode is strictly read-only.\n"
+    "- Do not modify files.\n"
+    "- Do not run commands that change the filesystem, start services, or mutate external state.\n"
+    "- Do not attempt to bypass the missing write tools.\n"
+    "- Use only the available read-only tools to inspect the codebase and gather context.\n"
+    "\n"
+    "Your job in this mode is to understand the problem, analyze the code, identify risks, and propose an execution plan.\n"
+    "If the user asks for implementation while still in Plan Mode, explain what would be changed and keep the response read-only.\n"
+    "\n"
+    "# Tone and style\n"
+    "- Keep answers concise, technical, and direct.\n"
+    "- Prefer concrete plans, findings, and file references over generic advice.\n"
+    "- Use `file_path:line_number` when pointing to code.\n"
+    "\n"
+    "# Tool usage policy\n"
+    "- Prefer reading code and searching the repository before answering.\n"
+    "- Use `user_input` only when structured clarification is truly necessary.\n"
+    "- Never claim you changed code in this mode.\n"
+    "\n"
+    "# Output expectations\n"
+    "- Summaries should focus on what you inspected, what you found, and what you would do next.\n"
+    "- When helpful, provide a short step-by-step implementation plan.\n"
+)
+
 
 @dataclass
 class MinionCodeAgent(CodeAgent):
@@ -338,6 +368,8 @@ class MinionCodeAgent(CodeAgent):
         workdir: Optional[Union[str, Path]] = None,
         additional_tools: Optional[List[Any]] = None,
         hooks: Optional["HookConfig"] = None,
+        readonly_only: bool = False,
+        prompt_name: str = "default",
         **kwargs,
     ) -> "MinionCodeAgent":
         """
@@ -353,6 +385,8 @@ class MinionCodeAgent(CodeAgent):
             workdir: Working directory (uses current if None)
             additional_tools: Extra tools to add beyond minion_code tools
             hooks: Optional HookConfig for pre-tool-use hooks (permission control)
+            readonly_only: If True, expose only tools marked readonly
+            prompt_name: Prompt variant to use when system_prompt is omitted
             **kwargs: Additional arguments passed to CodeAgent.create()
 
         Returns:
@@ -391,14 +425,10 @@ class MinionCodeAgent(CodeAgent):
 
         # Use default system prompt if none provided
         if system_prompt is None:
-            system_prompt = cls.DEFAULT_SYSTEM_PROMPT.format(workdir=workdir)
-
-        # Append skills prompt if skills are available
-        from ..tools.skill_tool import generate_skill_tool_prompt
-
-        skills_prompt = generate_skill_tool_prompt()
-        if skills_prompt and "<available_skills>" in skills_prompt:
-            system_prompt += "\n\n# Skills\n" + skills_prompt
+            if prompt_name == "plan":
+                system_prompt = PLAN_MODE_SYSTEM_PROMPT.format(workdir=workdir)
+            else:
+                system_prompt = cls.DEFAULT_SYSTEM_PROMPT.format(workdir=workdir)
 
         # Get all minion_code tools (inject workdir for path-aware tools)
         workdir_str = str(workdir)
@@ -433,12 +463,33 @@ class MinionCodeAgent(CodeAgent):
         except ImportError:
             pass
 
+        if readonly_only:
+            minion_tools = [
+                tool for tool in minion_tools if getattr(tool, "readonly", False)
+            ]
+
+        # Append skills prompt only when the Skill tool is actually available.
+        if any(tool.name == "Skill" for tool in minion_tools):
+            from ..tools.skill_tool import generate_skill_tool_prompt
+
+            skills_prompt = generate_skill_tool_prompt()
+            if skills_prompt and "<available_skills>" in skills_prompt:
+                system_prompt += "\n\n# Skills\n" + skills_prompt
+
         # Add any additional tools
         all_tools = minion_tools[:]
         if additional_tools:
-            all_tools.extend(additional_tools)
+            if readonly_only:
+                all_tools.extend(
+                    tool for tool in additional_tools if getattr(tool, "readonly", False)
+                )
+            else:
+                all_tools.extend(additional_tools)
 
-        logger.info(f"Creating MinionCodeAgent with {len(all_tools)} tools")
+        logger.info(
+            f"Creating MinionCodeAgent with {len(all_tools)} tools "
+            f"(readonly_only={readonly_only}, prompt_name={prompt_name})"
+        )
         logger.info(
             f"LLM config - main: {llm}, quick: {llm_quick}, task: {llm_task}, reasoning: {llm_reasoning}"
         )
@@ -467,7 +518,8 @@ class MinionCodeAgent(CodeAgent):
         agent.state.metadata["iteration_without_todos"] = 0
 
         # Add initial todo reminder to history
-        agent.state.history.append({"role": "user", "content": INITIAL_REMINDER})
+        if not readonly_only:
+            agent.state.history.append({"role": "user", "content": INITIAL_REMINDER})
 
         return agent
 
