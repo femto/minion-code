@@ -42,6 +42,8 @@ from ..utils.session_storage import (
     restore_agent_history,
 )
 from ..utils.conversation_runtime import ConversationRuntimeState
+from ..session_mode_controller import LocalSessionModeController
+from ..acp_server.session_modes import DEFAULT_MODE_ID
 
 # No logging in UI components to reduce noise
 
@@ -546,6 +548,7 @@ class REPL(Container):
 - `Ctrl+Enter`, `Tab`, or `Ctrl+J`: Add a new line
 - `Escape`: Switch modes or show message selector
 - `Shift+M`: Quick model switching
+- `Shift+S`: Session mode selector
 
 ## Examples
 ```bash
@@ -958,6 +961,7 @@ Try typing something to get started!"""
     def set_agent(self, agent):
         """Set agent from app level and bind output adapter"""
         print(f"DEBUG set_agent: agent={agent}, initial_prompt={self.initial_prompt}")
+        had_agent = self.agent is not None
         self.agent = agent
         # Bind output adapter to agent if it supports confirmation
         if hasattr(agent, "set_output_adapter"):
@@ -966,7 +970,7 @@ Try typing something to get started!"""
             agent.set_runtime_state(self.runtime_state)
 
         # Restore agent history from session if resuming
-        if self.session and self.session.messages:
+        if not had_agent and self.session and self.session.messages:
             restore_agent_history(agent, self.session, self.verbose)
 
         # Process initial prompt now that agent is ready
@@ -1904,6 +1908,7 @@ class REPLApp(App):
         # App-level agent management
         self.agent = None
         self.agent_ready = False
+        self.mode_controller: Optional[LocalSessionModeController] = None
 
     def compose(self) -> ComposeResult:
         """Compose the main application - equivalent to React App render"""
@@ -1926,55 +1931,67 @@ class REPLApp(App):
             from minion_code import MinionCodeAgent
             from minion_code.utils.logs import logger
             from minion_code.agents.hooks import create_default_hooks
+            from minion_code.acp_server.session_modes import DONT_ASK_MODE_ID
 
             # Check for model from CLI or use default
             # Users can override with --model flag or config
             model_from_props = self.repl_props.get("model")
             default_llm = model_from_props if model_from_props else "claude-sonnet-4-5"
 
-            # Get REPL component's output adapter for permission dialogs
-            try:
-                repl_component = self.query_one(REPL)
-                output_adapter = repl_component.output_adapter
-                hooks = create_default_hooks(output_adapter)
-                logger.info(
-                    "Created hooks with TextualOutputAdapter for permission dialogs"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Could not get output adapter, using autonomous hooks: {e}"
-                )
-                from minion_code.agents.hooks import create_autonomous_hooks
+            repl_component = self.query_one(REPL)
+            output_adapter = repl_component.output_adapter
 
-                hooks = create_autonomous_hooks()
+            async def build_agent(mode_spec):
+                hooks = create_default_hooks(
+                    output_adapter,
+                    request_permission=mode_spec.request_permission,
+                    include_dangerous_check=mode_spec.include_dangerous_check,
+                    auto_allow_tools=set(mode_spec.auto_allow_tools),
+                )
+                logger.info(
+                    "Created Textual hooks for session mode %s", mode_spec.id
+                )
+                agent = await MinionCodeAgent.create(
+                    name="REPL Assistant",
+                    llm=default_llm,
+                    hooks=hooks,
+                    readonly_only=mode_spec.readonly_only,
+                    prompt_name=mode_spec.prompt_name,
+                    decay_enabled=True,
+                    decay_ttl_steps=3,
+                    decay_min_size=100_000,
+                )
+                return agent
 
             logger.info(f"Initializing agent with LLM: {default_llm}")
-            self.agent = await MinionCodeAgent.create(
-                name="REPL Assistant",
-                llm=default_llm,
-                hooks=hooks,
-                # History decay: save large outputs to file after N steps
-                decay_enabled=True,
-                decay_ttl_steps=3,
-                decay_min_size=100_000,  # 100KB
+            initial_mode_id = (
+                DONT_ASK_MODE_ID if self.repl_props.get("safe_mode") else DEFAULT_MODE_ID
             )
+            self.mode_controller = LocalSessionModeController(
+                initial_mode_id=initial_mode_id,
+                build_agent=build_agent,
+                on_agent_swapped=self._on_agent_swapped,
+            )
+            self.agent = await self.mode_controller.initialize()
             self.agent_ready = True
 
             logger.info(f"Agent initialized with {len(self.agent.tools)} tools")
-
-            # Update REPL component with agent
-            try:
-                repl_component = self.query_one(REPL)
-                repl_component.set_agent(self.agent)
-                logger.info("Agent set on REPL component")
-            except Exception as e:
-                logger.warning(f"Could not set agent on REPL: {e}")
 
         except Exception as e:
             from minion_code.utils.logs import logger
 
             logger.error(f"Failed to initialize agent: {e}")
             self.agent_ready = False
+
+    def _on_agent_swapped(self, agent) -> None:
+        """Update app and REPL references after a mode-triggered agent rebuild."""
+        self.agent = agent
+        self.agent_ready = True
+        try:
+            repl_component = self.query_one(REPL)
+            repl_component.set_agent(agent)
+        except Exception:
+            pass
 
 
 # Utility functions equivalent to TypeScript utility functions

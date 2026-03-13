@@ -314,7 +314,7 @@ class PromptInput(Container):
         """Get contextual footer help text."""
         if self.interrupt_armed:
             return "Press Esc again to interrupt current task"
-        return "Enter send · Ctrl+Enter/Ctrl+J/Tab newline · ! bash · # memory"
+        return "Enter send · Ctrl+Enter/Ctrl+J/Tab newline · ! bash · # memory · Shift+S mode"
 
     def _get_model_info(self) -> Optional[ModelInfo]:
         """Get current model information - equivalent to modelInfo useMemo"""
@@ -396,6 +396,8 @@ class PromptInput(Container):
         elif key == "shift+m":
             # Handle model switching
             self._handle_quick_model_switch()
+        elif key == "shift+s":
+            self.run_worker(self._handle_session_mode_switch(), exclusive=False)
         elif key == "shift+tab":
             # Handle mode cycling
             self._cycle_mode()
@@ -831,6 +833,15 @@ class PromptInput(Container):
 
         if self.on_model_change:
             self.on_model_change()
+
+    async def _handle_session_mode_switch(self):
+        """Open the session mode selector via the shared /mode command."""
+        if self.on_execute_command:
+            await self.on_execute_command("mode", "")
+        else:
+            self._show_temporary_message(
+                "❌ Session mode selector is not available", duration=3.0
+            )
 
     def _insert_newline(self):
         """Insert newline at current cursor position"""

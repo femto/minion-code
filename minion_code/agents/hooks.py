@@ -130,6 +130,7 @@ def create_confirm_writes_hook(
     adapter: Any,  # OutputAdapter
     tools_registry: Optional[Dict[str, Any]] = None,
     skip_readonly: bool = True,
+    auto_allow_tools: Optional[Set[str]] = None,
 ) -> PreToolUseHook:
     """
     Create a hook that requests user confirmation for non-readonly tools.
@@ -143,6 +144,9 @@ def create_confirm_writes_hook(
     async def confirm_writes(
         tool_name: str, tool_input: Dict[str, Any], tool_use_id: str
     ) -> PreToolUseResult:
+        if auto_allow_tools and tool_name in auto_allow_tools:
+            return PreToolUseResult(decision=PermissionDecision.ACCEPT)
+
         # Skip readonly tools
         if skip_readonly:
             # Known readonly tools (hardcoded list)
@@ -201,6 +205,7 @@ def create_cli_confirm_hook(
     session_allowed: Optional[Set[str]] = None,
     console: Optional[Any] = None,
     spinner_controller: Optional[SpinnerController] = None,
+    auto_allow_tools: Optional[Set[str]] = None,
 ) -> PreToolUseHook:
     """
     Create a hook that prompts for confirmation in CLI/terminal.
@@ -241,6 +246,9 @@ def create_cli_confirm_hook(
     ) -> PreToolUseResult:
         # Skip readonly tools
         if tool_name in readonly_tools:
+            return PreToolUseResult(decision=PermissionDecision.ACCEPT)
+
+        if auto_allow_tools and tool_name in auto_allow_tools:
             return PreToolUseResult(decision=PermissionDecision.ACCEPT)
 
         if tool_name in allowed_tools or tool_name in session_allowed:
@@ -300,6 +308,9 @@ def create_cli_hooks(
     auto_accept: bool = False,
     spinner_controller: Optional[SpinnerController] = None,
     console: Optional[Any] = None,
+    request_permission: bool = True,
+    include_dangerous_check: bool = True,
+    auto_allow_tools: Optional[Set[str]] = None,
 ) -> HookConfig:
     """
     Create hook configuration for CLI usage.
@@ -309,48 +320,57 @@ def create_cli_hooks(
         spinner_controller: Optional SpinnerController to pause spinner during prompts
         console: Optional Rich Console for output
     """
-    if auto_accept:
-        return create_autonomous_hooks()
+    if auto_accept or not request_permission:
+        return create_autonomous_hooks(include_dangerous_check=include_dangerous_check)
 
-    return HookConfig(
-        pre_tool_use=[
-            HookMatcher("bash", create_dangerous_command_check_hook()),
-            HookMatcher(
-                "*",
-                create_cli_confirm_hook(
-                    spinner_controller=spinner_controller,
-                    console=console,
-                ),
-            ),
-        ]
+    hooks = HookConfig()
+    if include_dangerous_check:
+        hooks.add_pre_tool_use("bash", create_dangerous_command_check_hook())
+    hooks.add_pre_tool_use(
+        "*",
+        create_cli_confirm_hook(
+            spinner_controller=spinner_controller,
+            console=console,
+            auto_allow_tools=auto_allow_tools,
+        ),
     )
+    return hooks
 
 
-def create_default_hooks(adapter: Any) -> HookConfig:
+def create_default_hooks(
+    adapter: Any,
+    request_permission: bool = True,
+    include_dangerous_check: bool = True,
+    auto_allow_tools: Optional[Set[str]] = None,
+) -> HookConfig:
     """
     Create default hook configuration with:
     - Dangerous command blocking for bash
     - User confirmation for write operations
     """
-    return HookConfig(
-        pre_tool_use=[
-            HookMatcher("bash", create_dangerous_command_check_hook()),
-            HookMatcher("*", create_confirm_writes_hook(adapter)),
-        ]
+    if not request_permission:
+        return create_autonomous_hooks(include_dangerous_check=include_dangerous_check)
+
+    hooks = HookConfig()
+    if include_dangerous_check:
+        hooks.add_pre_tool_use("bash", create_dangerous_command_check_hook())
+    hooks.add_pre_tool_use(
+        "*",
+        create_confirm_writes_hook(adapter, auto_allow_tools=auto_allow_tools),
     )
+    return hooks
 
 
-def create_autonomous_hooks() -> HookConfig:
+def create_autonomous_hooks(include_dangerous_check: bool = True) -> HookConfig:
     """
     Create hook configuration for autonomous/unattended mode.
     Blocks dangerous commands but auto-accepts everything else.
     """
-    return HookConfig(
-        pre_tool_use=[
-            HookMatcher("bash", create_dangerous_command_check_hook()),
-            HookMatcher("*", create_auto_accept_hook()),
-        ]
-    )
+    hooks = HookConfig()
+    if include_dangerous_check:
+        hooks.add_pre_tool_use("bash", create_dangerous_command_check_hook())
+    hooks.add_pre_tool_use("*", create_auto_accept_hook())
+    return hooks
 
 
 __all__ = [

@@ -34,6 +34,8 @@ from minion_code.commands import command_registry
 from minion_code.utils.mcp_loader import MCPToolsLoader
 from minion_code.adapters import RichOutputAdapter
 from minion_code.agents.hooks import create_cli_hooks, SpinnerController
+from minion_code.acp_server.session_modes import DEFAULT_MODE_ID, DONT_ASK_MODE_ID
+from minion_code.session_mode_controller import LocalSessionModeController
 from minion_code.utils.session_storage import (
     Session,
     create_session,
@@ -99,6 +101,8 @@ class InterruptibleCLI:
             self.console, spinner_controller=self.spinner_controller
         )
         self.runtime_state = ConversationRuntimeState()
+        self.mode_controller: Optional[LocalSessionModeController] = None
+        self.current_mode_id = DONT_ASK_MODE_ID if auto_accept else DEFAULT_MODE_ID
 
     async def setup(self):
         """Setup the agent."""
@@ -158,13 +162,6 @@ class InterruptibleCLI:
                 "🔧 Setting up MinionCodeAgent...", total=None
             )
 
-            # Create hooks for tool permission control
-            hooks = create_cli_hooks(
-                auto_accept=self.auto_accept,
-                spinner_controller=self.spinner_controller,
-                console=self.console,
-            )
-
             # Use model from CLI if provided, otherwise load from config
             llm_model = self.model
             if not llm_model:
@@ -188,20 +185,38 @@ class InterruptibleCLI:
             if self.verbose:
                 self.console.print(f"[dim]Using model: {llm_model}[/dim]")
 
-            self.agent = await MinionCodeAgent.create(
-                name="CLI Code Assistant",
-                llm=llm_model,
-                additional_tools=self.mcp_tools if self.mcp_tools else None,
-                hooks=hooks,
-                # History decay: save large outputs to file after N steps
-                decay_enabled=True,
-                decay_ttl_steps=3,
-                decay_min_size=100_000,  # 100KB
+            async def build_agent(mode_spec):
+                hooks = create_cli_hooks(
+                    auto_accept=False,
+                    spinner_controller=self.spinner_controller,
+                    console=self.console,
+                    request_permission=mode_spec.request_permission,
+                    include_dangerous_check=mode_spec.include_dangerous_check,
+                    auto_allow_tools=set(mode_spec.auto_allow_tools),
+                )
+                agent = await MinionCodeAgent.create(
+                    name="CLI Code Assistant",
+                    llm=llm_model,
+                    additional_tools=self.mcp_tools if self.mcp_tools else None,
+                    hooks=hooks,
+                    readonly_only=mode_spec.readonly_only,
+                    prompt_name=mode_spec.prompt_name,
+                    decay_enabled=True,
+                    decay_ttl_steps=3,
+                    decay_min_size=100_000,
+                )
+                if hasattr(agent, "set_output_adapter"):
+                    agent.set_output_adapter(self.output_adapter)
+                if hasattr(agent, "set_runtime_state"):
+                    agent.set_runtime_state(self.runtime_state)
+                return agent
+
+            self.mode_controller = LocalSessionModeController(
+                initial_mode_id=self.current_mode_id,
+                build_agent=build_agent,
+                on_agent_swapped=self._on_agent_swapped,
             )
-            if hasattr(self.agent, "set_output_adapter"):
-                self.agent.set_output_adapter(self.output_adapter)
-            if hasattr(self.agent, "set_runtime_state"):
-                self.agent.set_runtime_state(self.runtime_state)
+            self.agent = await self.mode_controller.initialize()
 
             progress.update(agent_task, completed=True)
 
@@ -213,6 +228,10 @@ class InterruptibleCLI:
         summary_text = (
             f"✅ Agent ready with [bold green]{total_tools}[/bold green] tools!"
         )
+        if self.mode_controller:
+            summary_text += (
+                f"\n⚙️  Session mode: [bold magenta]{self.mode_controller.current_mode.name}[/bold magenta]"
+            )
         if mcp_count > 0:
             summary_text += f"\n🔌 MCP tools: [bold cyan]{mcp_count}[/bold cyan]"
             summary_text += (
@@ -232,6 +251,10 @@ class InterruptibleCLI:
 
         # Handle session restoration
         await self._init_session()
+
+    def _on_agent_swapped(self, agent) -> None:
+        """Keep CLI state in sync when the session mode rebuilds the agent."""
+        self.agent = agent
 
     async def _init_session(self):
         """Initialize or restore session."""

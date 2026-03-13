@@ -36,8 +36,11 @@ class StatusCommand(BaseCommand):
         if self.agent:
             history = self.agent.get_conversation_history()
             tools_count = len(self.agent.tools) if self.agent.tools else 0
+            metadata = getattr(getattr(self.agent, "state", None), "metadata", {}) or {}
+            mode_name = metadata.get("session_mode_name", "Unknown")
 
             rows.append(["Agent", "✅ Ready", f"{tools_count} tools loaded"])
+            rows.append(["Mode", "⚙️ Active", mode_name])
 
             rows.append(
                 [
@@ -76,6 +79,11 @@ class StatusCommand(BaseCommand):
             info_lines.append(
                 f"🤖 Agent Model: {getattr(self.agent, 'llm', 'Unknown')}"
             )
+            metadata = getattr(getattr(self.agent, "state", None), "metadata", {}) or {}
+            if metadata.get("session_mode_description"):
+                info_lines.append(
+                    f"⚙️ Session Mode: {metadata.get('session_mode_name')} - {metadata.get('session_mode_description')}"
+                )
 
             if self.agent.tools:
                 tool_names = [tool.name for tool in self.agent.tools[:5]]
