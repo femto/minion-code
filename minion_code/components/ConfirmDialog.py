@@ -433,6 +433,11 @@ class InputDialog(Container):
 class FormDialog(Container):
     """Multi-field form dialog for structured user input."""
 
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+        ("ctrl+enter", "submit", "Submit"),
+    ]
+
     DEFAULT_CSS = """
     FormDialog {
         width: 72;
@@ -559,7 +564,22 @@ class FormDialog(Container):
             pass
 
     @on(Button.Pressed, "#form_submit")
-    def on_submit(self):
+    def on_submit_button(self):
+        self._submit_form()
+
+    @on(Input.Submitted)
+    def on_input_submitted(self):
+        self._submit_form()
+
+    def action_submit(self):
+        """Submit the form from a keyboard shortcut."""
+        self._submit_form()
+
+    def action_cancel(self):
+        """Cancel the form from a keyboard shortcut."""
+        self._cancel_form()
+
+    def _submit_form(self):
         answers = {}
         for index, field in enumerate(self.fields):
             widget = self.query_one(f"#form_field_{index}")
@@ -593,6 +613,9 @@ class FormDialog(Container):
 
     @on(Button.Pressed, "#form_cancel")
     def on_cancel(self):
+        self._cancel_form()
+
+    def _cancel_form(self):
         if self.on_result:
             self.on_result(self.interaction_id, None)
         self.remove()
