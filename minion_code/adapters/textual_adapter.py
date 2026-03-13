@@ -19,7 +19,7 @@ from .output_adapter import OutputAdapter
 class PendingInteraction:
     """Represents a user interaction waiting for response"""
 
-    type: str  # "confirm", "choice", "input"
+    type: str  # "confirm", "choice", "input", "form"
     data: Dict[str, Any]
     future: asyncio.Future
 
@@ -222,6 +222,45 @@ class TextualOutputAdapter(OutputAdapter):
         finally:
             self._pending_interactions.pop(interaction_id, None)
 
+    async def form(
+        self,
+        message: str,
+        fields: List[Dict[str, Any]],
+        title: str = "Form",
+        submit_text: str = "Submit",
+    ) -> Optional[Dict[str, Any]]:
+        """Request structured form input in one TUI dialog."""
+        interaction_id = self._generate_interaction_id()
+        future = asyncio.Future()
+
+        self._pending_interactions[interaction_id] = PendingInteraction(
+            type="form",
+            data={
+                "message": message,
+                "fields": fields,
+                "title": title,
+                "submit_text": submit_text,
+            },
+            future=future,
+        )
+
+        self.on_output(
+            "form",
+            {
+                "interaction_id": interaction_id,
+                "message": message,
+                "fields": fields,
+                "title": title,
+                "submit_text": submit_text,
+            },
+        )
+
+        try:
+            result = await future
+            return result
+        finally:
+            self._pending_interactions.pop(interaction_id, None)
+
     def resolve_interaction(self, interaction_id: str, result: Any):
         """
         Resolve a pending interaction with a result.
@@ -254,7 +293,7 @@ class TextualOutputAdapter(OutputAdapter):
                 interaction.future.set_result(False)
             elif interaction.type == "choice":
                 interaction.future.set_result(-1)
-            elif interaction.type == "input":
+            elif interaction.type in {"input", "form"}:
                 interaction.future.set_result(None)
 
     def print(self, *args, **kwargs) -> None:

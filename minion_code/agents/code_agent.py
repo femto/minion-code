@@ -272,10 +272,22 @@ class MinionCodeAgent(CodeAgent):
     def set_output_adapter(self, output_adapter: Any) -> None:
         """Attach a UI output adapter so tools can request structured UI input."""
         self.output_adapter = output_adapter
+        self._sync_runtime_metadata()
 
     def set_runtime_state(self, runtime_state: Any) -> None:
         """Attach runtime state for buffered prompts and pending reminders."""
         self.runtime_state = runtime_state
+        self._sync_runtime_metadata()
+
+    def _sync_runtime_metadata(self) -> None:
+        """Keep state metadata aligned with runtime integrations."""
+        if not hasattr(self.state, "metadata") or self.state.metadata is None:
+            self.state.metadata = {}
+        if self.output_adapter is not None:
+            self.state.metadata["output_adapter"] = self.output_adapter
+            self.state.metadata["ui_protocol"] = "a2ui/v1"
+        if self.runtime_state is not None:
+            self.state.metadata["runtime_state"] = self.runtime_state
 
     async def pre_step(self, input_data, kwargs):
         """Override pre_step to track iterations without todo usage.
@@ -292,12 +304,8 @@ class MinionCodeAgent(CodeAgent):
         if "iteration_without_todos" not in self.state.metadata:
             self.state.metadata["iteration_without_todos"] = 0
 
-        # Expose adapter + protocol for tools that support richer UI rendering.
-        if self.output_adapter is not None:
-            self.state.metadata["output_adapter"] = self.output_adapter
-            self.state.metadata["ui_protocol"] = "a2ui/v1"
-        if self.runtime_state is not None:
-            self.state.metadata["runtime_state"] = self.runtime_state
+        # Expose adapter/runtime metadata for tools that support richer UI rendering.
+        self._sync_runtime_metadata()
 
         # Increment iteration counter
         self.state.metadata["iteration_without_todos"] += 1

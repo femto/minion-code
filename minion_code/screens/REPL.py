@@ -212,7 +212,12 @@ class MessageWidget(Container):
 # Import components
 from ..components.PromptInput import PromptInput
 from ..components.Messages import Messages
-from ..components.ConfirmDialog import ConfirmDialog, ChoiceDialog, InputDialog
+from ..components.ConfirmDialog import (
+    ConfirmDialog,
+    ChoiceDialog,
+    InputDialog,
+    FormDialog,
+)
 
 # Import adapters
 from ..adapters.textual_adapter import TextualOutputAdapter
@@ -887,6 +892,8 @@ Try typing something to get started!"""
             self.show_choice_dialog(data)
         elif output_type == "input":
             self.show_input_dialog(data)
+        elif output_type == "form":
+            self.show_form_dialog(data)
 
     def display_panel_output(self, data: dict):
         """Display panel output as a message"""
@@ -982,6 +989,21 @@ Try typing something to get started!"""
         )
         self.mount(self.active_dialog)
 
+    def show_form_dialog(self, data: dict):
+        """Show structured form dialog."""
+        if self.active_dialog:
+            self.active_dialog.remove()
+
+        self.active_dialog = FormDialog(
+            interaction_id=data["interaction_id"],
+            message=data.get("message", ""),
+            fields=data.get("fields", []),
+            title=data.get("title", "Form"),
+            submit_text=data.get("submit_text", "Submit"),
+            on_result=self.handle_form_result,
+        )
+        self.mount(self.active_dialog)
+
     def handle_confirm_result(self, interaction_id: str, result: bool):
         """Handle confirmation dialog result"""
         self.output_adapter.resolve_interaction(interaction_id, result)
@@ -994,6 +1016,11 @@ Try typing something to get started!"""
 
     def handle_input_result(self, interaction_id: str, result: Optional[str]):
         """Handle input dialog result"""
+        self.output_adapter.resolve_interaction(interaction_id, result)
+        self.active_dialog = None
+
+    def handle_form_result(self, interaction_id: str, result: Optional[dict]):
+        """Handle structured form result."""
         self.output_adapter.resolve_interaction(interaction_id, result)
         self.active_dialog = None
 

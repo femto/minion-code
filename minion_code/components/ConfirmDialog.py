@@ -8,7 +8,7 @@ choice selection, and text input in the Textual TUI.
 """
 
 from textual.containers import Container, Vertical, Horizontal, VerticalScroll
-from textual.widgets import Button, Static, Label
+from textual.widgets import Button, Static, Label, Input, Select
 from textual.app import ComposeResult
 from textual import on
 from typing import Callable, Optional, List
@@ -428,3 +428,178 @@ class InputDialog(Container):
         if self.on_result:
             self.on_result(self.interaction_id, None)
         self.remove()
+
+
+class FormDialog(Container):
+    """Multi-field form dialog for structured user input."""
+
+    DEFAULT_CSS = """
+    FormDialog {
+        width: 72;
+        max-height: 85%;
+        background: $panel;
+        border: thick $primary;
+        padding: 1 2;
+        layer: overlay;
+    }
+
+    FormDialog .dialog-title {
+        text-style: bold;
+        text-align: center;
+        color: $accent;
+        margin-bottom: 1;
+    }
+
+    FormDialog .dialog-message {
+        text-align: left;
+        color: $text;
+        margin-bottom: 1;
+        padding: 1;
+    }
+
+    FormDialog .form-scroll {
+        max-height: 60vh;
+        min-height: 12;
+        padding-right: 1;
+    }
+
+    FormDialog .field-label {
+        margin-top: 1;
+        margin-bottom: 0;
+        color: $text;
+        text-style: bold;
+    }
+
+    FormDialog Input,
+    FormDialog Select {
+        width: 100%;
+        margin: 0 0 1 0;
+    }
+
+    FormDialog .form-error {
+        color: $error;
+        margin-top: 1;
+        min-height: 1;
+    }
+
+    FormDialog .dialog-buttons {
+        height: 3;
+        align: center middle;
+        margin-top: 1;
+    }
+
+    FormDialog Button {
+        margin: 0 1;
+    }
+    """
+
+    def __init__(
+        self,
+        interaction_id: str,
+        message: str,
+        fields: List[dict],
+        title: str = "Form",
+        submit_text: str = "Submit",
+        on_result: Optional[Callable[[str, Optional[dict]], None]] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.interaction_id = interaction_id
+        self.message = message
+        self.fields = fields
+        self.title = title
+        self.submit_text = submit_text
+        self.on_result = on_result
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Static(self.title, classes="dialog-title")
+            if self.message:
+                yield Static(self.message, classes="dialog-message")
+            with VerticalScroll(classes="form-scroll"):
+                for index, field in enumerate(self.fields):
+                    label = str(field.get("label") or field.get("id") or f"Field {index + 1}")
+                    if field.get("required", True):
+                        label = f"{label} *"
+                    yield Static(label, classes="field-label")
+
+                    if field.get("type") == "choice":
+                        options = field.get("options") or []
+                        select_options = [
+                            (str(option.get("label", option.get("value", ""))), str(option.get("value", option.get("label", ""))))
+                            for option in options
+                            if isinstance(option, dict)
+                        ]
+                        default_value = field.get("default")
+                        if default_value is None and select_options:
+                            default_value = select_options[0][1]
+                        yield Select(
+                            select_options,
+                            value=default_value if default_value is not None else Select.BLANK,
+                            allow_blank=not field.get("required", True),
+                            prompt=str(field.get("placeholder") or "Select an option"),
+                            id=f"form_field_{index}",
+                        )
+                    else:
+                        yield Input(
+                            value=str(field.get("default") or ""),
+                            placeholder=str(field.get("placeholder") or ""),
+                            id=f"form_field_{index}",
+                        )
+            yield Static("", id="form_error", classes="form-error")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button(self.submit_text, id="form_submit", variant="success")
+                yield Button("Cancel", id="form_cancel", variant="error")
+
+    def on_mount(self):
+        try:
+            first_widget = self.query_one("#form_field_0")
+            first_widget.focus()
+        except Exception:
+            pass
+
+    @on(Button.Pressed, "#form_submit")
+    def on_submit(self):
+        answers = {}
+        for index, field in enumerate(self.fields):
+            widget = self.query_one(f"#form_field_{index}")
+            field_id = str(field.get("id") or f"field_{index}")
+            required = bool(field.get("required", True))
+
+            if field.get("type") == "choice":
+                value = getattr(widget, "value", Select.BLANK)
+                if value == Select.BLANK:
+                    value = None
+            else:
+                value = getattr(widget, "value", "")
+                if isinstance(value, str):
+                    value = value.strip()
+
+            if required and (value is None or value == ""):
+                self._set_error(
+                    f"Please fill out {field.get('label') or field_id} before submitting."
+                )
+                try:
+                    widget.focus()
+                except Exception:
+                    pass
+                return
+
+            answers[field_id] = value
+
+        if self.on_result:
+            self.on_result(self.interaction_id, answers)
+        self.remove()
+
+    @on(Button.Pressed, "#form_cancel")
+    def on_cancel(self):
+        if self.on_result:
+            self.on_result(self.interaction_id, None)
+        self.remove()
+
+    def _set_error(self, message: str) -> None:
+        try:
+            error_widget = self.query_one("#form_error", Static)
+            error_widget.update(message)
+        except Exception:
+            pass

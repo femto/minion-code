@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import patch
 from rich.console import Console
 from minion_code.adapters import RichOutputAdapter
+from minion_code.adapters.textual_adapter import TextualOutputAdapter
 
 
 class MockAgent:
@@ -94,6 +95,44 @@ async def test_adapter():
             ],
         )
         assert answers == {"name": "demo-app", "lang": "go"}
+
+
+@pytest.mark.asyncio
+async def test_textual_adapter_form_returns_single_structured_payload():
+    """Textual adapter should surface one form interaction and return all answers together."""
+    events = []
+    adapter = None
+
+    def on_output(output_type, data):
+        events.append((output_type, data))
+        if output_type == "form":
+            adapter.resolve_interaction(
+                data["interaction_id"],
+                {"name": "demo-app", "lang": "python"},
+            )
+
+    adapter = TextualOutputAdapter(on_output=on_output)
+
+    answers = await adapter.form(
+        title="Project Setup",
+        message="Fill out the project details.",
+        fields=[
+            {"id": "name", "label": "Project name", "type": "text"},
+            {
+                "id": "lang",
+                "label": "Language",
+                "type": "choice",
+                "options": [
+                    {"label": "Python", "value": "python"},
+                    {"label": "Go", "value": "go"},
+                ],
+                "default": "python",
+            },
+        ],
+    )
+
+    assert answers == {"name": "demo-app", "lang": "python"}
+    assert [event[0] for event in events] == ["form"]
 
 
 if __name__ == "__main__":
