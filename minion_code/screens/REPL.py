@@ -1644,7 +1644,11 @@ Try typing something to get started!"""
 
     def watch_is_loading(self, is_loading: bool):
         """Watch loading state changes"""
-        pass
+        try:
+            prompt_input = self.query_one(PromptInput)
+            prompt_input.is_loading = is_loading
+        except Exception:
+            pass
 
     def watch_should_show_prompt_input(self, should_show: bool):
         """Watch prompt input visibility changes"""
