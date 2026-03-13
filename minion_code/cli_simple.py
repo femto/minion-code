@@ -39,6 +39,7 @@ from minion_code.utils.session_storage import (
     add_message,
     restore_agent_history,
 )
+from minion_code.utils.conversation_runtime import ConversationRuntimeState
 
 app = typer.Typer(
     name="minion-code-simple",
@@ -93,6 +94,7 @@ class InterruptibleCLI:
         self.output_adapter = RichOutputAdapter(
             self.console, spinner_controller=self.spinner_controller
         )
+        self.runtime_state = ConversationRuntimeState()
 
     async def setup(self):
         """Setup the agent."""
@@ -194,6 +196,8 @@ class InterruptibleCLI:
             )
             if hasattr(self.agent, "set_output_adapter"):
                 self.agent.set_output_adapter(self.output_adapter)
+            if hasattr(self.agent, "set_runtime_state"):
+                self.agent.set_runtime_state(self.runtime_state)
 
             progress.update(agent_task, completed=True)
 

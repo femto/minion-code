@@ -74,15 +74,10 @@ async def process_chat_stream(
 
     # Generate task ID
     task_id = session.generate_task_id()
-    session.current_task_id = task_id
-    session.adapter.set_task_id(task_id)
-
-    # Reset abort event
-    session.abort_event.clear()
+    was_buffered = session.runtime_state.is_processing
 
     try:
         # Emit task started
-        await session.adapter.emit_task_status(TaskState.SUBMITTED)
         yield format_sse_event(
             SSEEvent(
                 type="task_status",
@@ -91,132 +86,155 @@ async def process_chat_stream(
             )
         )
 
-        # Get or create agent
-        agent = await session_manager.get_or_create_agent(session)
-
-        # Emit working status
-        await session.adapter.emit_task_status(TaskState.WORKING)
-        yield format_sse_event(
-            SSEEvent(
-                type="task_status",
-                data={"state": TaskState.WORKING.value, "task_id": task_id},
-                task_id=task_id,
+        if was_buffered:
+            yield format_sse_event(
+                SSEEvent(
+                    type="queued",
+                    data={
+                        "message": "Prompt buffered until the current turn finishes.",
+                        "task_id": task_id,
+                    },
+                    task_id=task_id,
+                )
             )
-        )
 
-        # Save user message
-        session_manager.save_message(session, "user", message)
+        async with session.runtime_state.processing_lock:
+            session.current_task_id = task_id
+            session.adapter.set_task_id(task_id)
+            session.abort_event.clear()
+            was_cancelled = False
 
-        # Run agent with streaming
-        full_response = ""
+            # Get or create agent
+            agent = await session_manager.get_or_create_agent(session)
 
-        # Create concurrent tasks for agent execution and event forwarding
-        async def run_agent():
-            nonlocal full_response
-            async for chunk in agent.run_async(message, stream=True):
-                # Check for abort
-                if session.abort_event.is_set():
-                    break
+            # Emit working status
+            await session.adapter.emit_task_status(TaskState.WORKING)
+            yield format_sse_event(
+                SSEEvent(
+                    type="task_status",
+                    data={"state": TaskState.WORKING.value, "task_id": task_id},
+                    task_id=task_id,
+                )
+            )
 
-                chunk_type = getattr(chunk, "chunk_type", "text")
-                chunk_content = getattr(chunk, "content", str(chunk))
-                chunk_metadata = getattr(chunk, "metadata", {})
+            # Save user message
+            session_manager.save_message(session, "user", message)
 
-                if chunk_type == "step_start":
-                    await session.adapter._emit_event(
-                        "step_start", {"content": humanize_step_status(chunk_content)}
-                    )
-                elif chunk_type == "thinking":
-                    await session.adapter.emit_thinking(chunk_content)
-                elif chunk_type == "code_start":
-                    await session.adapter._emit_event(
-                        "code_start",
-                        {
-                            "code": chunk_content,
-                            "language": chunk_metadata.get("language", ""),
-                        },
-                    )
-                elif chunk_type == "code_result":
-                    await session.adapter.emit_tool_result(
-                        success=chunk_metadata.get("success", True),
-                        output=chunk_content,
-                    )
-                elif chunk_type == "tool_call":
-                    await session.adapter.emit_tool_call(
-                        name=chunk_metadata.get("tool_name", ""),
-                        args=chunk_metadata.get("args", {}),
-                    )
-                elif chunk_type in ("final_answer", "agent_response", "completion"):
-                    final_content = (
-                        getattr(chunk, "answer", chunk_content) or chunk_content
-                    )
-                    full_response = str(final_content)
-                    await session.adapter.emit_content(full_response)
-                else:
-                    # Default: treat as content
-                    if chunk_content:
-                        await session.adapter.emit_content(chunk_content)
+            # Run agent with streaming
+            full_response = ""
 
-        # Start agent execution in background
-        agent_task = asyncio.create_task(run_agent())
+            # Create concurrent tasks for agent execution and event forwarding
+            async def run_agent():
+                nonlocal full_response
+                async for chunk in agent.run_async(message, stream=True):
+                    # Check for abort
+                    if session.abort_event.is_set():
+                        break
 
-        # Forward events from adapter queue to SSE
-        try:
-            while True:
-                try:
-                    # Try to get event with timeout
-                    event = await asyncio.wait_for(
-                        session.adapter.event_queue.get(), timeout=0.1
-                    )
-                    yield format_sse_event(event)
-                except asyncio.TimeoutError:
-                    pass
+                    chunk_type = getattr(chunk, "chunk_type", "text")
+                    chunk_content = getattr(chunk, "content", str(chunk))
+                    chunk_metadata = getattr(chunk, "metadata", {})
 
-                # Check if agent is done
-                if agent_task.done():
-                    # Drain remaining events
-                    while not session.adapter.event_queue.empty():
-                        event = await session.adapter.event_queue.get()
-                        yield format_sse_event(event)
-
-                    # Check for exception
-                    if agent_task.exception():
-                        raise agent_task.exception()
-
-                    break
-
-                # Check for abort
-                if session.abort_event.is_set():
-                    agent_task.cancel()
-                    yield format_sse_event(
-                        SSEEvent(
-                            type="task_status",
-                            data={
-                                "state": TaskState.CANCELLED.value,
-                                "task_id": task_id,
-                            },
-                            task_id=task_id,
+                    if chunk_type == "step_start":
+                        await session.adapter._emit_event(
+                            "step_start",
+                            {"content": humanize_step_status(chunk_content)},
                         )
-                    )
-                    break
+                    elif chunk_type == "thinking":
+                        await session.adapter.emit_thinking(chunk_content)
+                    elif chunk_type == "code_start":
+                        await session.adapter._emit_event(
+                            "code_start",
+                            {
+                                "code": chunk_content,
+                                "language": chunk_metadata.get("language", ""),
+                            },
+                        )
+                    elif chunk_type == "code_result":
+                        await session.adapter.emit_tool_result(
+                            success=chunk_metadata.get("success", True),
+                            output=chunk_content,
+                        )
+                    elif chunk_type == "tool_call":
+                        await session.adapter.emit_tool_call(
+                            name=chunk_metadata.get("tool_name", ""),
+                            args=chunk_metadata.get("args", {}),
+                        )
+                    elif chunk_type in ("final_answer", "agent_response", "completion"):
+                        final_content = (
+                            getattr(chunk, "answer", chunk_content) or chunk_content
+                        )
+                        full_response = str(final_content)
+                        await session.adapter.emit_content(full_response)
+                    else:
+                        # Default: treat as content
+                        if chunk_content:
+                            await session.adapter.emit_content(chunk_content)
 
-        except Exception as e:
-            logger.error(f"Error in event forwarding: {e}")
-            raise
+            # Start agent execution in background
+            agent_task = asyncio.create_task(run_agent())
 
-        # Save assistant response
-        if full_response:
-            session_manager.save_message(session, "assistant", full_response)
+            # Forward events from adapter queue to SSE
+            try:
+                while True:
+                    try:
+                        # Try to get event with timeout
+                        event = await asyncio.wait_for(
+                            session.adapter.event_queue.get(), timeout=0.1
+                        )
+                        yield format_sse_event(event)
+                    except asyncio.TimeoutError:
+                        pass
 
-        # Emit completed status
-        await session.adapter.emit_task_status(TaskState.COMPLETED)
-        yield format_sse_event(
-            SSEEvent(
-                type="task_status",
-                data={"state": TaskState.COMPLETED.value, "task_id": task_id},
-                task_id=task_id,
+                    # Check if agent is done
+                    if agent_task.done():
+                        # Drain remaining events
+                        while not session.adapter.event_queue.empty():
+                            event = await session.adapter.event_queue.get()
+                            yield format_sse_event(event)
+
+                        # Check for exception
+                        if agent_task.exception():
+                            raise agent_task.exception()
+
+                        break
+
+                    # Check for abort
+                    if session.abort_event.is_set():
+                        agent_task.cancel()
+                        was_cancelled = True
+                        yield format_sse_event(
+                            SSEEvent(
+                                type="task_status",
+                                data={
+                                    "state": TaskState.CANCELLED.value,
+                                    "task_id": task_id,
+                                },
+                                task_id=task_id,
+                            )
+                        )
+                        break
+
+            except Exception as e:
+                logger.error(f"Error in event forwarding: {e}")
+                raise
+
+            if was_cancelled:
+                return
+
+            # Save assistant response
+            if full_response:
+                session_manager.save_message(session, "assistant", full_response)
+
+            # Emit completed status
+            await session.adapter.emit_task_status(TaskState.COMPLETED)
+            yield format_sse_event(
+                SSEEvent(
+                    type="task_status",
+                    data={"state": TaskState.COMPLETED.value, "task_id": task_id},
+                    task_id=task_id,
+                )
             )
-        )
 
     except asyncio.CancelledError:
         yield format_sse_event(
@@ -241,7 +259,8 @@ async def process_chat_stream(
             )
         )
     finally:
-        session.current_task_id = None
+        if session.current_task_id == task_id:
+            session.current_task_id = None
         yield format_sse_done()
 
 

@@ -34,6 +34,7 @@ from minion_code.agents.hooks import (
     create_confirm_writes_hook,
     create_dangerous_command_check_hook,
 )
+from minion_code.utils.conversation_runtime import ConversationRuntimeState
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,11 @@ class WebSession:
 
     # Current task ID
     current_task_id: Optional[str] = None
+
+    # Conversation runtime state for buffering/reminders
+    runtime_state: ConversationRuntimeState = field(
+        default_factory=ConversationRuntimeState, repr=False
+    )
 
     # Session storage (persisted)
     _storage_session: Optional[Session] = field(default=None, repr=False)
@@ -306,6 +312,8 @@ class SessionManager:
             agent.on_compaction = self._create_compaction_callback(session)
             if hasattr(agent, "set_output_adapter"):
                 agent.set_output_adapter(session.adapter)
+            if hasattr(agent, "set_runtime_state"):
+                agent.set_runtime_state(session.runtime_state)
 
             # Restore history from storage (prefers agent_history if available)
             if session._storage_session:
@@ -331,6 +339,8 @@ class SessionManager:
                 session._agent.on_compaction = self._create_compaction_callback(session)
                 if hasattr(session._agent, "set_output_adapter"):
                     session._agent.set_output_adapter(session.adapter)
+                if hasattr(session._agent, "set_runtime_state"):
+                    session._agent.set_runtime_state(session.runtime_state)
 
                 # Restore history on first creation (prefers agent_history if available)
                 if session._storage_session:

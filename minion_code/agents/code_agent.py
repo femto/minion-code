@@ -266,11 +266,16 @@ class MinionCodeAgent(CodeAgent):
         super().__post_init__()
         self.conversation_history = []
         self.output_adapter = None
+        self.runtime_state = None
         # Note: Auto-compact is handled by minion's BaseAgent
 
     def set_output_adapter(self, output_adapter: Any) -> None:
         """Attach a UI output adapter so tools can request structured UI input."""
         self.output_adapter = output_adapter
+
+    def set_runtime_state(self, runtime_state: Any) -> None:
+        """Attach runtime state for buffered prompts and pending reminders."""
+        self.runtime_state = runtime_state
 
     async def pre_step(self, input_data, kwargs):
         """Override pre_step to track iterations without todo usage.
@@ -291,13 +296,25 @@ class MinionCodeAgent(CodeAgent):
         if self.output_adapter is not None:
             self.state.metadata["output_adapter"] = self.output_adapter
             self.state.metadata["ui_protocol"] = "a2ui/v1"
+        if self.runtime_state is not None:
+            self.state.metadata["runtime_state"] = self.runtime_state
 
         # Increment iteration counter
         self.state.metadata["iteration_without_todos"] += 1
 
         # Add nag reminder if more than 10 iterations without todo usage
         if self.state.metadata["iteration_without_todos"] > 10:
-            self.state.history.append({"role": "user", "content": NAG_REMINDER})
+            if self.runtime_state is not None:
+                self.runtime_state.enqueue_system_reminder(
+                    "todo_nag",
+                    (
+                        "System notice: more than ten rounds passed without Todo usage. "
+                        "Use the Todo tool to track progress if the task still requires multiple steps."
+                    ),
+                    "todos",
+                )
+            else:
+                self.state.history.append({"role": "user", "content": NAG_REMINDER})
             # Reset counter to avoid spamming reminders
             self.state.metadata["iteration_without_todos"] = 0
 
@@ -459,10 +476,14 @@ class MinionCodeAgent(CodeAgent):
             Agent response or async generator for streaming
         """
         try:
+            original_message = message
+            if self.runtime_state is not None:
+                message = self.runtime_state.prepare_user_message(message)
+
             if stream:
                 # For streaming, await parent to get async generator, then wrap it
                 stream_gen = await super().run_async(message, stream=True, **kwargs)
-                return self._wrap_stream_with_history(message, stream_gen)
+                return self._wrap_stream_with_history(original_message, stream_gen)
             else:
                 # For non-streaming, await the result
                 result = await super().run_async(message, stream=False, **kwargs)
@@ -470,7 +491,7 @@ class MinionCodeAgent(CodeAgent):
                 # Track conversation history for non-streaming
                 self.conversation_history.append(
                     {
-                        "user_message": message,
+                        "user_message": original_message,
                         "agent_response": (
                             result.answer if hasattr(result, "answer") else str(result)
                         ),

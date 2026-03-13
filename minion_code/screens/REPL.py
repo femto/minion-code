@@ -41,6 +41,7 @@ from ..utils.session_storage import (
     add_message as session_add_message,
     restore_agent_history,
 )
+from ..utils.conversation_runtime import ConversationRuntimeState
 
 # No logging in UI components to reduce noise
 
@@ -491,6 +492,7 @@ class REPL(Container):
         # Output adapter for command execution
         self.output_adapter = TextualOutputAdapter(on_output=self.handle_command_output)
         self.active_dialog: Optional[Container] = None
+        self.runtime_state = ConversationRuntimeState()
 
     def _create_test_messages(self) -> List[MessageData]:
         """Create some test messages for development/testing"""
@@ -797,7 +799,7 @@ Try typing something to get started!"""
 
                 # Query API (equivalent to query function)
                 print("DEBUG: Calling query_api")
-                await self.query_api(new_messages)
+                await self._process_prompt_batch(new_messages)
                 print("DEBUG: query_api completed")
 
         except Exception as e:
@@ -857,6 +859,8 @@ Try typing something to get started!"""
         # Bind output adapter to agent if it supports confirmation
         if hasattr(agent, "set_output_adapter"):
             agent.set_output_adapter(self.output_adapter)
+        if hasattr(agent, "set_runtime_state"):
+            agent.set_runtime_state(self.runtime_state)
 
         # Restore agent history from session if resuming
         if self.session and self.session.messages:
@@ -1000,7 +1004,9 @@ Try typing something to get started!"""
         except Exception:
             self.refresh()
 
-    async def query_api(self, new_messages: List[MessageData]):
+    async def query_api(
+        self, new_messages: List[MessageData], manage_loading: bool = True
+    ):
         """Query the AI API with streaming support - equivalent to query function"""
 
         if not new_messages or new_messages[-1].type != MessageType.USER:
@@ -1020,7 +1026,8 @@ Try typing something to get started!"""
 
         try:
             # Set loading state with immediate UI feedback
-            self.is_loading = True
+            if manage_loading:
+                self.is_loading = True
 
             # Add a temporary "thinking" message to show immediate feedback
             thinking_message = MessageData(
@@ -1237,7 +1244,8 @@ Try typing something to get started!"""
                 self.refresh()  # Fallback to full refresh
 
         finally:
-            self.is_loading = False
+            if manage_loading:
+                self.is_loading = False
 
             # Final UI update to remove loading indicators
             try:
@@ -1247,6 +1255,35 @@ Try typing something to get started!"""
                 messages_component.update_messages(self.messages)
             except Exception:
                 self.refresh()  # Fallback to full refresh
+
+    async def _process_prompt_batch(self, initial_messages: List[MessageData]):
+        """Process the current prompt and any buffered prompts sequentially."""
+        async with self.runtime_state.processing_lock:
+            self.is_loading = True
+            try:
+                pending_messages: List[List[MessageData]] = [initial_messages]
+
+                while pending_messages:
+                    current_messages = pending_messages.pop(0)
+                    await self.query_api(current_messages, manage_loading=False)
+
+                    while True:
+                        queued_prompt = self.runtime_state.pop_prompt()
+                        if queued_prompt is None:
+                            break
+
+                        pending_messages.append(
+                            [
+                                MessageData(
+                                    type=MessageType.USER,
+                                    message=MessageContent(queued_prompt.content),
+                                    options=queued_prompt.metadata.get("options", {}),
+                                )
+                            ]
+                        )
+            finally:
+                self.is_loading = False
+                self._refresh_messages()
 
     async def handle_koding_response(self, assistant_message: MessageData):
         """Handle Koding mode response - equivalent to handleHashCommand"""
@@ -1310,6 +1347,28 @@ Try typing something to get started!"""
         """Handle AI query processing (user message already displayed)"""
         # 用户消息已经通过 on_add_user_message_from_prompt 显示了
         # 这里只处理AI响应
+        user_message = messages[-1] if messages else None
+        if (
+            user_message
+            and (self.runtime_state.is_processing or self.is_loading)
+            and isinstance(user_message.message.content, str)
+        ):
+            queue_size = self.runtime_state.queue_prompt(
+                user_message.message.content,
+                metadata={"options": user_message.options or {}},
+            )
+            queued_message = MessageData(
+                type=MessageType.PROGRESS,
+                message=MessageContent(
+                    f"Buffered prompt queued. {queue_size} pending."
+                ),
+                options={"buffered_prompt": True},
+            )
+            self.messages = [*self.messages, queued_message]
+            self._refresh_messages()
+            return
+
+        self.is_loading = True
         self.run_worker(
             self._process_ai_response(messages, abort_controller), exclusive=False
         )
@@ -1326,8 +1385,7 @@ Try typing something to get started!"""
             if not abort_controller:
                 self.abort_controller = controller_to_use
 
-            # Query API for AI response (query_api handles its own loading state)
-            await self.query_api(user_messages)
+            await self._process_prompt_batch(user_messages)
 
         except Exception as e:
             # Handle errors in background processing
@@ -1433,10 +1491,10 @@ Try typing something to get started!"""
                     options={"from_command": command_name},
                 )
                 self.messages = [*self.messages, user_message]
+                self._save_message_to_session("user", expanded_prompt)
                 self._refresh_messages()
 
-                # Process through AI (this will show "Thinking..." as expected)
-                await self.query_api([user_message])
+                await self.on_query_from_prompt([user_message])
 
             except Exception as e:
                 error_message = MessageData(

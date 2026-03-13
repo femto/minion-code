@@ -243,7 +243,7 @@ class PromptInput(Container):
             yield CustomTextArea(
                 text=self.input_value,
                 id="main_input",
-                disabled=self.is_disabled or self.is_loading,
+                disabled=self.is_disabled,
                 show_line_numbers=False,
             )
 
@@ -365,7 +365,7 @@ class PromptInput(Container):
         if not input_text:
             return
 
-        if self.is_disabled or self.is_loading:
+        if self.is_disabled:
             return
 
         # Handle exit commands
@@ -375,6 +375,8 @@ class PromptInput(Container):
 
         # Handle slash commands (e.g., /clear, /help, /tools)
         if input_text.startswith("/"):
+            if self.is_loading:
+                return
             # Clear input immediately
             with text_area.prevent(TextArea.Changed):
                 text_area.text = ""
@@ -389,6 +391,9 @@ class PromptInput(Container):
 
         # 1. 立即清空输入框并重置模式 - 提供即时反馈
         original_mode = self.mode
+
+        if self.is_loading and original_mode in (InputMode.KODING, InputMode.BASH):
+            return
 
         with text_area.prevent(TextArea.Changed):
             text_area.text = ""
@@ -778,11 +783,7 @@ class PromptInput(Container):
 
     def watch_is_loading(self, is_loading: bool):
         """Watch loading state changes"""
-        try:
-            input_widget = self.query_one("#main_input", expect_type=CustomTextArea)
-            input_widget.disabled = self.is_disabled or is_loading
-        except:
-            pass
+        return
 
     def watch_input_value(self, value: str):
         """Watch input value changes"""
