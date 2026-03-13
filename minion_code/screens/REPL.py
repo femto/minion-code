@@ -482,7 +482,7 @@ class REPL(Container):
 
         # Internal state
         self.config = REPLConfig()
-        self.abort_controller: Optional[asyncio.Task] = None
+        self.abort_controller = None
         self.tool_jsx: Optional[ToolJSXContext] = None
         self.tool_use_confirm: Optional[ToolUseConfirm] = None
         self.binary_feedback_context: Optional[BinaryFeedbackContext] = None
@@ -651,6 +651,7 @@ Try typing something to get started!"""
                 prompt_input.set_fork_convo_with_messages = self.set_fork_convo_messages
                 prompt_input.on_model_change = self.on_model_change_from_prompt
                 prompt_input.set_tool_jsx = self.set_tool_jsx_from_prompt
+                prompt_input.on_interrupt = self.on_interrupt_from_prompt
                 prompt_input.on_execute_command = (
                     self.on_execute_command_from_prompt
                 )  # Command execution callback
@@ -870,7 +871,7 @@ Try typing something to get started!"""
         if self.initial_prompt:
             print(f"DEBUG: Triggering initial prompt processing: {self.initial_prompt}")
             # Start the worker to process initial prompt
-            self._start_initial_prompt_worker()
+            self.abort_controller = self._start_initial_prompt_worker()
 
     def handle_command_output(self, output_type: str, data: dict):
         """Handle output from command execution via adapter"""
@@ -1321,6 +1322,20 @@ Try typing something to get started!"""
         elif self.abort_controller:
             self.abort_controller.cancel()
 
+        dropped_prompts = self.runtime_state.clear_pending_prompts()
+        message_text = "Interrupted current task."
+        if dropped_prompts:
+            message_text += f" Discarded {dropped_prompts} buffered prompt(s)."
+        self.messages = [
+            *self.messages,
+            MessageData(
+                type=MessageType.PROGRESS,
+                message=MessageContent(message_text),
+                options={"interrupted": True},
+            ),
+        ]
+        self._refresh_messages()
+
     # Callback methods for PromptInput component
     def on_add_user_message_from_prompt(self, user_message: MessageData):
         """Handle immediate user message display (synchronous)"""
@@ -1369,7 +1384,7 @@ Try typing something to get started!"""
             return
 
         self.is_loading = True
-        self.run_worker(
+        self.abort_controller = self.run_worker(
             self._process_ai_response(messages, abort_controller), exclusive=False
         )
 
@@ -1378,15 +1393,10 @@ Try typing something to get started!"""
     ):
         """Process AI response in background worker"""
         try:
-            # Use passed AbortController or create new one
-            controller_to_use = abort_controller or asyncio.create_task(
-                asyncio.sleep(0)
-            )
-            if not abort_controller:
-                self.abort_controller = controller_to_use
-
             await self._process_prompt_batch(user_messages)
 
+        except asyncio.CancelledError:
+            return
         except Exception as e:
             # Handle errors in background processing
             error_message = MessageData(
@@ -1407,6 +1417,8 @@ Try typing something to get started!"""
 
             # Clear loading state on error
             self.is_loading = False
+        finally:
+            self.abort_controller = None
 
     def on_input_change_from_prompt(self, value: str):
         """Handle input change from PromptInput"""
@@ -1430,6 +1442,10 @@ Try typing something to get started!"""
     def set_abort_controller_from_prompt(self, controller):
         """Set abort controller from PromptInput"""
         self.abort_controller = controller
+
+    def on_interrupt_from_prompt(self):
+        """Handle the double-Esc interrupt gesture from the prompt input."""
+        self.on_cancel()
 
     def show_message_selector(self):
         """Show message selector from PromptInput"""

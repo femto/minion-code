@@ -17,6 +17,16 @@ def test_prompt_queue_preserves_order():
     assert runtime.pop_prompt() is None
 
 
+def test_clear_pending_prompts_returns_dropped_count():
+    """Interrupt handlers should be able to discard buffered prompts explicitly."""
+    runtime = ConversationRuntimeState()
+    runtime.queue_prompt("first")
+    runtime.queue_prompt("second")
+
+    assert runtime.clear_pending_prompts() == 2
+    assert runtime.pop_prompt() is None
+
+
 def test_one_shot_reminder_is_consumed_once():
     """Non-persistent reminders should only be injected into the next turn."""
     runtime = ConversationRuntimeState()

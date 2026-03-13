@@ -143,6 +143,7 @@ class PromptInput(Container):
     input_value = reactive("")
     is_disabled = reactive(False)
     is_loading = reactive(False)
+    interrupt_armed = reactive(False)
     submit_count = reactive(0)
     cursor_offset = reactive(0)
 
@@ -215,9 +216,12 @@ class PromptInput(Container):
         self.set_fork_convo_with_messages: Optional[Callable] = None
         self.on_model_change: Optional[Callable] = None
         self.set_tool_jsx: Optional[Callable] = None
+        self.on_interrupt: Optional[Callable] = None
         self.on_execute_command: Optional[Callable] = (
             None  # Callback for executing / commands
         )
+        self._interrupt_deadline = 0.0
+        self._interrupt_reset_timer = None
 
     def on_mount(self):
         """Set focus to input when component mounts"""
@@ -248,7 +252,8 @@ class PromptInput(Container):
             )
 
         yield Static(
-            "Enter send · Ctrl+Enter/Ctrl+J/Tab newline · ! bash · # AGENTS.md",
+            self._get_help_text(),
+            id="help_text",
             classes="help-text",
         )
 
@@ -282,6 +287,12 @@ class PromptInput(Container):
             return "Enter note for AGENTS.md..."
         else:
             return "Enter your message..."
+
+    def _get_help_text(self) -> str:
+        """Get contextual footer help text."""
+        if self.interrupt_armed:
+            return "Press Esc again to interrupt current task"
+        return "Enter send · Ctrl+Enter/Ctrl+J/Tab newline · ! bash · # AGENTS.md"
 
     def _get_model_info(self) -> Optional[ModelInfo]:
         """Get current model information - equivalent to modelInfo useMemo"""
@@ -322,6 +333,9 @@ class PromptInput(Container):
         """Handle key events from CustomTextArea"""
         key = event.key
 
+        if key != "escape" and self.interrupt_armed:
+            self._disarm_interrupt()
+
         if key == "enter":
             # Regular Enter - submit
             self.run_worker(self._handle_submit(), exclusive=True)
@@ -339,8 +353,9 @@ class PromptInput(Container):
                 if self.on_mode_change:
                     self.on_mode_change(InputMode.PROMPT)
         elif key == "escape":
-            # Handle escape key
-            if not self.input_value and not self.is_loading and len(self.messages) > 0:
+            if self.is_loading:
+                self._handle_loading_escape()
+            elif not self.input_value and len(self.messages) > 0:
                 if self.on_show_message_selector:
                     self.on_show_message_selector()
             else:
@@ -665,6 +680,29 @@ class PromptInput(Container):
             duration, lambda: setattr(self, "message", {"show": False, "text": ""})
         )
 
+    def _handle_loading_escape(self) -> None:
+        """Require a double-Esc gesture before interrupting active work."""
+        now = time.monotonic()
+        if self.interrupt_armed and now <= self._interrupt_deadline:
+            self._disarm_interrupt()
+            if self.on_interrupt:
+                self.on_interrupt()
+            return
+
+        self.interrupt_armed = True
+        self._interrupt_deadline = now + 1.5
+        if self._interrupt_reset_timer is not None:
+            self._interrupt_reset_timer.stop()
+        self._interrupt_reset_timer = self.set_timer(1.5, self._disarm_interrupt)
+
+    def _disarm_interrupt(self) -> None:
+        """Clear the pending double-Esc interrupt gesture."""
+        self.interrupt_armed = False
+        self._interrupt_deadline = 0.0
+        if self._interrupt_reset_timer is not None:
+            self._interrupt_reset_timer.stop()
+            self._interrupt_reset_timer = None
+
     async def _process_user_input(
         self, input_text: str, mode: InputMode
     ) -> List[MinionMessage]:
@@ -783,7 +821,16 @@ class PromptInput(Container):
 
     def watch_is_loading(self, is_loading: bool):
         """Watch loading state changes"""
-        return
+        if not is_loading and self.interrupt_armed:
+            self._disarm_interrupt()
+
+    def watch_interrupt_armed(self, interrupt_armed: bool):
+        """Update contextual footer text for the double-Esc gesture."""
+        try:
+            help_widget = self.query_one("#help_text", expect_type=Static)
+            help_widget.update(self._get_help_text())
+        except Exception:
+            pass
 
     def watch_input_value(self, value: str):
         """Watch input value changes"""

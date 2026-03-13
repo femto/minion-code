@@ -58,6 +58,12 @@ class ConversationRuntimeState:
     def pending_prompt_count(self) -> int:
         return len(self.pending_prompts)
 
+    def clear_pending_prompts(self) -> int:
+        """Drop all buffered prompts and return how many were removed."""
+        count = len(self.pending_prompts)
+        self.pending_prompts.clear()
+        return count
+
     def enqueue_system_reminder(
         self,
         key: str,
