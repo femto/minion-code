@@ -10,7 +10,7 @@ notifications when tools are called.
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Iterable
 
 from acp import Client
 from acp.schema import (
@@ -56,15 +56,18 @@ TOOL_KIND_MAP = {
 # These are read-only, internal, or non-destructive operations
 SAFE_TOOLS = {
     # Read-only tools
-    # "file_read",
-    # "glob",
-    # "grep",
-    # "ls",
-    # "todo_read",
+    "file_read",
+    "glob",
+    "grep",
+    "ls",
+    "web_fetch",
+    "web_search",
+    "todo_read",
     # Internal/non-destructive tools
     "think",
     "final_answer",
     "user_input",
+    "Skill",
     "TaskStatus",
     "TaskOutput",
     "TaskList",
@@ -91,6 +94,7 @@ class ACPToolHooks:
     session_id: str
     request_permission: bool = False  # Whether to request permission via ACP
     permission_store: Optional[PermissionStore] = None  # Persistent permission storage
+    auto_allow_tools: frozenset[str] = field(default_factory=frozenset)
     _tool_call_ids: Dict[str, str] = field(default_factory=dict)
 
     @staticmethod
@@ -112,10 +116,16 @@ class ACPToolHooks:
         self._tool_call_ids[tool_use_id] = tool_call_id
 
         # Check if this tool needs permission
-        needs_permission = self.request_permission and tool_name not in SAFE_TOOLS
+        needs_permission = (
+            self.request_permission
+            and tool_name not in SAFE_TOOLS
+            and tool_name not in self.auto_allow_tools
+        )
 
         if tool_name in SAFE_TOOLS:
             logger.debug(f"Tool {tool_name} is safe, skipping permission request")
+        elif tool_name in self.auto_allow_tools:
+            logger.debug(f"Tool {tool_name} is auto-allowed in current mode")
 
         # Check persistent permissions first
         if needs_permission and self.permission_store:
@@ -303,6 +313,7 @@ def create_acp_hooks(
     request_permission: bool = False,
     include_dangerous_check: bool = True,
     permission_store: Optional[PermissionStore] = None,
+    auto_allow_tools: Optional[Iterable[str]] = None,
 ) -> HookConfig:
     """
     Create HookConfig with ACP-specific hooks.
@@ -313,6 +324,7 @@ def create_acp_hooks(
         request_permission: Whether to request permission via ACP for tool calls
         include_dangerous_check: Whether to include dangerous command blocking
         permission_store: Optional persistent permission storage
+        auto_allow_tools: Tool names to auto-accept without prompting
 
     Returns:
         HookConfig configured for ACP integration
@@ -322,6 +334,7 @@ def create_acp_hooks(
         session_id=session_id,
         request_permission=request_permission,
         permission_store=permission_store,
+        auto_allow_tools=frozenset(auto_allow_tools or ()),
     )
 
     # Create hook functions

@@ -55,6 +55,7 @@ from acp.schema import (
 )
 from .session_modes import (
     DEFAULT_MODE_ID,
+    DONT_ASK_MODE_ID,
     build_session_mode_state,
     get_session_mode_spec,
 )
@@ -112,6 +113,9 @@ class MinionACPAgent:
         self.config = config or {}
         self.cwd = cwd or os.getcwd()
         self.model = model  # LLM model to use
+        self.initial_mode_id = (
+            DONT_ASK_MODE_ID if skip_permissions else DEFAULT_MODE_ID
+        )
 
     def on_connect(self, conn: Client) -> None:
         """Called when connected to an ACP client."""
@@ -189,7 +193,7 @@ class MinionACPAgent:
             mcp_servers=mcp_servers,
             skip_permissions=self.skip_permissions,
             model=self.model,
-            mode_id=DEFAULT_MODE_ID,
+            mode_id=self.initial_mode_id,
         )
         await session.initialize()
 
@@ -433,7 +437,7 @@ class MinionACPAgent:
             client=self.client,
             mcp_servers=mcp_servers or [],
             skip_permissions=self.skip_permissions,
-            mode_id=DEFAULT_MODE_ID,
+            mode_id=self.initial_mode_id,
         )
         await session.initialize()
         self.sessions[session_id] = session
@@ -508,9 +512,10 @@ class ACPSession:
             self.hooks = create_acp_hooks(
                 client=self.client,
                 session_id=self.session_id,
-                request_permission=not self.skip_permissions,  # Ask user permission unless skipped
-                include_dangerous_check=True,
+                request_permission=mode_spec.request_permission,
+                include_dangerous_check=mode_spec.include_dangerous_check,
                 permission_store=self.permission_store,
+                auto_allow_tools=mode_spec.auto_allow_tools,
             )
 
         # Create the agent with optional model override
