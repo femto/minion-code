@@ -1,102 +1,85 @@
 #!/usr/bin/env python3
-"""
-Task Tool for launching specialized agents to handle complex, multi-step tasks.
-Uses SubagentRegistry to dynamically manage available agent types.
-"""
+"""Task tool for running subagents as managed jobs."""
 
-import time
-import uuid
+from __future__ import annotations
+
+import asyncio
+import json
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
+from typing import Any, Dict, List, Optional, Union
+
 from minion.tools import AsyncBaseTool
 from minion.types import AgentState
 
+from ..utils.background_tasks import TaskRecord, get_background_task_manager
+
 
 def generate_task_tool_prompt() -> str:
-    """
-    Generate the complete Task tool prompt including available subagents.
-    This is used to generate the Task tool description dynamically.
-
-    Returns:
-        Complete task tool prompt with all available subagents
-    """
+    """Generate the dynamic Task tool description."""
     from ..subagents import load_subagents
 
     registry = load_subagents()
     subagents = registry.list_all()
 
     if not subagents:
-        return """Launch a new agent to handle complex, multi-step tasks autonomously.
+        return """Launch a subagent job to handle a complex task.
 
 No subagents are currently available."""
 
-    # Generate subagent descriptions
     subagent_lines = registry.generate_tool_description_lines()
-
-    return f"""Launch a new agent to handle complex, multi-step tasks autonomously.
+    return f"""Launch a subagent job to handle complex, multi-step tasks.
 
 Available agent types and the tools they have access to:
 {subagent_lines}
 
-When using the Task tool, you must specify a subagent_type parameter to select which agent type to use. Default is "general-purpose".
+This tool can finish in the foreground for short tasks or return a background task handle for long tasks.
 
-When to use the Task tool:
-- For complex, multi-step tasks that require specialized expertise
-- When you need to delegate a complete subtask to a focused agent
-- For exploration tasks (use "Explore" subagent)
-- For planning and architecture design (use "Plan" subagent)
-- For documentation lookup (use "claude-code-guide" subagent)
-
-When NOT to use the Task tool:
-- If you want to read a specific file path, use the file_read tool instead
-- For simple grep searches, use the grep tool directly
-- For single bash commands, use the bash tool directly
-- For simple questions you can answer directly without tools
-
-Usage notes:
-1. Each agent invocation is stateless and autonomous
-2. Provide detailed task descriptions for best results
-3. Choose the appropriate subagent_type for your specific task
-4. Read-only subagents (Explore, Plan) cannot modify files
-
-Example usage:
-- Task(description="Explore auth", prompt="Find all authentication-related files", subagent_type="Explore")
-- Task(description="Plan feature", prompt="Design implementation plan for user settings", subagent_type="Plan")
-- Task(description="Complex refactor", prompt="Refactor the database layer...", subagent_type="general-purpose")
+Use this tool when:
+- The work is complex enough to delegate to a subagent
+- You want a subagent to continue running in the background
+- You need a separate task_id so you can check status and output later
 """
 
 
 class TaskTool(AsyncBaseTool):
-    """
-    A tool for launching specialized agents to handle complex, multi-step tasks autonomously.
-    Uses SubagentRegistry to dynamically manage available agent types.
-    """
+    """Launch a subagent and optionally background it."""
 
     name = "Task"
-    # Description will be set dynamically in __init__
-    description = "Launch a new agent to handle complex, multi-step tasks autonomously"
-    readonly = (
-        True  # Task execution is read-only from the perspective of the calling agent
-    )
+    description = "Launch a subagent job to handle complex tasks."
+    readonly = False
     needs_state = True
-
     inputs = {
         "description": {
             "type": "string",
-            "description": "A short (3-5 word) description of the task",
+            "description": "A short description of the task.",
         },
         "prompt": {
             "type": "string",
-            "description": "The task for the agent to perform",
+            "description": "The prompt the subagent should execute.",
         },
         "model_name": {
             "type": "string",
-            "description": "Optional: Specific model name to use for this task",
+            "description": "Optional model override for the subagent.",
             "nullable": True,
         },
         "subagent_type": {
             "type": "string",
-            "description": "The type of specialized agent to use (default: general-purpose)",
+            "description": "Which subagent type to launch. Defaults to general-purpose.",
+            "nullable": True,
+        },
+        "background": {
+            "type": "boolean",
+            "description": "If true, launch the subagent in the background and return a task_id immediately.",
+            "nullable": True,
+        },
+        "auto_background_after": {
+            "type": "integer",
+            "description": "How long to wait before returning a background task handle.",
+            "nullable": True,
+        },
+        "timeout": {
+            "type": "integer",
+            "description": "Reserved for future use. Included for parity with bash.",
             "nullable": True,
         },
     }
@@ -105,13 +88,12 @@ class TaskTool(AsyncBaseTool):
     def __init__(self, workdir: Optional[str] = None):
         super().__init__()
         self._registry = None
-        self._workdir = Path(workdir) if workdir else None
-        # Set dynamic description
+        self._workdir = Path(workdir).resolve() if workdir else Path.cwd().resolve()
         self.description = generate_task_tool_prompt()
 
     @property
     def registry(self):
-        """Get the subagent registry, loading subagents if needed."""
+        """Load subagents lazily."""
         if self._registry is None:
             from ..subagents import load_subagents
 
@@ -124,50 +106,48 @@ class TaskTool(AsyncBaseTool):
         prompt: str,
         model_name: Optional[str] = None,
         subagent_type: Optional[str] = None,
+        background: Optional[bool] = False,
+        auto_background_after: Optional[int] = 180,
+        timeout: Optional[int] = None,
         *,
         state: AgentState,
-    ) -> str:
-        """Execute the task using a specialized agent (async)."""
-        start_time = time.time()
+    ) -> dict[str, Any]:
+        """Launch a subagent job and return either a result or a background task handle."""
+        del state
+        validation = self._validate_input(
+            description=description,
+            prompt=prompt,
+            model_name=model_name,
+            subagent_type=subagent_type,
+        )
+        if not validation["valid"]:
+            return {
+                "mode": "foreground",
+                "status": "failed",
+                "error": validation["message"],
+            }
 
-        # Default to general-purpose
         agent_type = subagent_type or "general-purpose"
-
-        # Get subagent config from registry
         subagent_config = self.registry.get(agent_type)
+        workdir = self._workdir
+        manager = get_background_task_manager(workdir)
 
-        if subagent_config is None:
-            available_types = self.registry.list_names()
-            return (
-                f"Agent type '{agent_type}' not found.\n\nAvailable agents:\n"
-                + "\n".join(f"  - {t}" for t in available_types)
-                + "\n\nUse one of the available agent types."
-            )
-
-        # Build effective prompt
-        effective_prompt = prompt
-        if subagent_config.system_prompt:
-            effective_prompt = f"{subagent_config.system_prompt}\n\n{prompt}"
-
-        # Determine model
-        effective_model = model_name or "gpt-4o-mini"
-        if not model_name and subagent_config.model_name != "inherit":
-            effective_model = subagent_config.model_name
-
-        # Progress messages
-        progress_messages = [
-            f"Starting agent: {agent_type}",
-            f"Using model: {effective_model}",
-            f"Task: {description}",
-        ]
-
-        try:
+        async def run_subagent(record: TaskRecord) -> str:
             from ..agents.code_agent import MinionCodeAgent
 
-            # Determine working directory
-            workdir = self._workdir or Path.cwd()
+            effective_prompt = prompt
+            if subagent_config.system_prompt:
+                effective_prompt = f"{subagent_config.system_prompt}\n\n{prompt}"
 
-            # Create agent with filtered tools
+            effective_model = model_name or "gpt-4o-mini"
+            if not model_name and subagent_config.model_name != "inherit":
+                effective_model = subagent_config.model_name
+
+            manager.append_log(
+                record.task_id,
+                f"[task] {description}\n[subagent] {agent_type}\n[model] {effective_model}\n\n",
+            )
+
             agent = await MinionCodeAgent.create(
                 name=f"Task Agent ({agent_type})",
                 llm=effective_model,
@@ -176,56 +156,106 @@ class TaskTool(AsyncBaseTool):
                 ),
                 workdir=workdir,
                 additional_tools=self._get_filtered_tools(subagent_config.tools),
-                # History decay: save large outputs to file after N steps
                 decay_enabled=True,
                 decay_ttl_steps=3,
-                decay_min_size=100_000,  # 100KB
+                decay_min_size=100_000,
             )
 
-            # Execute
-            response = await agent.run_async(prompt)
+            final_text = ""
+            async for chunk in await agent.run_async(prompt, stream=True):
+                chunk_type = getattr(chunk, "chunk_type", "text")
+                chunk_content = getattr(chunk, "content", str(chunk)) or ""
+                chunk_metadata = getattr(chunk, "metadata", {}) or {}
 
-            # Extract response
-            if hasattr(response, "answer"):
-                result_text = response.answer
-            elif hasattr(response, "content"):
-                result_text = response.content
-            else:
-                result_text = str(response)
+                if chunk_type == "step_start":
+                    manager.append_log(
+                        record.task_id, f"\n[step] {chunk_content or chunk_metadata}\n"
+                    )
+                elif chunk_type == "tool_call":
+                    tool_name = chunk_metadata.get("tool_name", "unknown")
+                    args = chunk_metadata.get("args", {})
+                    manager.append_log(
+                        record.task_id,
+                        f"\n[tool] {tool_name} {json.dumps(args, ensure_ascii=False)}\n",
+                    )
+                elif chunk_type in ("thinking", "text", "content"):
+                    if chunk_content:
+                        manager.append_log(record.task_id, chunk_content)
+                elif chunk_type in ("agent_response", "final_answer", "completion"):
+                    final_text = str(getattr(chunk, "answer", chunk_content) or "")
+                    if final_text:
+                        manager.append_log(record.task_id, f"\n{final_text}\n")
+                elif chunk_type == "error" and chunk_content:
+                    manager.append_log(record.task_id, f"\n[error] {chunk_content}\n")
 
-            duration = time.time() - start_time
-            completion_message = f"Task completed ({self._format_duration(duration)})"
+            return final_text
 
-            return (
-                "\n".join(progress_messages)
-                + f"\n\n{result_text}\n\n{completion_message}"
-            )
+        record = await manager.start_async_task(
+            title=description,
+            cwd=workdir,
+            coroutine_factory=run_subagent,
+            timeout=timeout,
+            metadata={
+                "subagent_type": agent_type,
+                "prompt": prompt,
+                "description": description,
+            },
+        )
 
-        except Exception as e:
-            return (
-                "\n".join(progress_messages)
-                + f"\n\nError during task execution: {str(e)}"
-            )
+        if background:
+            return {
+                "mode": "background",
+                "status": record.status,
+                "task_id": record.task_id,
+                "subagent_type": agent_type,
+                "message": "Subagent task started in the background.",
+            }
 
-    def _get_filtered_tools(self, tool_filter: Union[str, List[str]]) -> Optional[List]:
-        """Get filtered tools based on subagent configuration."""
-        if tool_filter == "*" or (isinstance(tool_filter, list) and "*" in tool_filter):
-            return None  # Use all default tools
+        wait_seconds = max(0, auto_background_after or 0)
+        if wait_seconds == 0:
+            return {
+                "mode": "background",
+                "status": record.status,
+                "task_id": record.task_id,
+                "subagent_type": agent_type,
+                "message": "Subagent task moved to the background immediately.",
+            }
 
-        # TODO: Implement actual tool filtering based on tool names
-        # For now, return None to use all tools
+        deadline = asyncio.get_event_loop().time() + wait_seconds
+        while asyncio.get_event_loop().time() < deadline:
+            current = manager.get_record(record.task_id)
+            if current is None:
+                break
+            if current.status in {"completed", "failed", "cancelled"}:
+                return {
+                    "mode": "foreground",
+                    "status": current.status,
+                    "task_id": current.task_id,
+                    "subagent_type": agent_type,
+                    "result": current.result or "",
+                    "error": current.error,
+                }
+            await asyncio.sleep(0.2)
+
+        current = manager.get_record(record.task_id) or record
+        return {
+            "mode": "background",
+            "status": current.status,
+            "task_id": current.task_id,
+            "subagent_type": agent_type,
+            "message": (
+                f"Subagent task is still running after {wait_seconds} seconds and has been moved to the background."
+            ),
+        }
+
+    def _get_filtered_tools(
+        self, tool_filter: Union[str, List[str]]
+    ) -> Optional[List]:
+        if tool_filter == "*" or (
+            isinstance(tool_filter, list) and "*" in tool_filter
+        ):
+            return None
         return None
-
-    def _format_duration(self, seconds: float) -> str:
-        """Format duration in a human-readable way."""
-        if seconds < 1:
-            return f"{int(seconds * 1000)}ms"
-        elif seconds < 60:
-            return f"{seconds:.1f}s"
-        else:
-            minutes = int(seconds // 60)
-            remaining_seconds = seconds % 60
-            return f"{minutes}m {remaining_seconds:.1f}s"
 
     def _validate_input(
         self,
@@ -234,40 +264,35 @@ class TaskTool(AsyncBaseTool):
         model_name: Optional[str] = None,
         subagent_type: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Validate input parameters."""
-
+        del model_name
         if not description or not isinstance(description, str):
             return {
                 "valid": False,
                 "message": "Description is required and must be a string",
             }
-
         if not prompt or not isinstance(prompt, str):
             return {
                 "valid": False,
                 "message": "Prompt is required and must be a string",
             }
-
-        # Validate subagent_type if provided
         if subagent_type and not self.registry.exists(subagent_type):
             available_types = self.registry.list_names()
             return {
                 "valid": False,
-                "message": f"Agent type '{subagent_type}' does not exist. Available types: {', '.join(available_types)}",
+                "message": (
+                    f"Agent type '{subagent_type}' does not exist. Available types: {', '.join(available_types)}"
+                ),
             }
-
         return {"valid": True}
 
     @classmethod
     def get_available_agent_types(cls) -> List[str]:
-        """Get list of available agent types."""
         from ..subagents import get_available_subagents
 
-        return [s.name for s in get_available_subagents()]
+        return [subagent.name for subagent in get_available_subagents()]
 
     @classmethod
     def get_agent_description(cls, agent_type: str) -> Optional[Dict[str, Any]]:
-        """Get description for a specific agent type."""
         from ..subagents import get_subagent_registry
 
         registry = get_subagent_registry()
@@ -281,7 +306,7 @@ class TaskTool(AsyncBaseTool):
             }
         return None
 
-    @classmethod
-    def get_prompt_text(cls) -> str:
-        """Get the tool prompt text for agent instructions."""
-        return generate_task_tool_prompt()
+    def format_for_observation(self, output: Any) -> str:
+        if isinstance(output, dict):
+            return json.dumps(output, ensure_ascii=False, indent=2)
+        return str(output)

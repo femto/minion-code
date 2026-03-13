@@ -41,6 +41,11 @@ TOOL_KIND_MAP = {
     "glob": "search",
     "grep": "search",
     "bash": "execute",
+    "Task": "execute",
+    "TaskStatus": "read",
+    "TaskOutput": "read",
+    "TaskList": "read",
+    "TaskCancel": "execute",
     "python_interpreter": "execute",
     "web_fetch": "fetch",
     "web_search": "search",
@@ -60,6 +65,9 @@ SAFE_TOOLS = {
     "think",
     "final_answer",
     "user_input",
+    "TaskStatus",
+    "TaskOutput",
+    "TaskList",
     # Note: file_write, file_edit, bash, python_interpreter are NOT safe
 }
 

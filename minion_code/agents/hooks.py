@@ -146,7 +146,6 @@ def create_confirm_writes_hook(
         # Skip readonly tools
         if skip_readonly:
             # Known readonly tools (hardcoded list)
-            # Task is readonly because subagents have their own permission control
             readonly_tools = {
                 "file_read",
                 "glob",
@@ -156,7 +155,9 @@ def create_confirm_writes_hook(
                 "web_search",
                 "todo_read",
                 "user_input",
-                "Task",
+                "TaskStatus",
+                "TaskOutput",
+                "TaskList",
             }
             if tool_name in readonly_tools:
                 return PreToolUseResult(decision=PermissionDecision.ACCEPT)
@@ -215,7 +216,6 @@ def create_cli_confirm_hook(
     if session_allowed is None:
         session_allowed = set()
 
-    # Task is readonly because subagents have their own permission control
     readonly_tools = {
         "file_read",
         "glob",
@@ -225,7 +225,9 @@ def create_cli_confirm_hook(
         "web_search",
         "todo_read",
         "user_input",
-        "Task",
+        "TaskStatus",
+        "TaskOutput",
+        "TaskList",
     }
 
     # Use Rich console if provided, otherwise create one

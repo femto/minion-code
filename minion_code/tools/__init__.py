@@ -20,6 +20,10 @@ from .ls_tool import LsTool
 from .python_interpreter_tool import PythonInterpreterTool
 from .user_input_tool import UserInputTool
 from .task_tool import TaskTool
+from .task_status_tool import TaskStatusTool
+from .task_output_tool import TaskOutputTool
+from .task_list_tool import TaskListTool
+from .task_cancel_tool import TaskCancelTool
 
 from .todo_write_tool import TodoWriteTool
 from .todo_read_tool import TodoReadTool
@@ -40,6 +44,10 @@ TOOL_MAPPING = {
         PythonInterpreterTool,
         UserInputTool,
         TaskTool,
+        TaskStatusTool,
+        TaskOutputTool,
+        TaskListTool,
+        TaskCancelTool,
         TodoWriteTool,
         TodoReadTool,
         SkillTool,
@@ -62,6 +70,10 @@ __all__ = [
     "PythonInterpreterTool",
     # Task tools
     "TaskTool",
+    "TaskStatusTool",
+    "TaskOutputTool",
+    "TaskListTool",
+    "TaskCancelTool",
     # Web tools
     # Interactive tools
     "UserInputTool",
