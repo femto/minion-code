@@ -12,6 +12,7 @@ from minion.tools import AsyncBaseTool
 from minion.types import AgentState
 
 from ..utils.background_tasks import TaskRecord, get_background_task_manager
+from ..utils.step_status import humanize_step_status
 
 
 def generate_task_tool_prompt() -> str:
@@ -169,7 +170,8 @@ class TaskTool(AsyncBaseTool):
 
                 if chunk_type == "step_start":
                     manager.append_log(
-                        record.task_id, f"\n[step] {chunk_content or chunk_metadata}\n"
+                        record.task_id,
+                        f"\n[step] {humanize_step_status(chunk_content or chunk_metadata)}\n",
                     )
                 elif chunk_type == "tool_call":
                     tool_name = chunk_metadata.get("tool_name", "unknown")

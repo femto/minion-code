@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from ..services.session_manager import session_manager, HistoryMode
 from ..adapters.web_adapter import TaskState, SSEEvent
+from ...utils.step_status import humanize_step_status
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,7 @@ async def process_chat_stream(
 
                 if chunk_type == "step_start":
                     await session.adapter._emit_event(
-                        "step_start", {"content": chunk_content}
+                        "step_start", {"content": humanize_step_status(chunk_content)}
                     )
                 elif chunk_type == "thinking":
                     await session.adapter.emit_thinking(chunk_content)

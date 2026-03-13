@@ -20,6 +20,7 @@ from minion_code.tools import (
     TaskTool,
     TOOL_MAPPING,
 )
+from minion_code.utils.step_status import humanize_step_status
 
 
 def test_tool_mapping_contains_background_task_tools():
@@ -29,6 +30,13 @@ def test_tool_mapping_contains_background_task_tools():
     assert "TaskOutput" in TOOL_MAPPING
     assert "TaskList" in TOOL_MAPPING
     assert "TaskCancel" in TOOL_MAPPING
+
+
+def test_step_status_hides_fractional_counter():
+    """Internal step counters should not leak to user-facing status text."""
+    assert humanize_step_status("Step 1/5") == "Working"
+    assert humanize_step_status("Step 2/5 indexing files") == "indexing files"
+    assert humanize_step_status("Scanning repository") == "Scanning repository"
 
 
 def test_file_read_tool(tmp_path: Path):

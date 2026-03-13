@@ -57,6 +57,7 @@ from ..type_defs import (
     REPLConfig,
     ModelInfo,
 )
+from ..utils.step_status import humanize_step_status
 
 
 class Logo(Static):
@@ -1057,7 +1058,7 @@ Try typing something to get started!"""
                             # Handle different chunk types
                             if chunk_type == "step_start":
                                 # Show step indicator
-                                current_status = f"🔄 {chunk_content}"
+                                current_status = f"🔄 {humanize_step_status(chunk_content)}"
                                 status_message = MessageData(
                                     type=MessageType.PROGRESS,
                                     message=MessageContent(current_status),
