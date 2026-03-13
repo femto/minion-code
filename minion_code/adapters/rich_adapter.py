@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Rich Output Adapter - CLI implementation
+"""Rich Output Adapter - CLI implementation."""
 
-This adapter uses Rich Console for terminal output. It provides synchronous
-blocking behavior for user interactions, which is suitable for traditional
-CLI applications.
-"""
-
-from typing import List, Optional
+from contextlib import contextmanager
+from typing import Any, Dict, List, Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -26,7 +21,7 @@ class RichOutputAdapter(OutputAdapter):
     until the user responds in the terminal.
     """
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Optional[Console] = None, spinner_controller: Any = None):
         """
         Initialize Rich adapter.
 
@@ -34,6 +29,18 @@ class RichOutputAdapter(OutputAdapter):
             console: Rich Console instance. Creates new one if None.
         """
         self.console = console or Console()
+        self.spinner_controller = spinner_controller
+
+    @contextmanager
+    def _paused_spinner(self):
+        """Pause any active spinner while waiting for terminal input."""
+        if self.spinner_controller:
+            self.spinner_controller.pause()
+        try:
+            yield
+        finally:
+            if self.spinner_controller:
+                self.spinner_controller.resume()
 
     def panel(self, content: str, title: str = "", border_style: str = "blue") -> None:
         """Display a panel using Rich Panel."""
@@ -86,7 +93,8 @@ class RichOutputAdapter(OutputAdapter):
             prompt_message = message
 
         try:
-            return Confirm.ask(prompt_message, console=self.console, default=default)
+            with self._paused_spinner():
+                return Confirm.ask(prompt_message, console=self.console, default=default)
         except KeyboardInterrupt:
             return False
 
@@ -121,11 +129,12 @@ class RichOutputAdapter(OutputAdapter):
         # Get user input
         while True:
             try:
-                choice_input = Prompt.ask(
-                    "Select number (or 'c' to cancel)",
-                    console=self.console,
-                    default=str(default_index + 1),
-                )
+                with self._paused_spinner():
+                    choice_input = Prompt.ask(
+                        "Select number (or 'c' to cancel)",
+                        console=self.console,
+                        default=str(default_index + 1),
+                    )
 
                 # Check for cancel
                 if choice_input.lower() in ["c", "cancel", "q", "quit"]:
@@ -163,9 +172,104 @@ class RichOutputAdapter(OutputAdapter):
             prompt_message = f"{message} (e.g., {placeholder})"
 
         try:
-            return Prompt.ask(prompt_message, console=self.console, default=default)
+            with self._paused_spinner():
+                return Prompt.ask(prompt_message, console=self.console, default=default)
         except KeyboardInterrupt:
             return None
+
+    async def form(
+        self,
+        message: str,
+        fields: List[Dict[str, Any]],
+        title: str = "Form",
+        submit_text: str = "Submit",
+    ) -> Optional[Dict[str, Any]]:
+        """Render a multi-question form in the console without fighting the spinner."""
+        answers: Dict[str, Any] = {}
+        if title:
+            self.console.print(f"[bold blue]{title}[/bold blue]")
+        if message:
+            self.console.print(message)
+        if fields:
+            self.console.print()
+            summary = Table(show_header=True, header_style="bold cyan")
+            summary.add_column("#", width=4)
+            summary.add_column("Field")
+            summary.add_column("Type", width=10)
+            summary.add_column("Default")
+            for index, field in enumerate(fields, start=1):
+                default = field.get("default")
+                summary.add_row(
+                    str(index),
+                    str(field.get("label") or field.get("id") or f"field_{index}"),
+                    str(field.get("type") or "text"),
+                    "" if default is None else str(default),
+                )
+            self.console.print(summary)
+            self.console.print()
+
+        for index, field in enumerate(fields, start=1):
+            field_id = str(field.get("id") or f"field_{index}")
+            label = str(field.get("label") or field_id)
+            field_type = str(field.get("type") or "text").lower()
+            default = field.get("default")
+
+            self.console.print(f"[bold cyan]{index}. {label}[/bold cyan]")
+
+            if field_type == "choice":
+                raw_options = field.get("options") or []
+                options: List[str] = []
+                option_values: List[str] = []
+                for option in raw_options:
+                    if isinstance(option, dict):
+                        option_value = str(option.get("value", option.get("label", "")))
+                        option_label = str(option.get("label", option_value))
+                        option_values.append(option_value)
+                        options.append(option_label)
+                    else:
+                        option_values.append(str(option))
+                        options.append(str(option))
+                if not options:
+                    options = [str(default)] if default is not None else []
+                    option_values = options[:]
+                if not options:
+                    return None
+
+                default_index = 0
+                if default is not None:
+                    try:
+                        default_index = options.index(str(default))
+                    except ValueError:
+                        default_index = 0
+
+                selected_index = await self.choice(
+                    message="Choose one option",
+                    choices=options,
+                    title="",
+                    default_index=default_index,
+                )
+                if selected_index < 0:
+                    return None
+                answers[field_id] = option_values[selected_index]
+            else:
+                placeholder = str(field.get("placeholder") or "")
+                value = await self.input(
+                    message="Enter value",
+                    title="",
+                    default=str(default) if default is not None else "",
+                    placeholder=placeholder,
+                )
+                if value is None:
+                    return None
+                if value == "" and default is not None:
+                    value = str(default)
+                answers[field_id] = value
+
+            self.console.print()
+
+        if submit_text:
+            self.console.print(f"[dim]{submit_text} complete.[/dim]")
+        return answers
 
     def print(self, *args, **kwargs) -> None:
         """Generic print for compatibility."""

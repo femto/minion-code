@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Simple test script to verify OutputAdapter pattern works correctly"""
+"""Simple tests for OutputAdapter behavior."""
 
 import asyncio
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 from rich.console import Console
 from minion_code.adapters import RichOutputAdapter
 
@@ -73,6 +73,27 @@ async def test_adapter():
     with patch("rich.prompt.Confirm.ask", return_value=False):
         result = await output_adapter.confirm("Continue?")
         assert result is False
+
+    # Test 8: Test multi-field form returns normalized values
+    with patch("rich.prompt.Prompt.ask", side_effect=["demo-app", "2"]):
+        answers = await output_adapter.form(
+            title="Project Setup",
+            message="Fill out the project details.",
+            fields=[
+                {"id": "name", "label": "Project name", "type": "text"},
+                {
+                    "id": "lang",
+                    "label": "Language",
+                    "type": "choice",
+                    "options": [
+                        {"label": "Python", "value": "python"},
+                        {"label": "Go", "value": "go"},
+                    ],
+                    "default": "python",
+                },
+            ],
+        )
+        assert answers == {"name": "demo-app", "lang": "go"}
 
 
 if __name__ == "__main__":

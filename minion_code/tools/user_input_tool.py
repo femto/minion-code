@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-User input tool
-"""
+"""User input tool."""
 
 from typing import Optional, Any, Dict, List
 import json
@@ -18,7 +16,7 @@ class UserInputTool(AsyncBaseTool):
     name = "user_input"
     description = (
         "Ask the user one or more questions via UI input. "
-        "Supports single question or multi-question form payload."
+        "Supports single question or rich multi-question form payloads with text and choice fields."
     )
     readonly = True  # Read-only tool, does not modify system state
     needs_state = True
@@ -39,7 +37,7 @@ class UserInputTool(AsyncBaseTool):
                 "Optional multi-question payload JSON. Example: "
                 '{"title":"Project Setup","message":"Please provide inputs","questions":'
                 '[{"id":"name","label":"Project name","type":"text","default":"demo"},'
-                '{"id":"lang","label":"Language","type":"choice","options":["python","go"],"default":"python"}]}'
+                '{"id":"lang","label":"Language","type":"choice","options":[{"label":"Python","value":"python"},{"label":"Go","value":"go"}],"default":"python"}]}'
             ),
             "nullable": True,
         },
@@ -165,7 +163,12 @@ class UserInputTool(AsyncBaseTool):
                 title = "User Input"
                 message = "Please provide the requested information."
             elif isinstance(parsed, dict):
-                raw_questions = parsed.get("questions") or []
+                raw_questions = (
+                    parsed.get("fields")
+                    or parsed.get("questions")
+                    or parsed.get("inputs")
+                    or []
+                )
                 title = str(parsed.get("title") or "User Input")
                 message = str(
                     parsed.get("message") or "Please provide the requested information."
@@ -238,7 +241,16 @@ class UserInputTool(AsyncBaseTool):
                 "required": bool(item.get("required", True)),
             }
             if options:
-                field["options"] = [str(opt) for opt in options]
+                normalized_options: List[Dict[str, str]] = []
+                for opt in options:
+                    if isinstance(opt, dict):
+                        value = str(opt.get("value", opt.get("label", "")))
+                        label_text = str(opt.get("label", value))
+                    else:
+                        value = str(opt)
+                        label_text = value
+                    normalized_options.append({"label": label_text, "value": value})
+                field["options"] = normalized_options
 
             fields.append(field)
 

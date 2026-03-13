@@ -89,10 +89,10 @@ class InterruptibleCLI:
         self.continue_last = continue_last
 
         # Create output adapter for commands
-        self.output_adapter = RichOutputAdapter(self.console)
-
-        # Spinner controller for pausing during permission prompts
         self.spinner_controller = SpinnerController()
+        self.output_adapter = RichOutputAdapter(
+            self.console, spinner_controller=self.spinner_controller
+        )
 
     async def setup(self):
         """Setup the agent."""

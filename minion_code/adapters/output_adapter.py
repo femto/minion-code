@@ -227,10 +227,15 @@ class OutputAdapter(ABC):
             if field_type == "choice":
                 raw_options = field.get("options") or []
                 options: List[str] = []
+                option_values: List[str] = []
                 for option in raw_options:
                     if isinstance(option, dict):
-                        options.append(str(option.get("label", option.get("value", ""))))
+                        option_values.append(
+                            str(option.get("value", option.get("label", "")))
+                        )
+                        options.append(str(option.get("label", option_values[-1])))
                     else:
+                        option_values.append(str(option))
                         options.append(str(option))
 
                 if not options:
@@ -253,7 +258,7 @@ class OutputAdapter(ABC):
                 )
                 if selected_index < 0:
                     return None
-                answers[field_id] = options[selected_index]
+                answers[field_id] = option_values[selected_index]
                 continue
 
             placeholder = str(field.get("placeholder") or "")

@@ -18,6 +18,7 @@ from minion_code.tools import (
     TaskOutputTool,
     TaskStatusTool,
     TaskTool,
+    UserInputTool,
     TOOL_MAPPING,
 )
 from minion_code.utils.step_status import humanize_step_status
@@ -178,3 +179,27 @@ async def test_task_tool_foreground_contract(tmp_path: Path, monkeypatch):
     assert result["mode"] == "foreground"
     assert result["status"] == "completed"
     assert result["result"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_user_input_tool_multi_question_form_uses_value_payload():
+    """user_input should preserve choice values, not display labels."""
+
+    class FakeAdapter:
+        async def form(self, message, fields, title, submit_text):
+            assert title == "Project Setup"
+            assert message == "Fill in the values."
+            assert submit_text == "Submit"
+            assert fields[1]["options"][0]["label"] == "Python"
+            assert fields[1]["options"][0]["value"] == "python"
+            return {"name": "demo", "lang": "python"}
+
+    tool = UserInputTool()
+    state = SimpleNamespace(metadata={"output_adapter": FakeAdapter()})
+
+    result = await tool.forward(
+        questions_json='{"title":"Project Setup","message":"Fill in the values.","fields":[{"id":"name","label":"Project name","type":"text"},{"id":"lang","label":"Language","type":"choice","options":[{"label":"Python","value":"python"},{"label":"Go","value":"go"}],"default":"python"}]}',
+        state=state,
+    )
+
+    assert '"lang": "python"' in result
