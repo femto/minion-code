@@ -370,7 +370,7 @@ class REPL(Container):
         color: yellow;
     }
     
-    .mode-koding #mode_prefix {
+    .mode-memory #mode_prefix {
         color: cyan;
     }
     
@@ -539,7 +539,7 @@ class REPL(Container):
 ## Input Modes
 - **Prompt mode** (`>`): Regular conversation with the AI assistant
 - **Bash mode** (`!`): Execute shell commands directly
-- **Koding mode** (`#`): Add notes or generate content for AGENTS.md
+- **Memory mode** (`#`): Add notes or generate content for AGENTS.md
 
 ## Keyboard Shortcuts
 - `Enter`: Submit your message
@@ -552,7 +552,7 @@ class REPL(Container):
 # Bash mode - execute commands
 !ls -la
 
-# Koding mode - add to AGENTS.md
+# Memory mode - add to AGENTS.md
 #Create a new Python function for data processing
 
 # Regular prompt
@@ -825,7 +825,7 @@ Try typing something to get started!"""
         user_message = MessageData(
             type=MessageType.USER,
             message=MessageContent(input_text),
-            options={"isKodingRequest": mode == InputMode.KODING},
+            options={"isMemoryRequest": mode == InputMode.MEMORY},
         )
 
         # Handle different input modes
@@ -836,8 +836,8 @@ Try typing something to get started!"""
                 type=MessageType.ASSISTANT, message=MessageContent(result)
             )
             return [user_message, assistant_message]
-        elif mode == InputMode.KODING:
-            # Handle koding request
+        elif mode == InputMode.MEMORY:
+            # Handle memory request
             return [user_message]
         else:
             # Handle regular prompt
@@ -1217,11 +1217,11 @@ Try typing something to get started!"""
                     )
                     self.messages = [*self.messages[:-1], error_message]
 
-                # Handle Koding mode special case
+                # Handle Memory mode special case
                 if new_messages[-1].options and new_messages[-1].options.get(
-                    "isKodingRequest"
+                    "isMemoryRequest"
                 ):
-                    await self.handle_koding_response(self.messages[-1])
+                    await self.handle_memory_response(self.messages[-1])
 
             except Exception as e:
                 # Format error message for UI display
@@ -1313,8 +1313,8 @@ Try typing something to get started!"""
                 self.is_loading = False
                 self._refresh_messages()
 
-    async def handle_koding_response(self, assistant_message: MessageData):
-        """Handle Koding mode response - equivalent to handleHashCommand"""
+    async def handle_memory_response(self, assistant_message: MessageData):
+        """Handle Memory mode response - equivalent to handleHashCommand"""
 
         content = assistant_message.message.content
         if isinstance(content, str) and content.strip():
@@ -1704,7 +1704,7 @@ Try typing something to get started!"""
         """Get the mode prefix character"""
         if self.input_mode == InputMode.BASH:
             return "!"
-        elif self.input_mode == InputMode.KODING:
+        elif self.input_mode == InputMode.MEMORY:
             return "#"
         else:
             return ">"

@@ -1,6 +1,6 @@
 """
 PromptInput Component - Python equivalent of React PromptInput
-Handles user input with multiple modes (prompt, bash, koding)
+Handles user input with multiple modes (prompt, bash, memory)
 """
 
 from textual.containers import Container, Horizontal, Vertical
@@ -113,7 +113,7 @@ class PromptInput(Container):
         border: solid yellow;
     }
     
-    .mode-koding PromptInput {
+    .mode-memory PromptInput {
         border: solid cyan;
     }
     
@@ -293,7 +293,7 @@ class PromptInput(Container):
         """Get the mode prefix character"""
         if self.mode == InputMode.BASH:
             return " ! "
-        elif self.mode == InputMode.KODING:
+        elif self.mode == InputMode.MEMORY:
             return " # "
         else:
             return " > "
@@ -305,8 +305,8 @@ class PromptInput(Container):
 
         if self.mode == InputMode.BASH:
             return "Enter bash command..."
-        elif self.mode == InputMode.KODING:
-            return "Enter note for AGENTS.md..."
+        elif self.mode == InputMode.MEMORY:
+            return "Enter memory for AGENTS.md..."
         else:
             return "Enter your message..."
 
@@ -314,7 +314,7 @@ class PromptInput(Container):
         """Get contextual footer help text."""
         if self.interrupt_armed:
             return "Press Esc again to interrupt current task"
-        return "Enter send · Ctrl+Enter/Ctrl+J/Tab newline · ! bash · # AGENTS.md"
+        return "Enter send · Ctrl+Enter/Ctrl+J/Tab newline · ! bash · # memory"
 
     def _get_model_info(self) -> Optional[ModelInfo]:
         """Get current model information - equivalent to modelInfo useMemo"""
@@ -358,8 +358,8 @@ class PromptInput(Container):
             return
 
         if value.startswith("#"):
-            self._prefix_triggered_mode = InputMode.KODING
-            self._set_mode(InputMode.KODING)
+            self._prefix_triggered_mode = InputMode.MEMORY
+            self._set_mode(InputMode.MEMORY)
             return
 
         if self._prefix_triggered_mode is not None:
@@ -439,7 +439,7 @@ class PromptInput(Container):
         # 1. 立即清空输入框并重置模式 - 提供即时反馈
         original_mode = self.mode
 
-        if self.is_loading and original_mode in (InputMode.KODING, InputMode.BASH):
+        if self.is_loading and original_mode in (InputMode.MEMORY, InputMode.BASH):
             return
 
         with text_area.prevent(TextArea.Changed):
@@ -449,9 +449,9 @@ class PromptInput(Container):
         self._set_mode(InputMode.PROMPT)
 
         # 2. 根据模式处理输入
-        if original_mode == InputMode.KODING:
-            # Koding 模式：直接处理笔记，不走 AI query
-            await self._handle_koding_input(input_text)
+        if original_mode == InputMode.MEMORY:
+            # Memory 模式：直接处理笔记，不走 AI query
+            await self._handle_memory_input(input_text)
         elif original_mode == InputMode.BASH:
             # Bash 模式：执行命令
             await self._handle_bash_input(input_text)
@@ -497,8 +497,8 @@ class PromptInput(Container):
                 f"❌ Command handler not available for /{command_name}", duration=3.0
             )
 
-    async def _handle_koding_input(self, input_text: str):
-        """Handle koding mode input - equivalent to koding mode handling"""
+    async def _handle_memory_input(self, input_text: str):
+        """Handle memory mode input - equivalent to memory mode handling"""
 
         # Strip # prefix if present
         content = input_text[1:].strip() if input_text.startswith("#") else input_text
@@ -509,10 +509,10 @@ class PromptInput(Container):
             for word in ["put", "create", "generate", "write", "give", "provide"]
         ):
             # Handle as AI request for AGENTS.md content
-            await self._handle_koding_ai_request(content)
+            await self._handle_memory_ai_request(content)
         else:
             # Handle as direct note to AGENTS.md
-            await self._handle_koding_note(content)
+            await self._handle_memory_note(content)
 
         # Add to history
         self._add_to_history(
@@ -579,13 +579,13 @@ class PromptInput(Container):
         # 这个方法现在被 _handle_prompt_response 替代
         await self._handle_prompt_response(input_text)
 
-    async def _handle_koding_ai_request(self, content: str):
-        """Handle AI request for koding mode"""
+    async def _handle_memory_ai_request(self, content: str):
+        """Handle AI request for memory mode"""
 
         # This would integrate with the AI system to generate content for AGENTS.md
         # For now, just log the request
-        koding_context = (
-            "The user is using Koding mode. Format your response as a comprehensive, "
+        memory_context = (
+            "The user is using Memory mode. Format your response as a comprehensive, "
             "well-structured document suitable for adding to AGENTS.md. Use proper "
             "markdown formatting with headings, lists, code blocks, etc."
         )
@@ -595,11 +595,11 @@ class PromptInput(Container):
             user_message = MinionMessage(
                 type=MessageType.USER,
                 message=MessageContent(content),
-                options={"isKodingRequest": True, "kodingContext": koding_context},
+                options={"isMemoryRequest": True, "memoryContext": memory_context},
             )
             await self.on_query([user_message])
 
-    async def _handle_koding_note(self, content: str):
+    async def _handle_memory_note(self, content: str):
         """Handle direct note to AGENTS.md"""
 
         # Show processing message
@@ -910,7 +910,7 @@ class PromptInput(Container):
 
             # Update container classes
             container = self.query_one("#input_container")
-            container.remove_class("mode-prompt", "mode-bash", "mode-koding")
+            container.remove_class("mode-prompt", "mode-bash", "mode-memory")
             container.add_class(f"mode-{mode.value}")
         except:
             pass  # Widgets might not be mounted yet

@@ -21,7 +21,7 @@ class MessageType(Enum):
 class InputMode(Enum):
     BASH = "bash"
     PROMPT = "prompt"
-    KODING = "koding"
+    MEMORY = "memory"
 
 
 @dataclass
