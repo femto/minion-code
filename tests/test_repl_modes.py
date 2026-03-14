@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import pytest
+from textual.widgets import Static
 
+import minion_code.screens.REPL as repl_module
 from minion_code.screens.REPL import REPL
 from minion_code.type_defs import InputMode, Message, MessageContent, MessageType
 
@@ -65,3 +67,25 @@ async def test_memory_mode_direct_note_writes_agents_md(tmp_path, monkeypatch):
     assert "sth to remember" in agents_md
     assert repl.messages[-1].message.content == "✅ Memory added to AGENTS.md"
     assert saved_messages[-1] == ("assistant", "✅ Memory added to AGENTS.md")
+
+
+def test_repl_app_filters_app_only_props(monkeypatch):
+    captured = {}
+
+    class FakeRepl(Static):
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+            super().__init__()
+
+    monkeypatch.setattr(repl_module, "REPL", FakeRepl)
+
+    app = repl_module.REPLApp()
+    app.repl_props["dangerously_skip_permissions"] = True
+    app.repl_props["mcp_config"] = None
+    app.repl_props["model"] = "demo-model"
+
+    list(app.compose())
+
+    assert "dangerously_skip_permissions" not in captured
+    assert "mcp_config" not in captured
+    assert "model" not in captured

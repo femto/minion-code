@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
 import pytest
 
+import minion_code.utils.mcp_loader as mcp_loader_module
 from minion_code.utils.mcp_loader import CachedMCPTool, MCPToolsLoader, find_mcp_config
 from minion_code.utils.output_truncator import MAX_TOKEN_LIMIT
 
@@ -91,7 +93,7 @@ def test_loader_parses_stdio_sse_and_http_servers(tmp_path: Path):
                         "env": {"TOKEN": 123},
                     },
                     "sse-server": {
-                        "type": "sse",
+                        "type": "http",
                         "url": "https://example.com/sse",
                     },
                     "http-server": {
@@ -113,6 +115,105 @@ def test_loader_parses_stdio_sse_and_http_servers(tmp_path: Path):
     assert servers["sse-server"].url == "https://example.com/sse"
     assert servers["http-server"].transport == "http"
     assert servers["http-server"].url == "https://example.com/mcp"
+
+
+@pytest.mark.asyncio
+async def test_loader_skips_cancelled_mcp_server(monkeypatch, tmp_path: Path):
+    """A broken MCP server setup should be skipped instead of aborting all loading."""
+    config_path = tmp_path / ".mcp.json"
+    config_path.write_text(
+        json.dumps(
+            {"mcpServers": {"broken": {"type": "http", "url": "https://example.com/sse"}}}
+        ),
+        encoding="utf-8",
+    )
+
+    async def _fake_create(**_kwargs):
+        raise asyncio.CancelledError("setup failed")
+
+    monkeypatch.setattr(mcp_loader_module, "MCP_AVAILABLE", True)
+    monkeypatch.setattr(
+        mcp_loader_module,
+        "MCPToolset",
+        type("FakeToolset", (), {"create": staticmethod(_fake_create)}),
+    )
+
+    loader = MCPToolsLoader(config_path=config_path, auto_discover=False)
+    loader.load_config()
+    tools = await loader.load_all_tools()
+
+    assert tools == []
+    assert loader.get_server_info()["broken"]["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_loader_marks_timeout_without_blocking_other_servers(
+    monkeypatch, tmp_path: Path
+):
+    """A slow MCP server should time out and not block the rest of startup."""
+    config_path = tmp_path / ".mcp.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "slow": {
+                        "command": "uvx",
+                        "args": ["slow-server"],
+                        "timeout": 0.01,
+                    },
+                    "fast": {
+                        "command": "uvx",
+                        "args": ["fast-server"],
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _FakeTool:
+        def __init__(self, name: str):
+            self.name = name
+            self.tool_name = name
+            self.description = name
+            self.inputs = {}
+            self.parameters = {}
+
+        async def forward(self, *_args, **_kwargs):
+            return self.name
+
+    class _FakeToolset:
+        def __init__(self, name: str):
+            self.name = name
+            self.tools = [_FakeTool(f"{name}-tool")]
+
+        async def close(self):
+            return None
+
+    async def _fake_create(connection_params, name, structured_output):
+        del connection_params, structured_output
+        if name == "slow":
+            await asyncio.sleep(0.05)
+        return _FakeToolset(name)
+
+    monkeypatch.setattr(mcp_loader_module, "MCP_AVAILABLE", True)
+    monkeypatch.setattr(
+        mcp_loader_module,
+        "MCPToolset",
+        type("FakeToolsetFactory", (), {"create": staticmethod(_fake_create)}),
+    )
+
+    loader = MCPToolsLoader(config_path=config_path, auto_discover=False)
+    loader.load_config()
+    tools = await loader.load_all_tools()
+    info = loader.get_server_info()
+
+    assert len(tools) == 1
+    assert tools[0].name == "fast-tool"
+    assert info["slow"]["status"] == "timed_out"
+    assert "timed out" in info["slow"]["error"]
+    assert info["fast"]["status"] == "connected"
+    assert info["fast"]["tool_count"] == 1
 
 
 @pytest.mark.asyncio

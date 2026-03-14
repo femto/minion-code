@@ -10,6 +10,9 @@ and integrate them with MinionCodeAgent.
 import json
 import logging
 import os
+import asyncio
+import time
+from urllib.parse import urlparse
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
@@ -40,6 +43,10 @@ from minion_code.utils.output_truncator import (
 )
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_MCP_STARTUP_TIMEOUT = float(
+    os.environ.get("MINION_MCP_STARTUP_TIMEOUT", "10")
+)
 
 
 def find_mcp_config(project_dir: Optional[Path] = None) -> Optional[Path]:
@@ -135,6 +142,19 @@ class MCPServerConfig:
             self.args = []
         if self.auto_approve is None:
             self.auto_approve = []
+
+
+@dataclass
+class MCPServerRuntimeStatus:
+    """Track runtime connection state for one configured MCP server."""
+
+    name: str
+    state: str = "pending"
+    error: Optional[str] = None
+    tool_count: int = 0
+    started_at: Optional[float] = None
+    finished_at: Optional[float] = None
+    last_duration_ms: Optional[int] = None
 
 
 class CachedMCPTool(AsyncBaseTool):
@@ -248,6 +268,9 @@ class MCPToolsLoader:
         self.servers: Dict[str, MCPServerConfig] = {}
         self.loaded_tools = []
         self.toolsets: List[Any] = []  # Store MCPToolset instances for cleanup
+        self.toolsets_by_server: Dict[str, Any] = {}
+        self.tools_by_server: Dict[str, List[Any]] = {}
+        self.server_statuses: Dict[str, MCPServerRuntimeStatus] = {}
 
     def load_config(
         self, config_path: Optional[Path] = None
@@ -266,12 +289,15 @@ class MCPToolsLoader:
 
         if not self.config_path or not self.config_path.exists():
             logger.warning(f"MCP config file not found: {self.config_path}")
+            self.servers = {}
+            self.server_statuses = {}
             return {}
 
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 config_data = json.load(f)
 
+            previous_statuses = self.server_statuses
             self.servers = {}
             servers_config = self._extract_servers_config(config_data)
 
@@ -280,11 +306,24 @@ class MCPToolsLoader:
                 if parsed is not None:
                     self.servers[server_name] = parsed
 
+            self.server_statuses = {}
+            for name, config in self.servers.items():
+                preserved = previous_statuses.get(name)
+                if preserved is not None and not config.disabled:
+                    self.server_statuses[name] = preserved
+                    continue
+                self.server_statuses[name] = MCPServerRuntimeStatus(
+                    name=name,
+                    state="disabled" if config.disabled else "pending",
+                )
+
             logger.info(f"Loaded {len(self.servers)} MCP server configurations")
             return self.servers
 
         except Exception as e:
             logger.error(f"Failed to load MCP config from {self.config_path}: {e}")
+            self.servers = {}
+            self.server_statuses = {}
             return {}
 
     async def load_tools_from_server(self, server_config: MCPServerConfig) -> List[Any]:
@@ -299,26 +338,36 @@ class MCPToolsLoader:
         """
         if server_config.disabled:
             logger.info(f"Skipping disabled MCP server: {server_config.name}")
+            await self._close_server_toolset(server_config.name)
+            self._update_server_status(server_config.name, state="disabled")
             return []
 
         if not MCP_AVAILABLE:
             logger.warning("MCP framework not available, skipping MCP server loading")
+            self._update_server_status(
+                server_config.name,
+                state="failed",
+                error="MCP framework not available",
+            )
             return []
+
+        timeout_seconds = self._resolve_startup_timeout(server_config)
 
         try:
             logger.info(f"Loading tools from MCP server: {server_config.name}")
             logger.info(self._describe_server(server_config))
+            self._update_server_status(server_config.name, state="loading")
 
-            toolset = await MCPToolset.create(
+            create_coro = MCPToolset.create(
                 connection_params=self._build_connection_params(server_config),
                 name=server_config.name,
                 structured_output=False,  # Set to False as requested
             )
+            if timeout_seconds and timeout_seconds > 0:
+                toolset = await asyncio.wait_for(create_coro, timeout=timeout_seconds)
+            else:
+                toolset = await create_coro
 
-            # Store toolset for cleanup
-            self.toolsets.append(toolset)
-
-            # Get tools from the toolset
             tools = []
             if hasattr(toolset, "tools"):
                 tools = [
@@ -326,16 +375,128 @@ class MCPToolsLoader:
                 ]
                 toolset.tools = tools
 
+            await self._replace_server_toolset(server_config.name, toolset, tools)
+            self._update_server_status(
+                server_config.name,
+                state="connected",
+                error=None,
+                tool_count=len(tools),
+            )
+
             logger.info(
                 f"Successfully loaded {len(tools)} tools from {server_config.name}"
             )
             return tools
 
+        except TimeoutError:
+            message = (
+                f"MCP startup timed out after {timeout_seconds:.1f}s"
+                if timeout_seconds
+                else "MCP startup timed out"
+            )
+            self._update_server_status(
+                server_config.name,
+                state="timed_out",
+                error=message,
+            )
+            logger.error("%s: %s", server_config.name, message)
+            return []
+        except asyncio.CancelledError as e:
+            logger.error(
+                "MCP server %s setup cancelled during initialization: %s",
+                server_config.name,
+                e,
+            )
+            self._update_server_status(
+                server_config.name,
+                state="failed",
+                error=f"setup cancelled: {e}",
+            )
+            return []
         except Exception as e:
             logger.error(
                 f"Failed to load tools from MCP server {server_config.name}: {e}"
             )
+            self._update_server_status(
+                server_config.name,
+                state="failed",
+                error=str(e),
+            )
             return []
+
+    def _resolve_startup_timeout(self, server_config: MCPServerConfig) -> Optional[float]:
+        """Return per-server startup timeout, falling back to a sane default."""
+        if server_config.timeout and server_config.timeout > 0:
+            return float(server_config.timeout)
+        if DEFAULT_MCP_STARTUP_TIMEOUT <= 0:
+            return None
+        return DEFAULT_MCP_STARTUP_TIMEOUT
+
+    def _update_server_status(
+        self,
+        server_name: str,
+        *,
+        state: str,
+        error: Optional[str] = None,
+        tool_count: Optional[int] = None,
+    ) -> None:
+        """Update per-server runtime status, including simple timing data."""
+        status = self.server_statuses.get(server_name)
+        if status is None:
+            status = MCPServerRuntimeStatus(name=server_name)
+            self.server_statuses[server_name] = status
+
+        now = time.time()
+        if state == "loading":
+            status.started_at = now
+            status.finished_at = None
+            status.last_duration_ms = None
+            status.tool_count = 0
+            status.error = None
+        else:
+            if status.started_at is None:
+                status.started_at = now
+            status.finished_at = now
+            status.last_duration_ms = int((now - status.started_at) * 1000)
+            if tool_count is not None:
+                status.tool_count = tool_count
+            elif state in {"failed", "timed_out", "disabled"}:
+                status.tool_count = 0
+            status.error = error
+
+        status.state = state
+
+    async def _replace_server_toolset(
+        self, server_name: str, toolset: Any, tools: List[Any]
+    ) -> None:
+        """Swap in a freshly connected toolset without leaking the old one."""
+        await self._close_server_toolset(server_name)
+
+        self.toolsets_by_server[server_name] = toolset
+        self.tools_by_server[server_name] = list(tools)
+        if toolset not in self.toolsets:
+            self.toolsets.append(toolset)
+
+    async def _close_server_toolset(self, server_name: str) -> None:
+        """Close and forget one server's active toolset, if present."""
+        old_toolset = self.toolsets_by_server.pop(server_name, None)
+        if old_toolset is None:
+            self.tools_by_server.pop(server_name, None)
+            return
+
+        try:
+            await old_toolset.close()
+        except Exception as exc:
+            logger.error(
+                "Error closing previous MCP toolset for %s: %s",
+                server_name,
+                exc,
+            )
+        try:
+            self.toolsets.remove(old_toolset)
+        except ValueError:
+            pass
+        self.tools_by_server.pop(server_name, None)
 
     def _extract_servers_config(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
         """Extract effective mcpServers from root config and matched Claude project blocks."""
@@ -393,6 +554,10 @@ class MCPToolsLoader:
             transport = "stdio" if server_data.get("command") else "http"
         if transport == "streamable_http":
             transport = "streamable-http"
+        transport = self._normalize_transport(
+            transport=transport,
+            url=server_data.get("url"),
+        )
 
         return MCPServerConfig(
             name=server_name,
@@ -411,6 +576,22 @@ class MCPToolsLoader:
             disabled=server_data.get("disabled", False),
             auto_approve=server_data.get("autoApprove", []),
         )
+
+    def _normalize_transport(self, transport: str, url: Optional[str]) -> str:
+        """Fix common MCP config mismatches like `type=http` pointing at `/sse`."""
+        if not url:
+            return transport
+
+        path = urlparse(url).path.lower()
+        if transport in {"http", "streamable-http"} and path.endswith("/sse"):
+            logger.info(
+                "Treating MCP URL %s as SSE despite transport=%s",
+                url,
+                transport,
+            )
+            return "sse"
+
+        return transport
 
     def _build_connection_params(self, server_config: MCPServerConfig) -> Any:
         """Build minion MCP connection params for stdio, SSE, or streamable HTTP."""
@@ -451,24 +632,54 @@ class MCPToolsLoader:
             f"URL: {server_config.url or '<missing>'}"
         )
 
-    async def load_all_tools(self) -> List[Any]:
+    async def load_all_tools(
+        self, server_names: Optional[List[str]] = None
+    ) -> List[Any]:
         """
         Load tools from all configured MCP servers.
 
         Returns:
             List of all loaded MCP tools
         """
-        all_tools = []
+        target_names = server_names or list(self.servers.keys())
+        for server_name in target_names:
+            if server_name not in self.servers:
+                raise KeyError(f"Unknown MCP server: {server_name}")
 
-        for server_name, server_config in self.servers.items():
-            if not server_config.disabled:
-                tools = await self.load_tools_from_server(server_config)
-                all_tools.extend(tools)
-                logger.info(f"Loaded {len(tools)} tools from {server_name}")
+        load_tasks = []
+        for server_name in target_names:
+            server_config = self.servers[server_name]
+            if server_config.disabled:
+                await self._close_server_toolset(server_name)
+                continue
+            load_tasks.append(self.load_tools_from_server(server_config))
 
+        if load_tasks:
+            await asyncio.gather(*load_tasks)
+
+        all_tools: List[Any] = []
+        for server_name in self.servers:
+            all_tools.extend(self.tools_by_server.get(server_name, []))
         self.loaded_tools = all_tools
         logger.info(f"Total MCP tools loaded: {len(all_tools)}")
         return all_tools
+
+    async def reload_all_tools(self) -> List[Any]:
+        """Reload MCP configuration and reconnect all configured servers."""
+        await self.close()
+        self.tools_by_server.clear()
+        self.toolsets_by_server.clear()
+        self.loaded_tools = []
+        self.load_config()
+        return await self.load_all_tools()
+
+    async def reload_server_tools(self, server_name: str) -> List[Any]:
+        """Reconnect a single MCP server and refresh the flattened tool list."""
+        self.load_config()
+        if server_name not in self.servers:
+            raise KeyError(f"Unknown MCP server: {server_name}")
+        await self.load_all_tools(server_names=[server_name])
+        return self.loaded_tools
 
     def get_server_info(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -479,6 +690,7 @@ class MCPToolsLoader:
         """
         info = {}
         for name, config in self.servers.items():
+            status = self.server_statuses.get(name)
             info[name] = {
                 "transport": config.transport,
                 "command": config.command,
@@ -486,8 +698,16 @@ class MCPToolsLoader:
                 "url": config.url,
                 "disabled": config.disabled,
                 "auto_approve_count": len(config.auto_approve),
+                "status": status.state if status else "unknown",
+                "error": status.error if status else None,
+                "tool_count": status.tool_count if status else 0,
+                "last_duration_ms": status.last_duration_ms if status else None,
             }
         return info
+
+    def get_server_statuses(self) -> Dict[str, MCPServerRuntimeStatus]:
+        """Return runtime status objects keyed by server name."""
+        return dict(self.server_statuses)
 
     async def close(self):
         """
@@ -503,6 +723,8 @@ class MCPToolsLoader:
                 logger.error(f"Error closing toolset: {e}")
 
         self.toolsets.clear()
+        self.toolsets_by_server.clear()
+        self.tools_by_server.clear()
         logger.info("All MCP toolsets closed")
 
 

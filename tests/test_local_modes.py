@@ -103,3 +103,31 @@ def test_mode_command_switches_mode_via_choice():
         assert "Tools available: 1" in output.texts[-1][0]
 
     asyncio.run(_scenario())
+
+
+def test_local_session_mode_controller_rebuild_current_preserves_history():
+    build_calls = []
+
+    async def _build_agent(mode_spec):
+        build_calls.append(mode_spec.id)
+        return _DummyAgent(tool_names=[mode_spec.id, f"build-{len(build_calls)}"])
+
+    controller = LocalSessionModeController("default", _build_agent)
+
+    async def _scenario():
+        agent = await controller.initialize()
+        agent.state.history.append({"role": "user", "content": "keep"})
+        agent.conversation_history.append({"user_message": "u", "agent_response": "a"})
+        agent.state.metadata["custom"] = "value"
+
+        rebuilt = await controller.rebuild_current()
+
+        assert build_calls == ["default", "default"]
+        assert rebuilt.state.history.to_list() == [{"role": "user", "content": "keep"}]
+        assert rebuilt.conversation_history == [
+            {"user_message": "u", "agent_response": "a"}
+        ]
+        assert rebuilt.state.metadata["custom"] == "value"
+        assert rebuilt.state.metadata["session_mode_id"] == "default"
+
+    asyncio.run(_scenario())

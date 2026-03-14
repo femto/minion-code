@@ -628,7 +628,7 @@ Try typing something to get started!"""
                     commands=self.commands,
                     fork_number=self.fork_number,
                     message_log_name=self.message_log_name,
-                    is_disabled=False,
+                    is_disabled=self.agent is None,
                     is_loading=self.is_loading,
                     debug=self.debug,
                     verbose=self.verbose,
@@ -963,6 +963,11 @@ Try typing something to get started!"""
         print(f"DEBUG set_agent: agent={agent}, initial_prompt={self.initial_prompt}")
         had_agent = self.agent is not None
         self.agent = agent
+        try:
+            prompt_input = self.query_one(PromptInput)
+            prompt_input.is_disabled = agent is None
+        except Exception:
+            pass
         # Bind output adapter to agent if it supports confirmation
         if hasattr(agent, "set_output_adapter"):
             agent.set_output_adapter(self.output_adapter)
@@ -1634,7 +1639,9 @@ Try typing something to get started!"""
         if command_type == CommandType.PROMPT:
             # PROMPT type: Replace user input and send to LLM
             # Create command instance to get the expanded prompt
-            command_instance = command_class(self.output_adapter, self.agent)
+            command_instance = command_class(
+                self.output_adapter, self.agent, host=self.app
+            )
             try:
                 expanded_prompt = await command_instance.get_prompt(args)
 
@@ -1679,7 +1686,9 @@ Try typing something to get started!"""
 
         try:
             # Create command instance with TextualOutputAdapter
-            command_instance = command_class(self.output_adapter, self.agent)
+            command_instance = command_class(
+                self.output_adapter, self.agent, host=self.app
+            )
 
             # Special handling for quit command
             if command_name in ["quit", "exit", "q", "bye"]:
@@ -1916,8 +1925,11 @@ class REPLApp(App):
     def compose(self) -> ComposeResult:
         """Compose the main application - equivalent to React App render"""
         yield Header(show_clock=False)
-        # Pass agent to REPL component (filter out app-level props like 'model')
-        repl_props_filtered = {k: v for k, v in self.repl_props.items() if k != "model"}
+        # Pass only widget-supported props to REPL, keep app-only state on REPLApp.
+        app_only_props = {"model", "mcp_config", "dangerously_skip_permissions"}
+        repl_props_filtered = {
+            k: v for k, v in self.repl_props.items() if k not in app_only_props
+        }
         repl_props_with_agent = {**repl_props_filtered, "agent": self.agent}
         yield REPL(**repl_props_with_agent)
         yield Footer()
@@ -2016,6 +2028,41 @@ class REPLApp(App):
                 await self.mcp_loader.close()
             except Exception:
                 pass
+
+    def get_mcp_config_path(self) -> Optional[Path]:
+        """Return the resolved MCP config path, if any."""
+        if self.mcp_loader:
+            return self.mcp_loader.config_path
+        raw_config = self.repl_props.get("mcp_config")
+        return Path(raw_config) if raw_config else None
+
+    def get_mcp_status(self):
+        """Return current MCP server status snapshots."""
+        if not self.mcp_loader:
+            return {}
+        return self.mcp_loader.get_server_info()
+
+    async def reload_mcp(self, server_name: Optional[str] = None):
+        """Reload MCP tools and rebuild the current agent so new tools are visible."""
+        from minion_code.utils.mcp_loader import MCPToolsLoader
+
+        if self.mcp_loader is None:
+            self.mcp_loader = MCPToolsLoader(
+                self.repl_props.get("mcp_config"),
+                auto_discover=True,
+                project_dir=Path.cwd(),
+            )
+
+        if server_name:
+            self.mcp_tools = await self.mcp_loader.reload_server_tools(server_name)
+        else:
+            self.mcp_tools = await self.mcp_loader.reload_all_tools()
+
+        if self.mode_controller is not None:
+            self.agent = await self.mode_controller.rebuild_current()
+            self.agent_ready = True
+
+        return self.get_mcp_status()
 
     def _on_agent_swapped(self, agent) -> None:
         """Update app and REPL references after a mode-triggered agent rebuild."""

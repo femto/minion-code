@@ -37,16 +37,18 @@ class BaseCommand(ABC):
     command_type: CommandType = CommandType.LOCAL  # Default to LOCAL
     is_skill: bool = False  # Whether this is a skill (affects display)
 
-    def __init__(self, output, agent=None):
+    def __init__(self, output, agent=None, host=None):
         """
         Initialize command.
 
         Args:
             output: OutputAdapter instance for UI output (RichAdapter or TextualAdapter)
             agent: Optional agent instance
+            host: Optional frontend host instance (console CLI or TUI app)
         """
         self.output = output
         self.agent = agent
+        self.host = host
 
         # Backward compatibility: expose console attribute for Rich adapter
         # This allows old code using self.console to still work

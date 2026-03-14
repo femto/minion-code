@@ -66,6 +66,16 @@ class LocalSessionModeController:
         target_mode = get_session_mode_spec(mode_id)
         if self.agent is not None and target_mode.id == self.current_mode_id:
             return self.agent
+        return await self._rebuild_mode(target_mode)
+
+    async def rebuild_current(self) -> Any:
+        """Rebuild the current mode's agent, preserving conversation state."""
+        return await self._rebuild_mode(get_session_mode_spec(self.current_mode_id))
+
+    async def _rebuild_mode(self, target_mode: SessionModeSpec) -> Any:
+        """Rebuild an agent for the target mode while preserving runtime state."""
+        if self.agent is not None and target_mode.id != self.current_mode_id:
+            self.current_mode_id = target_mode.id
 
         old_history = None
         old_conversation_history = None

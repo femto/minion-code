@@ -109,6 +109,33 @@ class InterruptibleCLI:
             BYPASS_PERMISSIONS_MODE_ID if auto_accept else DEFAULT_MODE_ID
         )
 
+    def get_mcp_config_path(self) -> Optional[Path]:
+        """Return the resolved MCP config path, if any."""
+        if self.mcp_loader:
+            return self.mcp_loader.config_path
+        return self.mcp_config
+
+    def get_mcp_status(self):
+        """Return current MCP server status snapshots."""
+        if not self.mcp_loader:
+            return {}
+        return self.mcp_loader.get_server_info()
+
+    async def reload_mcp(self, server_name: Optional[str] = None):
+        """Reload MCP tools and rebuild the current agent so tool inventory stays in sync."""
+        if self.mcp_loader is None:
+            self.mcp_loader = MCPToolsLoader(self.mcp_config, auto_discover=True)
+
+        if server_name:
+            self.mcp_tools = await self.mcp_loader.reload_server_tools(server_name)
+        else:
+            self.mcp_tools = await self.mcp_loader.reload_all_tools()
+
+        if self.mode_controller is not None:
+            self.agent = await self.mode_controller.rebuild_current()
+
+        return self.get_mcp_status()
+
     async def setup(self):
         """Setup the agent."""
         with Progress(
@@ -508,7 +535,9 @@ class InterruptibleCLI:
         # Handle PROMPT type commands - expand and send to LLM
         if command_type == CommandType.PROMPT:
             try:
-                command_instance = command_class(self.output_adapter, self.agent)
+                command_instance = command_class(
+                    self.output_adapter, self.agent, host=self
+                )
                 expanded_prompt = await command_instance.get_prompt(args)
 
                 # Process expanded prompt through AI
@@ -537,7 +566,9 @@ class InterruptibleCLI:
 
             self.console.print(f"[dim]{status_text}[/dim]")
 
-            command_instance = command_class(self.output_adapter, self.agent)
+            command_instance = command_class(
+                self.output_adapter, self.agent, host=self
+            )
 
             # Special handling for quit command
             if command_name in ["quit", "exit", "q", "bye"]:
