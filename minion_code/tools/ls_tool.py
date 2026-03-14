@@ -1,34 +1,40 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-Directory listing tool
-"""
+"""Lightweight directory listing tool."""
 
+from collections import deque
 from pathlib import Path
 from typing import Any, Optional
+
 from minion.tools import BaseTool
+
 from ..utils.output_truncator import truncate_output
+from ..utils.search_backend import DEFAULT_TOOL_RESULT_LIMIT
+from ..utils.search_backend import should_skip_relative_path
 
 
 class LsTool(BaseTool):
-    """Directory listing tool"""
+    """List a small, bounded slice of a directory tree."""
 
     name = "ls"
-    description = "List directory contents"
-    readonly = True  # Read-only tool, does not modify system state
+    description = "List directory contents with bounded output"
+    readonly = True
     inputs = {
         "path": {
             "type": "string",
-            "description": "Directory path to list",
+            "description": "File or directory path to inspect",
             "nullable": True,
         },
         "recursive": {
             "type": "boolean",
-            "description": "Whether to list recursively",
+            "description": "If true, traverse a few levels deep instead of only the immediate directory",
             "nullable": True,
         },
     }
     output_type = "string"
+
+    DEFAULT_DEPTH = 1
+    RECURSIVE_DEPTH = 3
 
     def __init__(self, workdir: Optional[str] = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -36,55 +42,92 @@ class LsTool(BaseTool):
 
     def _resolve_path(self, path: str) -> Path:
         """Resolve path using workdir if path is relative."""
-        p = Path(path)
-        if p.is_absolute():
-            return p
+        candidate = Path(path)
+        if candidate.is_absolute():
+            return candidate
         if self.workdir:
-            return self.workdir / p
-        return p  # Relative to cwd (backward compatible)
+            return self.workdir / candidate
+        return candidate
 
     def forward(self, path: str = ".", recursive: bool = False) -> str:
-        """List directory contents"""
+        """List a file or directory with bounded output."""
         try:
-            dir_path = self._resolve_path(path)
-            if not dir_path.exists():
+            target_path = self._resolve_path(path)
+            if not target_path.exists():
                 return f"Error: Path does not exist - {path}"
 
-            if not dir_path.is_dir():
-                return f"Error: Path is not a directory - {path}"
+            if target_path.is_file():
+                size = target_path.stat().st_size
+                return self.format_for_observation(
+                    "\n".join(
+                        [
+                            f"Path: {path}",
+                            f"Absolute path: {target_path}",
+                            f"File: {target_path.name} ({size} bytes)",
+                        ]
+                    )
+                )
 
-            result = f"Directory contents: {path}\n\n"
+            if not target_path.is_dir():
+                return f"Error: Path is not a file or directory - {path}"
 
-            if recursive:
-                # List recursively
-                for item in sorted(dir_path.rglob("*")):
-                    relative_path = item.relative_to(dir_path)
-                    if item.is_file():
-                        size = item.stat().st_size
-                        result += f"  File: {relative_path} ({size} bytes)\n"
-                    elif item.is_dir():
-                        result += f"  Directory: {relative_path}/\n"
+            depth = self.RECURSIVE_DEPTH if recursive else self.DEFAULT_DEPTH
+            entries, truncated = self._collect_entries(target_path, depth=depth)
+            result = [f"Directory contents: {path}", ""]
+            if entries:
+                result.extend(entries)
             else:
-                # List current directory only
-                items = list(dir_path.iterdir())
-                items.sort(key=lambda x: (x.is_file(), x.name.lower()))
+                result.append("(empty)")
+            if truncated:
+                result.extend(
+                    [
+                        "",
+                        f"(Output limited to {DEFAULT_TOOL_RESULT_LIMIT} entries; use glob/grep for targeted discovery)",
+                    ]
+                )
+            return self.format_for_observation("\n".join(result))
+        except Exception as exc:
+            return f"Error listing directory: {exc}"
 
-                for item in items:
-                    if item.is_file():
-                        size = item.stat().st_size
-                        result += f"  File: {item.name} ({size} bytes)\n"
-                    elif item.is_dir():
-                        result += f"  Directory: {item.name}/\n"
-                    else:
-                        result += f"  Other: {item.name}\n"
+    def _collect_entries(self, dir_path: Path, *, depth: int) -> tuple[list[str], bool]:
+        """Collect a bounded breadth-first list of entries."""
+        entries: list[str] = []
+        queue = deque([(dir_path, Path("."), 1)])
 
-            return self.format_for_observation(result)
+        while queue and len(entries) < DEFAULT_TOOL_RESULT_LIMIT:
+            current_dir, relative_prefix, current_depth = queue.popleft()
+            children = []
+            for child in current_dir.iterdir():
+                relative_path = (
+                    Path(child.name)
+                    if relative_prefix == Path(".")
+                    else relative_prefix / child.name
+                )
+                if should_skip_relative_path(relative_path):
+                    continue
+                children.append((child, relative_path))
 
-        except Exception as e:
-            return f"Error listing directory: {str(e)}"
+            children.sort(key=lambda item: (item[0].is_file(), item[0].name.lower()))
+
+            for child, relative_path in children:
+                if len(entries) >= DEFAULT_TOOL_RESULT_LIMIT:
+                    return entries, True
+                if child.is_dir():
+                    entries.append(f"  Directory: {relative_path.as_posix()}/")
+                    if current_depth < depth:
+                        queue.append((child, relative_path, current_depth + 1))
+                elif child.is_file():
+                    size = child.stat().st_size
+                    entries.append(
+                        f"  File: {relative_path.as_posix()} ({size} bytes)"
+                    )
+                else:
+                    entries.append(f"  Other: {relative_path.as_posix()}")
+
+        return entries, bool(queue)
 
     def format_for_observation(self, output: Any) -> str:
-        """格式化输出，自动截断过大内容"""
+        """Format output with truncation safeguards."""
         if isinstance(output, str):
             return truncate_output(output, tool_name=self.name)
         return str(output)

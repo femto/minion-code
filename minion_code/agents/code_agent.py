@@ -264,6 +264,7 @@ class MinionCodeAgent(CodeAgent):
         "- Use specialized tools instead of bash commands when possible. For file operations, use dedicated tools:\n"
         "  file_read for reading files instead of cat/head/tail, file_edit for editing instead of sed/awk,\n"
         "  and file_write for creating files instead of cat with heredoc or echo redirection.\n"
+        "- Prefer `glob` to discover file paths and `grep` to search file contents before reaching for bash-based `find`, `ls`, or `grep -R`.\n"
         "- Long-running `bash` and `TaskCreate` calls may return a background `task_id` instead of a final result.\n"
         "  Use `TaskGet`, `TaskOutput`, `TaskList`, and `TaskStop` to manage these jobs.\n"
         "- Reserve bash tools exclusively for actual system commands and terminal operations that require shell execution.\n"

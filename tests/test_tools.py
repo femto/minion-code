@@ -9,10 +9,15 @@ from types import SimpleNamespace
 import pytest
 
 import minion_code.agents.code_agent as code_agent_module
+import minion_code.tools.glob_tool as glob_tool_module
+import minion_code.tools.grep_tool as grep_tool_module
 from minion_code.tools import (
     BashTool,
     FileReadTool,
     FileWriteTool,
+    GlobTool,
+    GrepTool,
+    LsTool,
     TaskCreateTool,
     TaskGetTool,
     TaskListTool,
@@ -63,6 +68,77 @@ def test_file_write_tool(tmp_path: Path):
 
     assert "wrote" in result.lower()
     assert target.read_text(encoding="utf-8") == "Hello, World!"
+
+
+def test_ls_tool_skips_hidden_entries_and_supports_files(tmp_path: Path):
+    """ls should avoid noisy hidden paths and return file metadata for files."""
+    tool = LsTool(workdir=str(tmp_path))
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text("x", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("print('hi')\n", encoding="utf-8")
+
+    dir_result = tool.forward(".", recursive=True)
+    assert "src/" in dir_result
+    assert ".git" not in dir_result
+
+    file_result = tool.forward("src/app.py")
+    assert "File: app.py" in file_result
+    assert "Absolute path:" in file_result
+
+
+def test_glob_tool_uses_rg_ignore_patterns(tmp_path: Path, monkeypatch):
+    """glob should pass default and caller-provided ignore patterns to rg."""
+    tool = GlobTool(workdir=str(tmp_path))
+    captured = {}
+
+    def _fake_find_rg():
+        return "/usr/bin/rg"
+
+    def _fake_collect_rg_lines(args, cwd, max_results):
+        captured["args"] = args
+        captured["cwd"] = cwd
+        captured["max_results"] = max_results
+        return ["src/app.py"], False
+
+    monkeypatch.setattr(glob_tool_module, "find_rg", _fake_find_rg)
+    monkeypatch.setattr(glob_tool_module, "collect_rg_lines", _fake_collect_rg_lines)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("print('hi')\n", encoding="utf-8")
+
+    result = tool.forward("**/*.py", path=".", ignore=["**/generated/**"])
+
+    assert "src/app.py" in result
+    assert "-g" in captured["args"]
+    assert "!**/generated/**" in captured["args"]
+    assert "!**/.git/**" in captured["args"]
+
+
+def test_grep_tool_uses_rg_backend(tmp_path: Path, monkeypatch):
+    """grep should prefer rg when available."""
+    tool = GrepTool(workdir=str(tmp_path))
+    captured = {}
+
+    def _fake_find_rg():
+        return "/usr/bin/rg"
+
+    def _fake_collect_rg_lines(args, cwd, max_results):
+        captured["args"] = args
+        captured["cwd"] = cwd
+        captured["max_results"] = max_results
+        return ["src/app.py:1:TODO"], False
+
+    monkeypatch.setattr(grep_tool_module, "find_rg", _fake_find_rg)
+    monkeypatch.setattr(grep_tool_module, "collect_rg_lines", _fake_collect_rg_lines)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("TODO\n", encoding="utf-8")
+
+    result = tool.forward("TODO", path=".", include="*.py", output_mode="content")
+
+    assert "Search results for pattern 'TODO':" in result
+    assert "--regexp" in captured["args"]
+    assert "TODO" in captured["args"]
+    assert "!**/.git/**" in captured["args"]
 
 
 @pytest.mark.asyncio
