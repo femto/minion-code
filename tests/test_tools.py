@@ -13,11 +13,11 @@ from minion_code.tools import (
     BashTool,
     FileReadTool,
     FileWriteTool,
-    TaskCancelTool,
+    TaskCreateTool,
+    TaskGetTool,
     TaskListTool,
     TaskOutputTool,
-    TaskStatusTool,
-    TaskTool,
+    TaskStopTool,
     UserInputTool,
     TOOL_MAPPING,
 )
@@ -27,10 +27,11 @@ from minion_code.utils.step_status import humanize_step_status
 def test_tool_mapping_contains_background_task_tools():
     """Background task tools should be registered."""
     assert "bash" in TOOL_MAPPING
-    assert "TaskStatus" in TOOL_MAPPING
+    assert "TaskCreate" in TOOL_MAPPING
+    assert "TaskGet" in TOOL_MAPPING
     assert "TaskOutput" in TOOL_MAPPING
     assert "TaskList" in TOOL_MAPPING
-    assert "TaskCancel" in TOOL_MAPPING
+    assert "TaskStop" in TOOL_MAPPING
 
 
 def test_step_status_hides_fractional_counter():
@@ -80,10 +81,10 @@ async def test_bash_tool_foreground(tmp_path: Path):
 async def test_bash_tool_background_and_task_tools(tmp_path: Path):
     """Longer bash commands should expose task status and output via task tools."""
     bash = BashTool(workdir=str(tmp_path))
-    status_tool = TaskStatusTool(workdir=str(tmp_path))
+    status_tool = TaskGetTool(workdir=str(tmp_path))
     output_tool = TaskOutputTool(workdir=str(tmp_path))
     list_tool = TaskListTool(workdir=str(tmp_path))
-    cancel_tool = TaskCancelTool(workdir=str(tmp_path))
+    stop_tool = TaskStopTool(workdir=str(tmp_path))
 
     result = await bash.forward(
         "python -c \"import time; print('start'); time.sleep(2); print('done')\"",
@@ -106,14 +107,14 @@ async def test_bash_tool_background_and_task_tools(tmp_path: Path):
     listed = list_tool.forward()
     assert any(task["task_id"] == task_id for task in listed["tasks"])
 
-    cancelled = await cancel_tool.forward(task_id)
+    cancelled = await stop_tool.forward(task_id)
     assert cancelled["cancelled"] is False
     assert cancelled["status"] in {"completed", "failed", "cancelled"}
 
 
 @pytest.mark.asyncio
-async def test_task_tool_foreground_contract(tmp_path: Path, monkeypatch):
-    """Task should return structured foreground results for short subagent runs."""
+async def test_task_create_tool_foreground_contract(tmp_path: Path, monkeypatch):
+    """TaskCreate should return structured foreground results for short subagent runs."""
 
     class FakeRegistry:
         def __init__(self):
@@ -166,7 +167,7 @@ async def test_task_tool_foreground_contract(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(code_agent_module, "MinionCodeAgent", FakeMinionCodeAgent)
 
-    tool = TaskTool(workdir=str(tmp_path))
+    tool = TaskCreateTool(workdir=str(tmp_path))
     tool._registry = FakeRegistry()
 
     result = await tool.forward(

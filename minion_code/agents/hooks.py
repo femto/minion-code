@@ -104,7 +104,7 @@ def _format_tool_input(tool_name: str, tool_input: Dict[str, Any]) -> str:
     if tool_name == "file_read":
         return f"File: {tool_input.get('file_path', '')}"
 
-    if tool_name == "Task":
+    if tool_name == "TaskCreate":
         desc = tool_input.get("description", "")
         prompt = tool_input.get("prompt", "")
         subagent = tool_input.get("subagent_type", "general-purpose")
@@ -159,7 +159,7 @@ def create_confirm_writes_hook(
                 "web_search",
                 "todo_read",
                 "user_input",
-                "TaskStatus",
+                "TaskGet",
                 "TaskOutput",
                 "TaskList",
             }
@@ -230,7 +230,7 @@ def create_cli_confirm_hook(
         "web_search",
         "todo_read",
         "user_input",
-        "TaskStatus",
+        "TaskGet",
         "TaskOutput",
         "TaskList",
     }

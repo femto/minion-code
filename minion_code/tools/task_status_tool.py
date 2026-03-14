@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read status for managed background tasks."""
+"""Read details for managed background tasks."""
 
 from __future__ import annotations
 
@@ -12,16 +12,16 @@ from minion.tools import BaseTool
 from ..utils.background_tasks import get_background_task_manager
 
 
-class TaskStatusTool(BaseTool):
-    """Return structured status for a background task."""
+class TaskGetTool(BaseTool):
+    """Return structured details for a background task."""
 
-    name = "TaskStatus"
-    description = "Get the current status of a background task by task_id."
+    name = "TaskGet"
+    description = "Get the current details of a background task by task_id."
     readonly = True
     inputs = {
         "task_id": {
             "type": "string",
-            "description": "The task_id returned by bash or Task.",
+            "description": "The task_id returned by bash or TaskCreate.",
         }
     }
     output_type = "string"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cancel managed background tasks."""
+"""Stop managed background tasks."""
 
 from __future__ import annotations
 
@@ -12,16 +12,16 @@ from minion.tools import AsyncBaseTool
 from ..utils.background_tasks import get_background_task_manager
 
 
-class TaskCancelTool(AsyncBaseTool):
-    """Cancel a running background task."""
+class TaskStopTool(AsyncBaseTool):
+    """Stop a running background task."""
 
-    name = "TaskCancel"
-    description = "Cancel a running background task by task_id."
+    name = "TaskStop"
+    description = "Stop a running background task by task_id."
     readonly = False
     inputs = {
         "task_id": {
             "type": "string",
-            "description": "The task_id returned by bash or Task.",
+            "description": "The task_id returned by bash or TaskCreate.",
         }
     }
     output_type = "string"

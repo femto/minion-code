@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Task tool for running subagents as managed jobs."""
+"""TaskCreate tool for running subagents as managed jobs."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from ..utils.step_status import humanize_step_status
 
 
 def generate_task_tool_prompt() -> str:
-    """Generate the dynamic Task tool description."""
+    """Generate the dynamic TaskCreate tool description."""
     from ..subagents import load_subagents
 
     registry = load_subagents()
@@ -42,10 +42,10 @@ Use this tool when:
 """
 
 
-class TaskTool(AsyncBaseTool):
+class TaskCreateTool(AsyncBaseTool):
     """Launch a subagent and optionally background it."""
 
-    name = "Task"
+    name = "TaskCreate"
     description = "Launch a subagent job to handle complex tasks."
     readonly = False
     needs_state = True

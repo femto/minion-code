@@ -3,7 +3,7 @@
 """
 Subagents system for MinionCode
 
-Subagents are specialized agent configurations that can be invoked via the Task tool.
+Subagents are specialized agent configurations that can be invoked via the TaskCreate tool.
 Each subagent has specific tools, system prompts, and use cases.
 
 Subagent search paths (in priority order):

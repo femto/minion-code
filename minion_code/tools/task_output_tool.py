@@ -21,7 +21,7 @@ class TaskOutputTool(BaseTool):
     inputs = {
         "task_id": {
             "type": "string",
-            "description": "The task_id returned by bash or Task.",
+            "description": "The task_id returned by bash or TaskCreate.",
         },
         "offset": {
             "type": "integer",

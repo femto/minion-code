@@ -115,7 +115,7 @@ class SubagentRegistry:
 
     def generate_tool_description_lines(self) -> str:
         """
-        Generate description lines for the Task tool.
+        Generate description lines for the TaskCreate tool.
 
         Returns:
             Multi-line string with each subagent's prompt line

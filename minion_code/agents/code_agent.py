@@ -42,10 +42,10 @@ from ..tools import (
     TodoWriteTool,
     TodoReadTool,
     SkillTool,
-    TaskStatusTool,
+    TaskGetTool,
     TaskOutputTool,
     TaskListTool,
-    TaskCancelTool,
+    TaskStopTool,
     TOOL_MAPPING,
 )
 
@@ -264,8 +264,8 @@ class MinionCodeAgent(CodeAgent):
         "- Use specialized tools instead of bash commands when possible. For file operations, use dedicated tools:\n"
         "  file_read for reading files instead of cat/head/tail, file_edit for editing instead of sed/awk,\n"
         "  and file_write for creating files instead of cat with heredoc or echo redirection.\n"
-        "- Long-running `bash` and `Task` calls may return a background `task_id` instead of a final result.\n"
-        "  Use `TaskStatus`, `TaskOutput`, `TaskList`, and `TaskCancel` to manage these jobs.\n"
+        "- Long-running `bash` and `TaskCreate` calls may return a background `task_id` instead of a final result.\n"
+        "  Use `TaskGet`, `TaskOutput`, `TaskList`, and `TaskStop` to manage these jobs.\n"
         "- Reserve bash tools exclusively for actual system commands and terminal operations that require shell execution.\n"
         "- NEVER use bash echo or other command-line tools to communicate thoughts, explanations, or instructions to the user.\n"
         "  Output all communication directly in your response text instead.\n"
@@ -446,20 +446,20 @@ class MinionCodeAgent(CodeAgent):
             TodoWriteTool(),
             TodoReadTool(),
             SkillTool(),
-            TaskStatusTool(workdir=workdir_str),
+            TaskGetTool(workdir=workdir_str),
             TaskOutputTool(workdir=workdir_str),
             TaskListTool(workdir=workdir_str),
-            TaskCancelTool(workdir=workdir_str),
+            TaskStopTool(workdir=workdir_str),
             # Web tools from minion
             WebFetchTool(),
             WebSearchTool(),
         ]
 
-        # Add TaskTool if available (avoid circular import)
+        # Add TaskCreateTool if available (avoid circular import)
         try:
-            from ..tools.task_tool import TaskTool
+            from ..tools.task_tool import TaskCreateTool
 
-            minion_tools.append(TaskTool(workdir=str(workdir)))
+            minion_tools.append(TaskCreateTool(workdir=str(workdir)))
         except ImportError:
             pass
 
