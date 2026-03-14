@@ -14,6 +14,29 @@ from minion.types import AgentState
 from ..utils.background_tasks import TaskRecord, get_background_task_manager
 from ..utils.step_status import humanize_step_status
 
+SUPPORTED_SUBAGENT_TOOL_NAMES = {
+    "TaskCreate",
+    "TaskGet",
+    "TaskList",
+    "TaskOutput",
+    "TaskStop",
+    "bash",
+    "file_edit",
+    "file_read",
+    "file_write",
+    "glob",
+    "grep",
+    "ls",
+    "multi_edit",
+    "python_interpreter",
+    "Skill",
+    "todo_read",
+    "todo_write",
+    "user_input",
+    "web_fetch",
+    "web_search",
+}
+
 
 def generate_task_tool_prompt() -> str:
     """Generate the dynamic TaskCreate tool description."""
@@ -130,6 +153,14 @@ class TaskCreateTool(AsyncBaseTool):
 
         agent_type = subagent_type or "general-purpose"
         subagent_config = self.registry.get(agent_type)
+        try:
+            allowed_tool_names = self._get_filtered_tools(subagent_config.tools)
+        except ValueError as exc:
+            return {
+                "mode": "foreground",
+                "status": "failed",
+                "error": str(exc),
+            }
         workdir = self._workdir
         manager = get_background_task_manager(workdir)
 
@@ -156,7 +187,8 @@ class TaskCreateTool(AsyncBaseTool):
                     effective_prompt if subagent_config.system_prompt else None
                 ),
                 workdir=workdir,
-                additional_tools=self._get_filtered_tools(subagent_config.tools),
+                allowed_tool_names=allowed_tool_names,
+                readonly_only=subagent_config.readonly,
                 decay_enabled=True,
                 decay_ttl_steps=3,
                 decay_min_size=100_000,
@@ -252,12 +284,29 @@ class TaskCreateTool(AsyncBaseTool):
 
     def _get_filtered_tools(
         self, tool_filter: Union[str, List[str]]
-    ) -> Optional[List]:
+    ) -> Optional[List[str]]:
         if tool_filter == "*" or (
             isinstance(tool_filter, list) and "*" in tool_filter
         ):
             return None
-        return None
+
+        if isinstance(tool_filter, str):
+            selected_tools = [tool_filter]
+        else:
+            selected_tools = list(tool_filter)
+
+        unknown_tools = sorted(
+            tool_name
+            for tool_name in selected_tools
+            if tool_name not in SUPPORTED_SUBAGENT_TOOL_NAMES
+        )
+        if unknown_tools:
+            raise ValueError(
+                "Subagent requested unsupported tools: "
+                + ", ".join(unknown_tools)
+            )
+
+        return selected_tools
 
     def _validate_input(
         self,

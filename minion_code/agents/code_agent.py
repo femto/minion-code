@@ -367,6 +367,7 @@ class MinionCodeAgent(CodeAgent):
         system_prompt: Optional[str] = None,
         workdir: Optional[Union[str, Path]] = None,
         additional_tools: Optional[List[Any]] = None,
+        allowed_tool_names: Optional[List[str]] = None,
         hooks: Optional["HookConfig"] = None,
         readonly_only: bool = False,
         prompt_name: str = "default",
@@ -384,6 +385,7 @@ class MinionCodeAgent(CodeAgent):
             system_prompt: Custom system prompt (uses default if None)
             workdir: Working directory (uses current if None)
             additional_tools: Extra tools to add beyond minion_code tools
+            allowed_tool_names: Optional allowlist of tool names to expose
             hooks: Optional HookConfig for pre-tool-use hooks (permission control)
             readonly_only: If True, expose only tools marked readonly
             prompt_name: Prompt variant to use when system_prompt is omitted
@@ -463,6 +465,14 @@ class MinionCodeAgent(CodeAgent):
         except ImportError:
             pass
 
+        allowed_tool_name_set = (
+            set(allowed_tool_names) if allowed_tool_names is not None else None
+        )
+        if allowed_tool_name_set is not None:
+            minion_tools = [
+                tool for tool in minion_tools if tool.name in allowed_tool_name_set
+            ]
+
         if readonly_only:
             minion_tools = [
                 tool for tool in minion_tools if getattr(tool, "readonly", False)
@@ -479,12 +489,19 @@ class MinionCodeAgent(CodeAgent):
         # Add any additional tools
         all_tools = minion_tools[:]
         if additional_tools:
+            candidate_tools = additional_tools
+            if allowed_tool_name_set is not None:
+                candidate_tools = [
+                    tool
+                    for tool in candidate_tools
+                    if getattr(tool, "name", None) in allowed_tool_name_set
+                ]
             if readonly_only:
                 all_tools.extend(
-                    tool for tool in additional_tools if getattr(tool, "readonly", False)
+                    tool for tool in candidate_tools if getattr(tool, "readonly", False)
                 )
             else:
-                all_tools.extend(additional_tools)
+                all_tools.extend(candidate_tools)
 
         logger.info(
             f"Creating MinionCodeAgent with {len(all_tools)} tools "

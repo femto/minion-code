@@ -116,6 +116,8 @@ async def test_bash_tool_background_and_task_tools(tmp_path: Path):
 async def test_task_create_tool_foreground_contract(tmp_path: Path, monkeypatch):
     """TaskCreate should return structured foreground results for short subagent runs."""
 
+    create_calls = []
+
     class FakeRegistry:
         def __init__(self):
             self._config = SimpleNamespace(
@@ -163,6 +165,7 @@ async def test_task_create_tool_foreground_contract(tmp_path: Path, monkeypatch)
     class FakeMinionCodeAgent:
         @classmethod
         async def create(cls, **kwargs):
+            create_calls.append(kwargs)
             return FakeAgent()
 
     monkeypatch.setattr(code_agent_module, "MinionCodeAgent", FakeMinionCodeAgent)
@@ -180,6 +183,119 @@ async def test_task_create_tool_foreground_contract(tmp_path: Path, monkeypatch)
     assert result["mode"] == "foreground"
     assert result["status"] == "completed"
     assert result["result"] == "done"
+    assert create_calls[0]["allowed_tool_names"] is None
+    assert create_calls[0]["readonly_only"] is False
+
+
+@pytest.mark.asyncio
+async def test_task_create_tool_passes_readonly_subagent_constraints(
+    tmp_path: Path, monkeypatch
+):
+    """TaskCreate should pass readonly and tool allowlist constraints to subagents."""
+
+    create_calls = []
+
+    class FakeRegistry:
+        def __init__(self):
+            self._config = SimpleNamespace(
+                system_prompt=None,
+                model_name="inherit",
+                tools=["file_read", "grep", "web_search"],
+                readonly=True,
+                description="fake",
+                when_to_use="fake",
+            )
+
+        def get(self, name):
+            return self._config if name == "Explore" else None
+
+        def exists(self, name):
+            return name == "Explore"
+
+        def list_names(self):
+            return ["Explore"]
+
+        def list_all(self):
+            return [self._config]
+
+        def generate_tool_description_lines(self):
+            return "- Explore: fake"
+
+    class FakeChunk:
+        def __init__(self, chunk_type, content="", answer=None, metadata=None):
+            self.chunk_type = chunk_type
+            self.content = content
+            self.answer = answer
+            self.metadata = metadata or {}
+
+    class FakeAgent:
+        async def run_async(self, prompt, stream=False):
+            async def generator():
+                yield FakeChunk("final_answer", "done", answer="done")
+
+            return generator()
+
+    class FakeMinionCodeAgent:
+        @classmethod
+        async def create(cls, **kwargs):
+            create_calls.append(kwargs)
+            return FakeAgent()
+
+    monkeypatch.setattr(code_agent_module, "MinionCodeAgent", FakeMinionCodeAgent)
+
+    tool = TaskCreateTool(workdir=str(tmp_path))
+    tool._registry = FakeRegistry()
+
+    result = await tool.forward(
+        description="Explore task",
+        prompt="Inspect this codebase",
+        subagent_type="Explore",
+        auto_background_after=5,
+        state=SimpleNamespace(metadata={}),
+    )
+
+    assert result["mode"] == "foreground"
+    assert result["status"] == "completed"
+    assert create_calls[0]["allowed_tool_names"] == [
+        "file_read",
+        "grep",
+        "web_search",
+    ]
+    assert create_calls[0]["readonly_only"] is True
+
+
+@pytest.mark.asyncio
+async def test_minion_code_agent_create_filters_allowed_tools(monkeypatch):
+    """MinionCodeAgent.create should apply allowlist before readonly filtering."""
+
+    create_calls = []
+
+    class DummyAgent:
+        def __init__(self):
+            self.llm = "fake-llm"
+            self.state = SimpleNamespace(history=[], metadata={})
+
+    async def _fake_super_create(cls, **kwargs):
+        create_calls.append(kwargs)
+        return DummyAgent()
+
+    monkeypatch.setattr(
+        code_agent_module.CodeAgent,
+        "create",
+        classmethod(_fake_super_create),
+    )
+
+    await code_agent_module.MinionCodeAgent.create(
+        name="Readonly Explore",
+        llm="sonnet",
+        allowed_tool_names=["file_read", "file_write", "web_fetch"],
+        readonly_only=True,
+    )
+
+    assert [tool.name for tool in create_calls[0]["tools"]] == [
+        "file_read",
+        "web_fetch",
+    ]
 
 
 @pytest.mark.asyncio
