@@ -264,7 +264,7 @@ class PromptInput(Container):
             )
 
         # Input area with mode prefix in horizontal layout
-        with Horizontal(classes="input-row"):
+        with Horizontal(classes="input-row", id="input_container"):
             yield Static(self._get_mode_prefix(), id="mode_prefix")
             yield CustomTextArea(
                 text=self.input_value,
@@ -903,15 +903,26 @@ class PromptInput(Container):
             prefix_widget.update(self._get_mode_prefix())
 
             # Update input placeholder
-            input_widget = self.query_one("#main_input", expect_type=Input)
-            input_widget.placeholder = self._get_placeholder()
+            input_widget = self.query_one("#main_input", expect_type=CustomTextArea)
+            if hasattr(input_widget, "placeholder"):
+                input_widget.placeholder = self._get_placeholder()
 
             # Update container classes
-            container = self.query_one("#input_container")
+            container = self.query_one("#input_container", expect_type=Horizontal)
             container.remove_class("mode-prompt", "mode-bash", "mode-memory")
             container.add_class(f"mode-{mode.value}")
         except:
             pass  # Widgets might not be mounted yet
+
+    def watch_is_disabled(self, is_disabled: bool):
+        """Keep the underlying text area disabled state in sync."""
+        try:
+            input_widget = self.query_one("#main_input", expect_type=CustomTextArea)
+            input_widget.disabled = is_disabled
+            if not is_disabled:
+                input_widget.focus()
+        except Exception:
+            pass
 
     def watch_is_loading(self, is_loading: bool):
         """Watch loading state changes"""
