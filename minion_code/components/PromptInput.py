@@ -3,6 +3,9 @@ PromptInput Component - Python equivalent of React PromptInput
 Handles user input with multiple modes (prompt, bash, memory)
 """
 
+import os
+from pathlib import Path
+
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Input, Static, Button, TextArea
 from textual.reactive import reactive, var
@@ -94,6 +97,15 @@ class CustomTextArea(TextArea):
         return False
 
 
+@dataclass
+class PromptSuggestion:
+    """Represents one inline completion candidate."""
+
+    kind: str
+    value: str
+    detail: str = ""
+
+
 class PromptInput(Container):
     """
     Main input component equivalent to React PromptInput
@@ -140,6 +152,12 @@ class PromptInput(Container):
         margin-top: 0;
         margin-bottom: 0;
     }
+
+    .suggestions {
+        color: $text-muted;
+        margin-top: 0;
+        margin-bottom: 0;
+    }
     
     .model-info {
         height: 1;
@@ -173,6 +191,8 @@ class PromptInput(Container):
     pasted_image = var(None)  # Optional[str]
     pasted_text = var(None)  # Optional[str]
     placeholder = reactive("")
+    suggestions = var(list)
+    suggestion_index = reactive(0)
 
     def __init__(
         self,
@@ -220,6 +240,8 @@ class PromptInput(Container):
         self.pasted_image = None
         self.pasted_text = None
         self.placeholder = ""
+        self.suggestions = []
+        self.suggestion_index = 0
 
         # Callbacks (would be passed as props in React)
         self.on_query: Optional[Callable] = None
@@ -244,6 +266,7 @@ class PromptInput(Container):
         self._history_draft = ""
         self._applying_history = False
         self._prefix_triggered_mode: Optional[InputMode] = None
+        self._file_candidates: Optional[List[str]] = None
 
     def on_mount(self):
         """Set focus to input when component mounts"""
@@ -272,6 +295,12 @@ class PromptInput(Container):
                 disabled=self.is_disabled,
                 show_line_numbers=False,
             )
+
+        yield Static(
+            self._get_suggestions_text() if self.suggestions else "",
+            id="suggestions_text",
+            classes="suggestions",
+        )
 
         yield Static(
             self._get_help_text(),
@@ -314,7 +343,18 @@ class PromptInput(Container):
         """Get contextual footer help text."""
         if self.interrupt_armed:
             return "Press Esc again to interrupt current task"
+        if self.suggestions:
+            return "Tab accept · Up/Down navigate · Enter send · Ctrl+Enter/Ctrl+J newline"
         return "Enter send · Ctrl+Enter/Ctrl+J/Tab newline · ! bash · # memory · Shift+S mode"
+
+    def _get_suggestions_text(self) -> str:
+        """Render the active suggestion list in one compact line."""
+        rendered = []
+        for index, suggestion in enumerate(self.suggestions[:5]):
+            prefix = "›" if index == self.suggestion_index else "·"
+            detail = f" ({suggestion.detail})" if suggestion.detail else ""
+            rendered.append(f"{prefix} {suggestion.value}{detail}")
+        return "  ".join(rendered)
 
     def _get_model_info(self) -> Optional[ModelInfo]:
         """Get current model information - equivalent to modelInfo useMemo"""
@@ -334,6 +374,7 @@ class PromptInput(Container):
         """Handle TextArea content changes"""
         value = event.text_area.text
         self._sync_mode_from_text(value)
+        self._refresh_suggestions(value)
 
         self.input_value = value
         if self.history_position == -1 and not self._applying_history:
@@ -366,6 +407,158 @@ class PromptInput(Container):
             self._prefix_triggered_mode = None
             self._set_mode(InputMode.PROMPT)
 
+    def _load_file_candidates(self, limit: int = 500) -> List[str]:
+        """Build a bounded list of repo-relative file paths for `@` suggestions."""
+        if self._file_candidates is not None:
+            return self._file_candidates
+
+        ignored_dirs = {
+            ".git",
+            ".venv",
+            "node_modules",
+            "__pycache__",
+            ".mypy_cache",
+            ".pytest_cache",
+            ".ruff_cache",
+            ".idea",
+            ".vscode",
+            "dist",
+            "build",
+        }
+        candidates: List[str] = []
+        root = Path.cwd()
+
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [
+                name
+                for name in dirnames
+                if name not in ignored_dirs and not name.startswith(".DS_Store")
+            ]
+            rel_dir = Path(dirpath).relative_to(root)
+            for filename in filenames:
+                if filename.startswith("."):
+                    continue
+                rel_path = (rel_dir / filename).as_posix()
+                candidates.append(rel_path)
+                if len(candidates) >= limit:
+                    self._file_candidates = sorted(candidates)
+                    return self._file_candidates
+
+        self._file_candidates = sorted(candidates)
+        return self._file_candidates
+
+    def _get_slash_suggestions(self, prefix: str) -> List[PromptSuggestion]:
+        """Return slash-command suggestions for the current prefix."""
+        from minion_code.commands import command_registry
+
+        suggestions: List[PromptSuggestion] = []
+        for name, command_class in sorted(command_registry.list_all().items()):
+            if prefix and not name.startswith(prefix):
+                continue
+            suggestions.append(
+                PromptSuggestion(
+                    kind="command",
+                    value=f"/{name}",
+                    detail=getattr(command_class, "description", ""),
+                )
+            )
+            if len(suggestions) >= 8:
+                break
+        return suggestions
+
+    def _get_at_suggestions(self, prefix: str) -> List[PromptSuggestion]:
+        """Return `@` suggestions from files and subagents."""
+        suggestions: List[PromptSuggestion] = []
+        normalized = prefix.lower()
+
+        for file_path in self._load_file_candidates():
+            if normalized and normalized not in file_path.lower():
+                continue
+            suggestions.append(
+                PromptSuggestion(kind="file", value=f"@{file_path}", detail="file")
+            )
+            if len(suggestions) >= 6:
+                return suggestions
+
+        try:
+            from minion_code.subagents import get_available_subagents
+
+            for subagent in get_available_subagents():
+                name = subagent.name
+                if normalized and normalized not in name.lower():
+                    continue
+                suggestions.append(
+                    PromptSuggestion(
+                        kind="subagent",
+                        value=f"@{name}",
+                        detail="subagent",
+                    )
+                )
+                if len(suggestions) >= 8:
+                    break
+        except Exception:
+            pass
+
+        return suggestions
+
+    def _get_completion_context(self, value: str) -> tuple[Optional[str], str]:
+        """Extract the active `/` or `@` token near the end of the current input."""
+        token = value.split()[-1] if value.split() else ""
+        if token.startswith("/") and "\n" not in token:
+            return "/", token[1:]
+        if token.startswith("@") and "\n" not in token:
+            return "@", token[1:]
+        return None, ""
+
+    def _refresh_suggestions(self, value: str) -> None:
+        """Recompute inline suggestions for `/` and `@` triggers."""
+        trigger, prefix = self._get_completion_context(value)
+        if trigger == "/":
+            self.suggestions = self._get_slash_suggestions(prefix)
+        elif trigger == "@":
+            self.suggestions = self._get_at_suggestions(prefix)
+        else:
+            self.suggestions = []
+        self.suggestion_index = 0
+
+    def _move_suggestion_selection(self, delta: int) -> None:
+        """Move the active suggestion selection up or down."""
+        if not self.suggestions:
+            return
+        self.suggestion_index = (self.suggestion_index + delta) % len(self.suggestions)
+
+    def _apply_active_suggestion(self) -> bool:
+        """Replace the current `/` or `@` token with the selected suggestion."""
+        if not self.suggestions:
+            return False
+
+        try:
+            text_area = self.query_one("#main_input", expect_type=CustomTextArea)
+        except Exception:
+            return False
+
+        current_text = text_area.text
+        stripped = current_text.rstrip()
+        trigger, _prefix = self._get_completion_context(stripped)
+        if trigger is None:
+            return False
+
+        token_start = len(stripped) - len(stripped.split()[-1])
+        replacement = self.suggestions[self.suggestion_index].value
+        new_text = f"{stripped[:token_start]}{replacement} "
+
+        with text_area.prevent(TextArea.Changed):
+            text_area.text = new_text
+            lines = new_text.split("\n") or [""]
+            text_area.cursor_location = (len(lines) - 1, len(lines[-1]))
+
+        self.input_value = new_text
+        self.suggestions = []
+        self.suggestion_index = 0
+        if self.on_input_change:
+            self.on_input_change(new_text)
+        return True
+
     @on(CustomTextArea.KeyPressed)
     def on_custom_textarea_key(self, event: CustomTextArea.KeyPressed):
         """Handle key events from CustomTextArea"""
@@ -377,13 +570,22 @@ class PromptInput(Container):
         if key == "enter":
             # Regular Enter - submit
             self.run_worker(self._handle_submit(), exclusive=True)
+        elif key == "tab":
+            if not self._apply_active_suggestion():
+                self._insert_newline()
         elif key in ["ctrl+enter", "ctrl+j"]:
-            # Ctrl+Enter, Tab, or Ctrl+J - manually add newline
+            # Ctrl+Enter or Ctrl+J - manually add newline
             self._insert_newline()
         elif key == "up":
-            self._history_previous()
+            if self.suggestions:
+                self._move_suggestion_selection(-1)
+            else:
+                self._history_previous()
         elif key == "down":
-            self._history_next()
+            if self.suggestions:
+                self._move_suggestion_selection(1)
+            else:
+                self._history_next()
         elif key == "escape":
             if self.is_loading:
                 self._handle_loading_escape()
@@ -391,6 +593,7 @@ class PromptInput(Container):
                 if self.on_show_message_selector:
                     self.on_show_message_selector()
             else:
+                self.suggestions = []
                 self._prefix_triggered_mode = None
                 self._set_mode(InputMode.PROMPT)
         elif key == "shift+m":
@@ -936,6 +1139,33 @@ class PromptInput(Container):
             help_widget.update(self._get_help_text())
         except Exception:
             pass
+
+    def watch_suggestions(self, suggestions: List[PromptSuggestion]):
+        """Refresh the suggestions footer and contextual help."""
+        try:
+            help_widget = self.query_one("#help_text", expect_type=Static)
+            help_widget.update(self._get_help_text())
+        except Exception:
+            pass
+
+        try:
+            widget = self.query_one("#suggestions_text", expect_type=Static)
+            widget.update(self._get_suggestions_text() if suggestions else "")
+        except Exception:
+            pass
+
+        self.refresh()
+
+    def watch_suggestion_index(self, suggestion_index: int):
+        """Update the rendered suggestions when the active row changes."""
+        del suggestion_index
+        if not self.suggestions:
+            return
+        try:
+            widget = self.query_one("#suggestions_text", expect_type=Static)
+            widget.update(self._get_suggestions_text())
+        except Exception:
+            self.refresh()
 
     def watch_input_value(self, value: str):
         """Watch input value changes"""

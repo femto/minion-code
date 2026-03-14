@@ -51,3 +51,57 @@ def test_watch_is_disabled_syncs_text_area_and_focuses_when_enabled(monkeypatch)
 
     assert fake_text_area.disabled is False
     assert fake_text_area.focus_calls == 1
+
+
+def test_slash_completion_suggests_known_commands():
+    prompt_input = PromptInput()
+
+    prompt_input._refresh_suggestions("/mc")
+
+    values = [suggestion.value for suggestion in prompt_input.suggestions]
+    assert "/mcp" in values
+
+
+def test_at_completion_suggests_files(monkeypatch):
+    prompt_input = PromptInput()
+    monkeypatch.setattr(
+        prompt_input,
+        "_load_file_candidates",
+        lambda limit=500: ["README.md", "minion_code/cli.py"],
+    )
+
+    prompt_input._refresh_suggestions("@cli")
+
+    values = [suggestion.value for suggestion in prompt_input.suggestions]
+    assert values == ["@minion_code/cli.py"]
+
+
+def test_apply_active_suggestion_replaces_current_token(monkeypatch):
+    prompt_input = PromptInput()
+    prompt_input.suggestions = prompt_input._get_slash_suggestions("he")
+    prompt_input.suggestion_index = 0
+
+    class _Prevent:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _FakeTextArea:
+        def __init__(self):
+            self.text = "/he"
+            self.cursor_location = (0, 3)
+
+        def prevent(self, _event_type):
+            return _Prevent()
+
+    fake_text_area = _FakeTextArea()
+    monkeypatch.setattr(
+        prompt_input,
+        "query_one",
+        lambda selector, expect_type=None: fake_text_area,
+    )
+
+    assert prompt_input._apply_active_suggestion() is True
+    assert fake_text_area.text.startswith("/help ")
