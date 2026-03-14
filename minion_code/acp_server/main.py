@@ -184,7 +184,10 @@ def main(
         "skip_permissions", False
     )
     if skip_permissions:
-        logger.warning("Permission prompts DISABLED (--dangerously-skip-permissions)")
+        logger.warning(
+            "Permission prompts and dangerous command checks DISABLED "
+            "(--dangerously-skip-permissions)"
+        )
 
     # Create the agent with config
     agent = MinionACPAgent(

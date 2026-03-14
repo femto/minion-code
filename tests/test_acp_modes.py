@@ -95,7 +95,7 @@ def test_acp_session_switches_to_plan_mode_and_preserves_history(monkeypatch):
 
 def test_acp_agent_skip_permissions_changes_initial_mode():
     agent = MinionACPAgent(skip_permissions=True)
-    assert agent.initial_mode_id == "dont-ask"
+    assert agent.initial_mode_id == "bypass-permissions"
 
 
 def test_acp_session_mode_policies(monkeypatch):

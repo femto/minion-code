@@ -34,7 +34,10 @@ from minion_code.commands import command_registry
 from minion_code.utils.mcp_loader import MCPToolsLoader
 from minion_code.adapters import RichOutputAdapter
 from minion_code.agents.hooks import create_cli_hooks, SpinnerController
-from minion_code.acp_server.session_modes import DEFAULT_MODE_ID, DONT_ASK_MODE_ID
+from minion_code.acp_server.session_modes import (
+    BYPASS_PERMISSIONS_MODE_ID,
+    DEFAULT_MODE_ID,
+)
 from minion_code.session_mode_controller import LocalSessionModeController
 from minion_code.utils.session_storage import (
     Session,
@@ -102,7 +105,9 @@ class InterruptibleCLI:
         )
         self.runtime_state = ConversationRuntimeState()
         self.mode_controller: Optional[LocalSessionModeController] = None
-        self.current_mode_id = DONT_ASK_MODE_ID if auto_accept else DEFAULT_MODE_ID
+        self.current_mode_id = (
+            BYPASS_PERMISSIONS_MODE_ID if auto_accept else DEFAULT_MODE_ID
+        )
 
     async def setup(self):
         """Setup the agent."""
@@ -638,7 +643,7 @@ def main(
     dangerously_skip_permissions: bool = typer.Option(
         False,
         "--dangerously-skip-permissions",
-        help="Skip tool permission prompts (auto-accept all). Use with caution!",
+        help="Skip permission prompts and dangerous command checks. Use with caution!",
     ),
 ):
     """

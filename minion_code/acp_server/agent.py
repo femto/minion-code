@@ -54,8 +54,8 @@ from acp.schema import (
     ToolCallProgress,
 )
 from .session_modes import (
+    BYPASS_PERMISSIONS_MODE_ID,
     DEFAULT_MODE_ID,
-    DONT_ASK_MODE_ID,
     build_session_mode_state,
     get_session_mode_spec,
 )
@@ -114,7 +114,7 @@ class MinionACPAgent:
         self.cwd = cwd or os.getcwd()
         self.model = model  # LLM model to use
         self.initial_mode_id = (
-            DONT_ASK_MODE_ID if skip_permissions else DEFAULT_MODE_ID
+            BYPASS_PERMISSIONS_MODE_ID if skip_permissions else DEFAULT_MODE_ID
         )
 
     def on_connect(self, conn: Client) -> None:

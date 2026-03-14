@@ -1889,6 +1889,7 @@ class REPLApp(App):
         self.repl_props = {
             "commands": [],
             "safe_mode": False,
+            "dangerously_skip_permissions": False,
             "debug": False,
             "initial_fork_number": 0,
             "initial_prompt": None,
@@ -1933,7 +1934,10 @@ class REPLApp(App):
             from minion_code import MinionCodeAgent
             from minion_code.utils.logs import logger
             from minion_code.agents.hooks import create_default_hooks
-            from minion_code.acp_server.session_modes import DONT_ASK_MODE_ID
+            from minion_code.acp_server.session_modes import (
+                BYPASS_PERMISSIONS_MODE_ID,
+                DONT_ASK_MODE_ID,
+            )
             from minion_code.utils.mcp_loader import MCPToolsLoader
 
             # Check for model from CLI or use default
@@ -1983,9 +1987,12 @@ class REPLApp(App):
                 return agent
 
             logger.info(f"Initializing agent with LLM: {default_llm}")
-            initial_mode_id = (
-                DONT_ASK_MODE_ID if self.repl_props.get("safe_mode") else DEFAULT_MODE_ID
-            )
+            if self.repl_props.get("dangerously_skip_permissions"):
+                initial_mode_id = BYPASS_PERMISSIONS_MODE_ID
+            elif self.repl_props.get("safe_mode"):
+                initial_mode_id = DONT_ASK_MODE_ID
+            else:
+                initial_mode_id = DEFAULT_MODE_ID
             self.mode_controller = LocalSessionModeController(
                 initial_mode_id=initial_mode_id,
                 build_agent=build_agent,
@@ -2047,6 +2054,7 @@ def intersects(set_a: Set[str], set_b: Set[str]) -> bool:
 def create_repl(
     commands=None,
     safe_mode=False,
+    dangerously_skip_permissions=False,
     debug=False,
     initial_prompt=None,
     verbose=False,
@@ -2065,6 +2073,7 @@ def create_repl(
         {
             "commands": commands or [],
             "safe_mode": safe_mode,
+            "dangerously_skip_permissions": dangerously_skip_permissions,
             "debug": debug,
             "initial_prompt": initial_prompt,
             "verbose": verbose,
@@ -2086,6 +2095,7 @@ def run(
     continue_last=False,
     model=None,
     mcp_config=None,
+    dangerously_skip_permissions=False,
 ):
     """Run the REPL application with optional configuration"""
     # File-based logging for TUI debugging
@@ -2104,6 +2114,9 @@ def run(
         f"resume_session_id: {resume_session_id}, continue_last: {continue_last}"
     )
     logging.debug(f"mcp_config: {mcp_config}")
+    logging.debug(
+        f"dangerously_skip_permissions: {dangerously_skip_permissions}"
+    )
 
     app = create_repl(
         initial_prompt=initial_prompt,
@@ -2113,6 +2126,7 @@ def run(
         continue_last=continue_last,
         model=model,
         mcp_config=mcp_config,
+        dangerously_skip_permissions=dangerously_skip_permissions,
     )
     logging.debug(f"app.repl_props: {app.repl_props}")
     app.run()

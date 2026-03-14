@@ -35,6 +35,7 @@ def run_console_cli(
     continue_last: bool = False,
     initial_prompt: Optional[str] = None,
     print_output: bool = False,
+    dangerously_skip_permissions: bool = False,
     model: Optional[str] = None,
 ):
     """Run the traditional console CLI interface"""
@@ -47,6 +48,7 @@ def run_console_cli(
         continue_last=continue_last,
         initial_prompt=initial_prompt,
         print_output=print_output,
+        auto_accept=dangerously_skip_permissions,
         model=model,
     )
     return asyncio.run(cli.run())
@@ -61,6 +63,7 @@ def run_tui_repl(
     continue_last: bool = False,
     model: Optional[str] = None,
     mcp_config: Optional[Path] = None,
+    dangerously_skip_permissions: bool = False,
 ):
     """Run the modern TUI REPL interface"""
     try:
@@ -74,6 +77,7 @@ def run_tui_repl(
             continue_last=continue_last,
             model=model,
             mcp_config=mcp_config,
+            dangerously_skip_permissions=dangerously_skip_permissions,
         )
     except ImportError as e:
         console = Console()
@@ -88,6 +92,7 @@ def run_tui_repl(
             mcp_config=mcp_config,
             resume_session_id=resume_session_id,
             continue_last=continue_last,
+            dangerously_skip_permissions=dangerously_skip_permissions,
             model=model,
         )
     except Exception as e:
@@ -145,6 +150,11 @@ def main(
         False,
         "--print",
         help="Print output and exit (non-interactive mode, console only)",
+    ),
+    dangerously_skip_permissions: bool = typer.Option(
+        False,
+        "--dangerously-skip-permissions",
+        help="Skip permission prompts and dangerous command checks (dangerous!)",
     ),
 ):
     """
@@ -219,6 +229,7 @@ def main(
             continue_last=continue_session,
             initial_prompt=initial_prompt,
             print_output=print_output,
+            dangerously_skip_permissions=dangerously_skip_permissions,
             model=model,
         )
     else:
@@ -232,6 +243,7 @@ def main(
             continue_last=continue_session,
             model=model,
             mcp_config=mcp_config_path,
+            dangerously_skip_permissions=dangerously_skip_permissions,
         )
 
 
@@ -260,6 +272,11 @@ def repl(
     ),
     config: Optional[str] = typer.Option(
         None, "--config", "-c", help="🔌 Path to MCP configuration file (JSON format)"
+    ),
+    dangerously_skip_permissions: bool = typer.Option(
+        False,
+        "--dangerously-skip-permissions",
+        help="⛔ Skip permission prompts and dangerous command checks (dangerous!)",
     ),
 ):
     """
@@ -327,6 +344,7 @@ def repl(
         dir=dir,
         model=model,
         mcp_config=mcp_config_path,
+        dangerously_skip_permissions=dangerously_skip_permissions,
     )
 
 
@@ -346,6 +364,11 @@ def console(
     ),
     config: Optional[str] = typer.Option(
         None, "--config", "-c", help="Path to MCP configuration file (JSON format)"
+    ),
+    dangerously_skip_permissions: bool = typer.Option(
+        False,
+        "--dangerously-skip-permissions",
+        help="Skip permission prompts and dangerous command checks (dangerous!)",
     ),
     continue_session: bool = typer.Option(
         False, "--continue", help="Continue the most recent session for this project"
@@ -418,6 +441,7 @@ def console(
         mcp_config=mcp_config_path,
         resume_session_id=resume,
         continue_last=continue_session,
+        dangerously_skip_permissions=dangerously_skip_permissions,
         model=model,
     )
 
