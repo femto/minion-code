@@ -1909,6 +1909,8 @@ class REPLApp(App):
         self.agent = None
         self.agent_ready = False
         self.mode_controller: Optional[LocalSessionModeController] = None
+        self.mcp_loader = None
+        self.mcp_tools: List[Any] = []
 
     def compose(self) -> ComposeResult:
         """Compose the main application - equivalent to React App render"""
@@ -1932,11 +1934,27 @@ class REPLApp(App):
             from minion_code.utils.logs import logger
             from minion_code.agents.hooks import create_default_hooks
             from minion_code.acp_server.session_modes import DONT_ASK_MODE_ID
+            from minion_code.utils.mcp_loader import MCPToolsLoader
 
             # Check for model from CLI or use default
             # Users can override with --model flag or config
             model_from_props = self.repl_props.get("model")
             default_llm = model_from_props if model_from_props else "claude-sonnet-4-5"
+
+            if self.mcp_loader is None:
+                self.mcp_loader = MCPToolsLoader(
+                    self.repl_props.get("mcp_config"),
+                    auto_discover=True,
+                    project_dir=Path.cwd(),
+                )
+                if self.mcp_loader.config_path:
+                    self.mcp_loader.load_config()
+                    self.mcp_tools = await self.mcp_loader.load_all_tools()
+                    logger.info(
+                        "Loaded %s MCP tools for TUI from %s",
+                        len(self.mcp_tools),
+                        self.mcp_loader.config_path,
+                    )
 
             repl_component = self.query_one(REPL)
             output_adapter = repl_component.output_adapter
@@ -1960,6 +1978,7 @@ class REPLApp(App):
                     decay_enabled=True,
                     decay_ttl_steps=3,
                     decay_min_size=100_000,
+                    additional_tools=self.mcp_tools if self.mcp_tools else None,
                 )
                 return agent
 
@@ -1982,6 +2001,14 @@ class REPLApp(App):
 
             logger.error(f"Failed to initialize agent: {e}")
             self.agent_ready = False
+
+    async def on_unmount(self):
+        """Release MCP toolsets when the TUI shuts down."""
+        if self.mcp_loader:
+            try:
+                await self.mcp_loader.close()
+            except Exception:
+                pass
 
     def _on_agent_swapped(self, agent) -> None:
         """Update app and REPL references after a mode-triggered agent rebuild."""
@@ -2025,6 +2052,7 @@ def create_repl(
     verbose=False,
     resume_session_id=None,
     continue_last=False,
+    mcp_config=None,
     **kwargs,
 ) -> REPLApp:
     """
@@ -2042,6 +2070,7 @@ def create_repl(
             "verbose": verbose,
             "resume_session_id": resume_session_id,
             "continue_last": continue_last,
+            "mcp_config": mcp_config,
             **kwargs,
         }
     )
@@ -2056,6 +2085,7 @@ def run(
     resume_session_id=None,
     continue_last=False,
     model=None,
+    mcp_config=None,
 ):
     """Run the REPL application with optional configuration"""
     # File-based logging for TUI debugging
@@ -2073,6 +2103,7 @@ def run(
     logging.debug(
         f"resume_session_id: {resume_session_id}, continue_last: {continue_last}"
     )
+    logging.debug(f"mcp_config: {mcp_config}")
 
     app = create_repl(
         initial_prompt=initial_prompt,
@@ -2081,6 +2112,7 @@ def run(
         resume_session_id=resume_session_id,
         continue_last=continue_last,
         model=model,
+        mcp_config=mcp_config,
     )
     logging.debug(f"app.repl_props: {app.repl_props}")
     app.run()

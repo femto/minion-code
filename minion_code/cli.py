@@ -60,6 +60,7 @@ def run_tui_repl(
     resume_session_id: Optional[str] = None,
     continue_last: bool = False,
     model: Optional[str] = None,
+    mcp_config: Optional[Path] = None,
 ):
     """Run the modern TUI REPL interface"""
     try:
@@ -72,6 +73,7 @@ def run_tui_repl(
             resume_session_id=resume_session_id,
             continue_last=continue_last,
             model=model,
+            mcp_config=mcp_config,
         )
     except ImportError as e:
         console = Console()
@@ -83,6 +85,7 @@ def run_tui_repl(
         # Fallback to console CLI
         run_console_cli(
             verbose=verbose,
+            mcp_config=mcp_config,
             resume_session_id=resume_session_id,
             continue_last=continue_last,
             model=model,
@@ -228,6 +231,7 @@ def main(
             resume_session_id=resume,
             continue_last=continue_session,
             model=model,
+            mcp_config=mcp_config_path,
         )
 
 
@@ -253,6 +257,9 @@ def repl(
     ),
     prompt: Optional[str] = typer.Option(
         None, "--prompt", "-p", help="💬 Initial prompt to send to the agent"
+    ),
+    config: Optional[str] = typer.Option(
+        None, "--config", "-c", help="🔌 Path to MCP configuration file (JSON format)"
     ),
 ):
     """
@@ -290,9 +297,36 @@ def repl(
             )
             raise typer.Exit(1)
 
+    mcp_config_path = None
+    if config:
+        mcp_config_path = Path(config).resolve()
+        if not mcp_config_path.exists():
+            console_obj = Console()
+            console_obj.print(
+                f"❌ [bold red]MCP config file does not exist: {config}[/bold red]"
+            )
+            raise typer.Exit(1)
+        if not mcp_config_path.is_file():
+            console_obj = Console()
+            console_obj.print(
+                f"❌ [bold red]MCP config path is not a file: {config}[/bold red]"
+            )
+            raise typer.Exit(1)
+
+        if verbose:
+            console_obj = Console()
+            console_obj.print(
+                f"🔌 [bold green]Using MCP config: {mcp_config_path}[/bold green]"
+            )
+
     # Run TUI REPL
     run_tui_repl(
-        debug=debug, verbose=verbose, initial_prompt=prompt, dir=dir, model=model
+        debug=debug,
+        verbose=verbose,
+        initial_prompt=prompt,
+        dir=dir,
+        model=model,
+        mcp_config=mcp_config_path,
     )
 
 
