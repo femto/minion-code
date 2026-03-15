@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minion-code"
-version = "0.1.43"
+version = "0.1.44"
 description = "A Python project depending on minion"
 authors = [{name = "User", email = "user@example.com"}]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "minionx>=0.1.20",
+    "minionx>=0.1.21",
     "typer>=0.9.0",
     "Pillow>=10.0.0",
     "nest-asyncio>=1.5.0",

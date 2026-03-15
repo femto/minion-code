@@ -14,7 +14,7 @@ from .runtime_paths import ensure_minion_root_env
 
 ensure_minion_root_env()
 
-__version__ = "0.1.43"
+__version__ = "0.1.44"
 __all__ = ["tools", "agents", "MinionCodeAgent", "create_minion_code_agent"]
 
 

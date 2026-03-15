@@ -87,7 +87,7 @@ try:
     __version__ = get_version("minion-code")
     __minionx_version__ = get_version("minionx")
 except Exception:
-    __version__ = "0.1.43"
+    __version__ = "0.1.44"
     __minionx_version__ = "unknown"
 
 
