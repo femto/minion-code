@@ -60,7 +60,6 @@ from ..type_defs import (
     REPLConfig,
     ModelInfo,
 )
-from ..utils.step_status import humanize_step_status
 
 
 class Logo(Static):
@@ -1187,7 +1186,6 @@ Try typing something to get started!"""
                     try:
                         # Attempt streaming response with granular event handling
                         response_content = ""
-                        current_status = ""
 
                         async for chunk in await self.agent.run_async(
                             user_content, stream=True
@@ -1197,25 +1195,13 @@ Try typing something to get started!"""
                             chunk_metadata = getattr(chunk, "metadata", {})
 
                             # Handle different chunk types
-                            if chunk_type == "step_start":
-                                # Show step indicator
-                                current_status = f"🔄 {humanize_step_status(chunk_content)}"
-                                status_message = MessageData(
-                                    type=MessageType.PROGRESS,
-                                    message=MessageContent(current_status),
-                                    options={"streaming": True, "step_start": True},
-                                )
-                                self.messages = [*self.messages[:-1], status_message]
-
-                            elif chunk_type == "thinking":
+                            if chunk_type == "thinking":
                                 # Accumulate thinking content (LLM response)
                                 response_content += chunk_content
                                 streaming_message = MessageData(
                                     type=MessageType.ASSISTANT,
                                     message=MessageContent(
-                                        f"{current_status}\n\n{response_content}"
-                                        if current_status
-                                        else response_content
+                                        response_content
                                     ),
                                     options={"streaming": True},
                                 )
