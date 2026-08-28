@@ -1,3 +1,5 @@
+
+
 # MinionCodeAgent
 
 An enhanced AI code assistant built on the Minion framework, pre-configured with rich development tools, optimized for code development tasks.
@@ -103,6 +105,9 @@ mcode model claude-3-5-sonnet
 mcode model --clear
 ```
 
+**
+```
+
 **Model Priority:**
 1. CLI `--model` argument (highest priority)
 2. Config file `~/.minion/minion-code.json`
@@ -110,7 +115,7 @@ mcode model --clear
 
 ### ACP Protocol Support
 
-MinionCodeAgent supports the [ACP (Agent Communication Protocol)](https://agentcommunicationprotocol.dev/) protocol, enabling integration with ACP-compatible clients like Zed editor.
+MinionCodeAgent supports the [ACP (Agent Client Protocol)](https://agentcommunicationprotocol.dev/) protocol, enabling integration with ACP-compatible clients like Zed editor.
 
 ```bash
 # Start ACP server (stdio mode)
