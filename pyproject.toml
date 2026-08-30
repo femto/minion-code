@@ -62,3 +62,7 @@ disable_error_code = ["var-annotated", "assignment", "arg-type", "attr-defined",
 module = ["yaml", "yaml.*", "watchdog", "watchdog.*", "textual", "textual.*", "pydantic", "pydantic.*", "loguru", "loguru.*", "psutil", "minion", "minion.*"]
 ignore_missing_imports = true
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
