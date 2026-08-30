@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "fd007f1b4662",
+  "session_id": "01a050c8-2e17-72f3-bf16-70824fa35c66",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-30T12:40:11.433282Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "pyproject.toml"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "d01e4539cf40",
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-30T12:40:10.439304Z",
+    "agent_lines": 0,
+    "human_added": 4,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 4,
+    "agent_percentage": 0
+  },
+  "transcript_path": ".codex/sessions/2026/08/30/rollout-2026-08-30T11-48-11-01a050c8-2e17-72f3-bf16-70824fa35c66.jsonl"
+}
