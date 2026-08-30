@@ -27,7 +27,7 @@ from acp.schema import (
     AgentThoughtChunk,
     AudioContentBlock,
     AuthenticateResponse,
-    AuthMethod,
+    AuthMethodAgent,
     ClientCapabilities,
     ContentToolCallContent,
     EmbeddedResourceContentBlock,
@@ -39,14 +39,11 @@ from acp.schema import (
     ListSessionsResponse,
     LoadSessionResponse,
     McpServerStdio,
-    ModelInfo,
     NewSessionResponse,
     PromptResponse,
     ResourceContentBlock,
     ResumeSessionResponse,
-    SessionModelState,
     SessionModeState,
-    SetSessionModelResponse,
     SetSessionModeResponse,
     SseMcpServer,
     TextContentBlock,
@@ -67,7 +64,6 @@ from .auth import (
     is_authenticated,
     get_credentials,
     start_authentication,
-    get_openrouter_models,
 )
 
 # Lazy imports for heavy dependencies - only imported when needed
@@ -143,11 +139,9 @@ class MinionACPAgent:
                 name="minion-code",
                 version=__version__,
             ),
-            agent_capabilities=AgentCapabilities(
-                streaming=True,
-            ),
+            agent_capabilities=AgentCapabilities(),
             auth_methods=[
-                AuthMethod(
+                AuthMethodAgent(
                     id="openrouter-oauth",
                     name="Sign in with OpenRouter",
                     description="Sign in with your OpenRouter account to use AI models (Claude, GPT-4, etc.)",
@@ -200,32 +194,8 @@ class MinionACPAgent:
         self.sessions[session_id] = session
         self._cancel_events[session_id] = asyncio.Event()
 
-        # Fetch available models from OpenRouter
-        models_state = None
-        if has_openrouter_auth:
-            try:
-                openrouter_models = await get_openrouter_models()
-                if openrouter_models:
-                    available_models = [
-                        ModelInfo(
-                            modelId=m["id"],
-                            name=m["name"],
-                            description=m.get("description") or f"Context: {m.get('context_length', 'N/A')}",
-                        )
-                        for m in openrouter_models[:50]  # Limit to 50 models
-                    ]
-                    current_model = credentials.default_model if credentials else "openrouter/free"
-                    models_state = SessionModelState(
-                        availableModels=available_models,
-                        currentModelId=current_model,
-                    )
-                    logger.info(f"Returning {len(available_models)} models to client")
-            except Exception as e:
-                logger.warning(f"Failed to fetch models: {e}")
-
         return NewSessionResponse(
             session_id=session_id,
-            models=models_state,
             modes=build_session_mode_state(session.current_mode_id),
         )
 
@@ -282,15 +252,6 @@ class MinionACPAgent:
             )
 
         return SetSessionModeResponse()
-
-    async def set_session_model(
-        self,
-        model_id: str,
-        session_id: str,
-        **kwargs: Any,
-    ) -> Optional[SetSessionModelResponse]:
-        """Set the session model (not implemented)."""
-        return None
 
     async def authenticate(
         self,

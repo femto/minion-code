@@ -15,15 +15,27 @@ from typing import Any
 
 from acp import spawn_agent_process, text_block
 from acp.interfaces import Client
+from acp.schema import PermissionOption, RequestPermissionResponse, ToolCallUpdate
 
 
 class TestClient(Client):
     """Simple client that prints all updates."""
 
-    async def request_permission(self, options, session_id, tool_call, **kwargs: Any):
+    async def request_permission(
+        self,
+        session_id: str,
+        tool_call: ToolCallUpdate,
+        options: list[PermissionOption],
+        **kwargs: Any,
+    ) -> RequestPermissionResponse:
         """Auto-accept all permissions for testing."""
         print(f"[PERMISSION] {tool_call}")
-        return {"outcome": {"outcome": "accepted"}}
+        selected = next(
+            option for option in options if option.kind in ("allow_once", "allow_always")
+        )
+        return RequestPermissionResponse(
+            outcome={"outcome": "selected", "optionId": selected.option_id}
+        )
 
     async def session_update(self, session_id, update, **kwargs):
         """Print all session updates."""
