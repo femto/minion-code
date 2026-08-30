@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "e201724c6ab8",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "minion_code/acp_server/agent.py",
+    "minion_code/acp_server/test_client.py",
+    "pyproject.toml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e2/01724c6ab8/0/metadata.json",
+      "transcript": "/e2/01724c6ab8/0/full.jsonl",
+      "context": "",
+      "content_hash": "/e2/01724c6ab8/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  }
+}
