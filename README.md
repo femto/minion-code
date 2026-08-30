@@ -1,5 +1,7 @@
 # MinionCodeAgent
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/femto/minion-code)
+
 An enhanced AI code assistant built on the Minion framework, pre-configured with rich development tools, optimized for code development tasks.
 
 ## Features
