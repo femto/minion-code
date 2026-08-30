@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "fd007f1b4662",
+  "session_id": "6064747a-7f18-49d7-b757-4526bd5e6a6e",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-30T12:40:14.014821Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "pyproject.toml"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "b1001a5b8e24",
+  "initial_attribution": {
+    "calculated_at": "2026-08-30T12:40:14.014088Z",
+    "agent_lines": 0,
+    "human_added": 4,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 4,
+    "agent_percentage": 0
+  },
+  "transcript_path": ".claude/projects/-Users-femtozheng-python-project-minion-code/6064747a-7f18-49d7-b757-4526bd5e6a6e.jsonl"
+}
