@@ -1,3 +1,5 @@
+
+
 # MinionCodeAgent
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/femto/minion-code)
@@ -105,6 +107,9 @@ mcode model claude-3-5-sonnet
 mcode model --clear
 ```
 
+**
+```
+
 **Model Priority:**
 1. CLI `--model` argument (highest priority)
 2. Config file `~/.minion/minion-code.json`
@@ -112,7 +117,7 @@ mcode model --clear
 
 ### ACP Protocol Support
 
-MinionCodeAgent supports the [ACP (Agent Communication Protocol)](https://agentcommunicationprotocol.dev/) protocol, enabling integration with ACP-compatible clients like Zed editor.
+MinionCodeAgent supports the [ACP (Agent Client Protocol)](https://agentcommunicationprotocol.dev/) protocol, enabling integration with ACP-compatible clients like Zed editor.
 
 ```bash
 # Start ACP server (stdio mode)
