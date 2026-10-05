@@ -1,0 +1,20 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "40bb11bcf274",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "minion_code/__init__.py",
+    "pyproject.toml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/40/bb11bcf274/0/metadata.json",
+      "transcript": "/40/bb11bcf274/0/full.jsonl",
+      "context": "",
+      "content_hash": "/40/bb11bcf274/0/content_hash.txt",
+      "prompt": ""
+    }
+  ]
+}
