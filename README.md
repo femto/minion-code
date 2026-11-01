@@ -112,7 +112,7 @@ mcode model --clear
 
 ### ACP Protocol Support
 
-MinionCodeAgent supports the [ACP (Agent Communication Protocol)](https://agentcommunicationprotocol.dev/) protocol, enabling integration with ACP-compatible clients like Zed editor.
+MinionCodeAgent supports the [ACP (Agent Client Protocol)](https://agentclientprotocol.com/) protocol, enabling integration with ACP-compatible clients like Zed editor.
 
 ```bash
 # Start ACP server (stdio mode)
