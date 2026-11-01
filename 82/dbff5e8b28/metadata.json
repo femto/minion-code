@@ -1,0 +1,19 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "82dbff5e8b28",
+  "strategy": "manual-commit",
+  "branch": "docs/fix-acp-name",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "README.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/82/dbff5e8b28/0/metadata.json",
+      "transcript": "/82/dbff5e8b28/0/full.jsonl",
+      "context": "",
+      "content_hash": "/82/dbff5e8b28/0/content_hash.txt",
+      "prompt": ""
+    }
+  ]
+}
